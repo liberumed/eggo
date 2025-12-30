@@ -81,7 +81,7 @@ pub fn knife_attack(
                 });
             } else if hostile.is_none() {
                 // Make non-hostile creature become hostile when hit
-                commands.entity(entity).insert(Hostile);
+                commands.entity(entity).insert(Hostile { speed: PROVOKED_SPEED });
 
                 // Spawn a fist for the newly hostile creature
                 let fist_entity = commands.spawn((
@@ -145,7 +145,7 @@ pub fn hostile_ai(
     player_query: Query<&Transform, (With<Player>, Without<Creature>)>,
     mut creature_queries: ParamSet<(
         Query<(Entity, &Transform), (With<Creature>, Without<Dead>)>,
-        Query<(Entity, &mut Transform), (With<Hostile>, Without<Dead>, Without<Player>, Without<Stunned>)>,
+        Query<(Entity, &mut Transform, &Hostile), (Without<Dead>, Without<Player>, Without<Stunned>)>,
     )>,
 ) {
     let Ok(player_transform) = player_query.single() else { return };
@@ -159,13 +159,13 @@ pub fn hostile_ai(
 
     let collision_dist = COLLISION_RADIUS * 1.8;
 
-    for (entity, mut transform) in creature_queries.p1().iter_mut() {
+    for (entity, mut transform, hostile) in creature_queries.p1().iter_mut() {
         let creature_pos = Vec2::new(transform.translation.x, transform.translation.y);
         let distance = player_pos.distance(creature_pos);
 
         if distance < HOSTILE_SIGHT_RANGE && distance > COLLISION_RADIUS {
             let dir = (player_pos - creature_pos).normalize();
-            let movement = dir * HOSTILE_SPEED * time.delta_secs();
+            let movement = dir * hostile.speed * time.delta_secs();
             let new_pos = creature_pos + movement;
 
             let blocked = creature_positions.iter().any(|(other_entity, other_pos)| {

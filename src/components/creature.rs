@@ -13,7 +13,9 @@ pub struct CreatureAnimation {
 
 /// Marker for creatures that will attack the player
 #[derive(Component)]
-pub struct Hostile;
+pub struct Hostile {
+    pub speed: f32,
+}
 
 /// Marker for glowing creatures
 #[derive(Component)]

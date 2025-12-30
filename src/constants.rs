@@ -16,7 +16,8 @@ pub const PIXEL_SCALE: f32 = 4.0;
 
 // Movement
 pub const PLAYER_SPEED: f32 = 75.0;
-pub const HOSTILE_SPEED: f32 = 30.0;
+pub const HOSTILE_SPEED: f32 = 55.0;
+pub const PROVOKED_SPEED: f32 = 40.0;
 pub const KNOCKBACK_FORCE: f32 = 250.0;
 
 // Combat

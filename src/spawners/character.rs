@@ -314,7 +314,7 @@ fn spawn_creature(
     ));
 
     if is_hostile {
-        entity_commands.insert(Hostile);
+        entity_commands.insert(Hostile { speed: HOSTILE_SPEED });
     }
     if is_glowing {
         entity_commands.insert(Glowing);

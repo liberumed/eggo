@@ -1,7 +1,7 @@
 use bevy::{app::AppExit, prelude::*};
 
 use crate::components::*;
-use crate::resources::Stats;
+use crate::resources::{GameState, Stats};
 
 pub fn update_counters(
     stats: Res<Stats>,
@@ -60,11 +60,13 @@ pub fn stabilize_text_rotation(
 pub fn show_death_screen(
     player_query: Query<&Dead, With<Player>>,
     mut death_screen_query: Query<&mut Visibility, With<DeathScreen>>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
     if player_query.iter().next().is_some() {
         if let Ok(mut visibility) = death_screen_query.single_mut() {
             *visibility = Visibility::Inherited;
         }
+        next_state.set(GameState::Dead);
     }
 }
 

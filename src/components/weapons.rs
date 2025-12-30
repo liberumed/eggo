@@ -7,12 +7,8 @@ pub struct Knife;
 pub struct Fist;
 
 #[derive(Component)]
-pub struct KnifeSwing {
+pub struct WeaponSwing {
     pub timer: f32,
-    pub base_angle: f32,
-}
-
-#[derive(Component)]
-pub struct FistSwing {
-    pub timer: f32,
+    pub duration: f32,
+    pub base_angle: Option<f32>,
 }

@@ -10,7 +10,7 @@ pub fn knife_attack(
     keyboard: Res<ButtonInput<KeyCode>>,
     player_query: Query<&Transform, (With<Player>, Without<Dead>)>,
     knife_query: Query<(Entity, &Transform), With<Knife>>,
-    knife_swing_query: Query<&KnifeSwing>,
+    knife_swing_query: Query<&WeaponSwing, With<Knife>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     assets: Res<CharacterAssets>,
 ) {
@@ -28,7 +28,7 @@ pub fn knife_attack(
     let knife_dir = if let Ok((knife_entity, knife_transform)) = knife_query.single() {
         let (_, angle) = knife_transform.rotation.to_axis_angle();
         let base_angle = if knife_transform.rotation.z < 0.0 { -angle } else { angle };
-        commands.entity(knife_entity).insert(KnifeSwing { timer: 0.0, base_angle });
+        commands.entity(knife_entity).insert(WeaponSwing { timer: 0.0, duration: KNIFE_SWING_DURATION, base_angle: Some(base_angle) });
         Vec2::new(base_angle.cos(), base_angle.sin())
     } else {
         Vec2::X
@@ -104,7 +104,7 @@ pub fn knife_attack(
 
 pub fn aim_knife(
     player_query: Query<&Transform, With<Player>>,
-    mut knife_query: Query<&mut Transform, (With<Knife>, Without<Player>, Without<KnifeSwing>, Without<TargetOutline>)>,
+    mut knife_query: Query<&mut Transform, (With<Knife>, Without<Player>, Without<WeaponSwing>, Without<TargetOutline>)>,
     creatures_query: Query<&Transform, (With<Creature>, Without<Dead>, Without<Player>, Without<Knife>, Without<TargetOutline>)>,
     mut outline_query: Query<(&mut Transform, &mut Visibility), (With<TargetOutline>, Without<Knife>, Without<Player>, Without<Creature>)>,
 ) {
@@ -183,7 +183,7 @@ pub fn hostile_ai(
 pub fn hostile_fist_aim(
     player_query: Query<&Transform, (With<Player>, Without<Creature>)>,
     hostile_query: Query<(&Transform, &Children), (With<Hostile>, Without<Dead>)>,
-    mut fist_query: Query<&mut Transform, (With<Fist>, Without<Hostile>, Without<Player>, Without<FistSwing>)>,
+    mut fist_query: Query<&mut Transform, (With<Fist>, Without<Hostile>, Without<Player>, Without<WeaponSwing>)>,
 ) {
     let Ok(player_transform) = player_query.single() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
@@ -205,7 +205,7 @@ pub fn hostile_attack(
     mut commands: Commands,
     mut player_query: Query<(Entity, &Transform, &mut Health), (With<Player>, Without<Creature>, Without<Dead>)>,
     hostile_query: Query<(&Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
-    fist_query: Query<Entity, (With<Fist>, Without<FistSwing>)>,
+    fist_query: Query<Entity, (With<Fist>, Without<WeaponSwing>)>,
     knockback_query: Query<&Knockback>,
 ) {
     let Ok((player_entity, player_transform, mut player_health)) = player_query.single_mut() else { return };
@@ -222,7 +222,7 @@ pub fn hostile_attack(
         if distance < FIST_RANGE {
             for child in children.iter() {
                 if let Ok(fist_entity) = fist_query.get(child) {
-                    commands.entity(fist_entity).insert(FistSwing { timer: 0.0 });
+                    commands.entity(fist_entity).insert(WeaponSwing { timer: 0.0, duration: FIST_SWING_DURATION, base_angle: None });
 
                     player_health.0 -= 1;
 

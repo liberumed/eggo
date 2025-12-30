@@ -68,63 +68,48 @@ pub fn animate_creatures(
     }
 }
 
-pub fn animate_knife_swing(
+pub fn animate_weapon_swing(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut KnifeSwing)>,
-) {
-    for (entity, mut transform, mut swing) in &mut query {
-        swing.timer += time.delta_secs();
-
-        let t = swing.timer;
-
-        if t < KNIFE_SWING_DURATION {
-            let progress = t / KNIFE_SWING_DURATION;
-
-            let (thrust_scale, rotation_offset) = if progress < 0.15 {
-                let p = progress / 0.15;
-                (1.0 - p * 0.2, p * 0.15)
-            } else if progress < 0.4 {
-                let p = (progress - 0.15) / 0.25;
-                (0.8 + p * 0.8, 0.15 - p * 0.15)
-            } else if progress < 0.6 {
-                let p = (progress - 0.4) / 0.2;
-                (1.6 - p * 0.1, -p * 0.1)
-            } else {
-                let p = (progress - 0.6) / 0.4;
-                (1.5 - p * 0.5, -0.1 + p * 0.1)
-            };
-
-            transform.scale = Vec3::new(thrust_scale, 1.0, 1.0);
-            transform.rotation = Quat::from_rotation_z(swing.base_angle + rotation_offset);
-        } else {
-            transform.scale = Vec3::ONE;
-            transform.rotation = Quat::from_rotation_z(swing.base_angle);
-            commands.entity(entity).remove::<KnifeSwing>();
-        }
-    }
-}
-
-pub fn animate_fist_swing(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut FistSwing)>,
+    mut query: Query<(Entity, &mut Transform, &mut WeaponSwing)>,
 ) {
     for (entity, mut transform, mut swing) in &mut query {
         swing.timer += time.delta_secs();
         let t = swing.timer;
 
-        if t < FIST_SWING_DURATION {
-            let progress = t / FIST_SWING_DURATION;
-            let punch_scale = if progress < 0.3 {
-                1.0 + (progress / 0.3) * 0.5
+        if t < swing.duration {
+            let progress = t / swing.duration;
+
+            if let Some(base_angle) = swing.base_angle {
+                let (thrust_scale, rotation_offset) = if progress < 0.15 {
+                    let p = progress / 0.15;
+                    (1.0 - p * 0.2, p * 0.15)
+                } else if progress < 0.4 {
+                    let p = (progress - 0.15) / 0.25;
+                    (0.8 + p * 0.8, 0.15 - p * 0.15)
+                } else if progress < 0.6 {
+                    let p = (progress - 0.4) / 0.2;
+                    (1.6 - p * 0.1, -p * 0.1)
+                } else {
+                    let p = (progress - 0.6) / 0.4;
+                    (1.5 - p * 0.5, -0.1 + p * 0.1)
+                };
+                transform.scale = Vec3::new(thrust_scale, 1.0, 1.0);
+                transform.rotation = Quat::from_rotation_z(base_angle + rotation_offset);
             } else {
-                1.5 - 0.5 * ((progress - 0.3) / 0.7)
-            };
-            transform.scale = Vec3::splat(punch_scale);
+                let punch_scale = if progress < 0.3 {
+                    1.0 + (progress / 0.3) * 0.5
+                } else {
+                    1.5 - 0.5 * ((progress - 0.3) / 0.7)
+                };
+                transform.scale = Vec3::splat(punch_scale);
+            }
         } else {
             transform.scale = Vec3::ONE;
-            commands.entity(entity).remove::<FistSwing>();
+            if let Some(base_angle) = swing.base_angle {
+                transform.rotation = Quat::from_rotation_z(base_angle);
+            }
+            commands.entity(entity).remove::<WeaponSwing>();
         }
     }
 }

@@ -1,5 +1,6 @@
 mod components;
 mod constants;
+mod plugins;
 mod resources;
 mod spawners;
 mod systems;
@@ -7,9 +8,9 @@ mod systems;
 use bevy::prelude::*;
 use components::*;
 use constants::*;
-use resources::Stats;
+use plugins::*;
+use resources::{GameState, Stats};
 use spawners::CharacterAssets;
-use systems::*;
 
 fn main() {
     App::new()
@@ -23,40 +24,15 @@ fn main() {
             ..default()
         }))
         .init_resource::<Stats>()
+        .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
         .add_systems(Startup, (setup, setup_ui))
-        .add_systems(Update, (
-            // Movement
-            move_player,
-            apply_knockback,
-            // Animation
-            animate_player,
-            animate_creatures,
-            animate_knife_swing,
-            animate_fist_swing,
-            animate_death,
-            // Combat
-            knife_attack,
-            aim_knife,
-            hostile_ai,
-            hostile_fist_aim,
-            hostile_attack,
-        ))
-        .add_systems(Update, (
-            // Camera & UI
-            camera_follow,
-            update_counters,
-            update_hp_text,
-            stabilize_text_rotation,
-            show_death_screen,
-            handle_new_game_button,
-            // Effects
-            animate_resource_balls,
-            animate_magnetized_balls,
-            animate_blood,
-            // Status
-            update_stun,
-            update_despawn_timer,
+        .add_plugins((
+            PlayerPlugin,
+            CreaturePlugin,
+            EffectsPlugin,
+            UiPlugin,
+            StatusPlugin,
         ))
         .run();
 }

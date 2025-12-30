@@ -24,7 +24,7 @@ pub const KNOCKBACK_FORCE: f32 = 250.0;
 pub const COLLISION_RADIUS: f32 = 14.0;
 pub const HOSTILE_SIGHT_RANGE: f32 = 100.0;
 pub const FIST_RANGE: f32 = COLLISION_RADIUS * 1.8;
-pub const KNIFE_RANGE: f32 = COLLISION_RADIUS * 3.5;
+pub const KNIFE_RANGE: f32 = COLLISION_RADIUS * 4.0;
 
 // Animation Durations
 pub const KNIFE_SWING_DURATION: f32 = 0.4;

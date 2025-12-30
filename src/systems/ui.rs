@@ -1,7 +1,8 @@
-use bevy::{app::AppExit, prelude::*};
+use bevy::prelude::*;
 
 use crate::components::*;
 use crate::resources::{GameState, Stats};
+use crate::spawners::{spawn_creatures, spawn_player, spawn_target_outline, CharacterAssets};
 
 pub fn update_counters(
     stats: Res<Stats>,
@@ -57,6 +58,26 @@ pub fn stabilize_text_rotation(
     }
 }
 
+pub fn stabilize_shadow(
+    parent_query: Query<(&Transform, &Children), Or<(With<Player>, With<Creature>)>>,
+    mut shadow_query: Query<&mut Transform, (With<Shadow>, Without<Player>, Without<Creature>)>,
+) {
+    for (parent_transform, children) in &parent_query {
+        let inverse_rotation = parent_transform.rotation.inverse();
+        let inverse_scale = Vec3::new(
+            1.0 / parent_transform.scale.x,
+            1.0 / parent_transform.scale.y,
+            1.0,
+        );
+        for child in children.iter() {
+            if let Ok(mut shadow_transform) = shadow_query.get_mut(child) {
+                shadow_transform.rotation = inverse_rotation;
+                shadow_transform.scale = inverse_scale;
+            }
+        }
+    }
+}
+
 pub fn show_death_screen(
     player_query: Query<&Dead, With<Player>>,
     mut death_screen_query: Query<&mut Visibility, With<DeathScreen>>,
@@ -71,15 +92,33 @@ pub fn show_death_screen(
 }
 
 pub fn handle_new_game_button(
+    mut commands: Commands,
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<NewGameButton>)>,
-    mut exit: MessageWriter<AppExit>,
+    entities_query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>)>>,
+    mut death_screen_query: Query<&mut Visibility, With<DeathScreen>>,
+    mut stats: ResMut<Stats>,
+    mut next_state: ResMut<NextState<GameState>>,
+    assets: Res<CharacterAssets>,
 ) {
     for interaction in &interaction_query {
         if *interaction == Interaction::Pressed {
-            if let Ok(exe) = std::env::current_exe() {
-                let _ = std::process::Command::new(exe).spawn();
+            for entity in &entities_query {
+                commands.entity(entity).despawn();
             }
-            exit.write(AppExit::Success);
+
+            stats.philosophy = 0;
+            stats.nature_study = 0;
+            stats.wisdom = 0;
+
+            spawn_player(&mut commands, &assets);
+            spawn_target_outline(&mut commands, &assets);
+            spawn_creatures(&mut commands, &assets);
+
+            if let Ok(mut visibility) = death_screen_query.single_mut() {
+                *visibility = Visibility::Hidden;
+            }
+
+            next_state.set(GameState::Playing);
         }
     }
 }

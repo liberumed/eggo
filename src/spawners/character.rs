@@ -196,9 +196,9 @@ pub fn spawn_player(commands: &mut Commands, assets: &CharacterAssets) {
         parent.spawn((
             HpText,
             Text2d::new("2"),
-            TextFont { font_size: 8.0, ..default() },
+            TextFont { font_size: 32.0, ..default() },
             TextColor(Color::srgb(1.0, 1.0, 1.0)),
-            Transform::from_xyz(2.0, 18.0, Z_UI_WORLD),
+            Transform::from_xyz(2.0, 18.0, Z_UI_WORLD).with_scale(Vec3::splat(0.25)),
         ));
         // Knife weapon
         parent.spawn((
@@ -374,9 +374,9 @@ fn spawn_creature_children(
     parent.spawn((
         HpText,
         Text2d::new("2"),
-        TextFont { font_size: 8.0, ..default() },
+        TextFont { font_size: 32.0, ..default() },
         TextColor(Color::srgb(1.0, 1.0, 1.0)),
-        Transform::from_xyz(2.0, 18.0, Z_UI_WORLD),
+        Transform::from_xyz(2.0, 18.0, Z_UI_WORLD).with_scale(Vec3::splat(0.25)),
     ));
 
     // Resource balls

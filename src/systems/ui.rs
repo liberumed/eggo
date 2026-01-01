@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::components::*;
 use crate::resources::{GameState, Stats};
-use crate::spawners::{spawn_creatures, spawn_player, spawn_target_outline, CharacterAssets};
+use crate::spawners::{spawn_creatures, spawn_ground_item, spawn_player, spawn_target_outline, CharacterAssets};
 
 pub fn update_counters(
     stats: Res<Stats>,
@@ -129,7 +129,7 @@ pub fn update_weapon_info(
 pub fn handle_new_game_button(
     mut commands: Commands,
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<NewGameButton>)>,
-    entities_query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>)>>,
+    entities_query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>, With<GroundItem>)>>,
     mut death_screen_query: Query<&mut Visibility, With<DeathScreen>>,
     mut stats: ResMut<Stats>,
     mut next_state: ResMut<NextState<GameState>>,
@@ -148,6 +148,10 @@ pub fn handle_new_game_button(
             spawn_player(&mut commands, &assets);
             spawn_target_outline(&mut commands, &assets);
             spawn_creatures(&mut commands, &assets);
+
+            // Spawn test items
+            spawn_ground_item(&mut commands, &assets, ItemId::HealthPotion, 1, Vec2::new(30.0, 20.0));
+            spawn_ground_item(&mut commands, &assets, ItemId::HealthPotion, 3, Vec2::new(-40.0, 30.0));
 
             if let Ok(mut visibility) = death_screen_query.single_mut() {
                 *visibility = Visibility::Hidden;

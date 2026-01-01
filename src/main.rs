@@ -33,6 +33,7 @@ fn main() {
             EffectsPlugin,
             UiPlugin,
             StatusPlugin,
+            InventoryPlugin,
         ))
         .run();
 }
@@ -56,6 +57,10 @@ fn setup(
     spawners::spawn_target_outline(&mut commands, &assets);
     spawners::spawn_creatures(&mut commands, &assets);
     spawners::spawn_background_grid(&mut commands, &mut meshes, &mut materials);
+
+    // Spawn test items
+    spawners::spawn_ground_item(&mut commands, &assets, ItemId::HealthPotion, 1, Vec2::new(30.0, 20.0));
+    spawners::spawn_ground_item(&mut commands, &assets, ItemId::HealthPotion, 3, Vec2::new(-40.0, 30.0));
 
     // Insert assets as resource for later use
     commands.insert_resource(assets);
@@ -110,6 +115,162 @@ fn setup_ui(mut commands: Commands) {
             spawn_weapon_stat(parent, "ARC", "1", WeaponConeText);
             spawn_weapon_stat(parent, "IMP", "3", WeaponKnockbackText);
             spawn_weapon_stat(parent, "TYPE", "Slash", WeaponTypeText);
+        });
+
+    // Hotbar UI (bottom center)
+    commands
+        .spawn((
+            HotbarUI,
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(130.0),
+                left: Val::Percent(50.0),
+                margin: UiRect::left(Val::Px(-130.0)),
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(4.0),
+                ..default()
+            },
+        ))
+        .with_children(|parent| {
+            for i in 0..5 {
+                parent
+                    .spawn((
+                        HotbarSlot(i),
+                        Node {
+                            width: Val::Px(48.0),
+                            height: Val::Px(48.0),
+                            border: UiRect::all(Val::Px(2.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.2, 0.2, 0.22, 0.9)),
+                        BorderColor::all(Color::srgb(0.4, 0.4, 0.45)),
+                    ))
+                    .with_children(|slot| {
+                        // Number label (top-left)
+                        slot.spawn((
+                            Text::new((i + 1).to_string()),
+                            TextFont {
+                                font_size: 10.0,
+                                ..default()
+                            },
+                            TextColor(Color::srgba(0.6, 0.6, 0.6, 0.8)),
+                            Node {
+                                position_type: PositionType::Absolute,
+                                top: Val::Px(2.0),
+                                left: Val::Px(4.0),
+                                ..default()
+                            },
+                        ));
+                        // Stack count (bottom-right)
+                        slot.spawn((
+                            HotbarSlotCount(i),
+                            Text::new(""),
+                            TextFont {
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor(Color::WHITE),
+                            Node {
+                                position_type: PositionType::Absolute,
+                                bottom: Val::Px(2.0),
+                                right: Val::Px(4.0),
+                                ..default()
+                            },
+                        ));
+                    });
+            }
+        });
+
+    // Inventory Panel (Tab toggle)
+    commands
+        .spawn((
+            InventoryPanel,
+            Button,
+            Interaction::None,
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(20.0),
+                right: Val::Px(20.0),
+                width: Val::Px(320.0),
+                height: Val::Px(240.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(16.0)),
+                row_gap: Val::Px(12.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.12, 0.12, 0.14, 0.95)),
+            BorderRadius::all(Val::Px(8.0)),
+            Visibility::Hidden,
+        ))
+        .with_children(|parent| {
+            // Title
+            parent.spawn((
+                Text::new("INVENTORY"),
+                TextFont {
+                    font_size: 20.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.85, 0.85, 0.85)),
+            ));
+
+            // Inventory grid (2 rows of 5)
+            for row in 0..2 {
+                parent
+                    .spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(4.0),
+                        ..default()
+                    })
+                    .with_children(|row_node| {
+                        for col in 0..5 {
+                            let index = row * 5 + col;
+                            row_node
+                                .spawn((
+                                    InventorySlotUI(index),
+                                    Button,
+                                    Node {
+                                        width: Val::Px(48.0),
+                                        height: Val::Px(48.0),
+                                        border: UiRect::all(Val::Px(2.0)),
+                                        justify_content: JustifyContent::Center,
+                                        align_items: AlignItems::Center,
+                                        ..default()
+                                    },
+                                    BackgroundColor(Color::srgba(0.2, 0.2, 0.22, 1.0)),
+                                    BorderColor::all(Color::srgb(0.4, 0.4, 0.45)),
+                                ))
+                                .with_children(|slot| {
+                                    slot.spawn((
+                                        InventorySlotCount(index),
+                                        Text::new(""),
+                                        TextFont {
+                                            font_size: 12.0,
+                                            ..default()
+                                        },
+                                        TextColor(Color::WHITE),
+                                        Node {
+                                            position_type: PositionType::Absolute,
+                                            bottom: Val::Px(2.0),
+                                            right: Val::Px(4.0),
+                                            ..default()
+                                        },
+                                    ));
+                                });
+                        }
+                    });
+            }
+
+            // Instructions
+            parent.spawn((
+                Text::new("Right Click item to use/equip"),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.5, 0.5, 0.5)),
+            ));
         });
 
     commands.spawn((

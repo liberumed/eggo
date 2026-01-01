@@ -44,3 +44,22 @@ pub struct WeaponKnockbackText;
 
 #[derive(Component)]
 pub struct WeaponTypeText;
+
+// Inventory UI components
+#[derive(Component)]
+pub struct HotbarUI;
+
+#[derive(Component)]
+pub struct HotbarSlot(pub usize);
+
+#[derive(Component)]
+pub struct HotbarSlotCount(pub usize);
+
+#[derive(Component)]
+pub struct InventoryPanel;
+
+#[derive(Component)]
+pub struct InventorySlotUI(pub usize);
+
+#[derive(Component)]
+pub struct InventorySlotCount(pub usize);

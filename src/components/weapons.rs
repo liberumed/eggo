@@ -138,6 +138,7 @@ pub mod catalog {
 #[derive(Component, Default)]
 pub struct Equipment {
     pub main_hand: Option<Entity>,
+    pub chest: Option<Entity>,
 }
 
 #[derive(Component)]
@@ -148,6 +149,7 @@ pub struct Equippable {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EquipmentSlot {
     MainHand,
+    Chest,
 }
 
 #[derive(Component)]

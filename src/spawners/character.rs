@@ -52,6 +52,12 @@ pub struct CharacterAssets {
     pub blood_droplet_mesh: Handle<Mesh>,
     pub blood_splat_material: Handle<ColorMaterial>,
     pub blood_droplet_material: Handle<ColorMaterial>,
+
+    // Ground items
+    pub item_glow_mesh: Handle<Mesh>,
+    pub item_glow_material: Handle<ColorMaterial>,
+    pub potion_mesh: Handle<Mesh>,
+    pub potion_material: Handle<ColorMaterial>,
 }
 
 impl CharacterAssets {
@@ -109,6 +115,11 @@ impl CharacterAssets {
         let blood_splat_material = materials.add(Color::srgb(0.7, 0.0, 0.0));
         let blood_droplet_material = materials.add(Color::srgb(0.9, 0.1, 0.1));
 
+        let item_glow_mesh = meshes.add(Circle::new(12.0));
+        let item_glow_material = materials.add(Color::srgba(1.0, 1.0, 0.8, 0.3));
+        let potion_mesh = meshes.add(Capsule2d::new(4.0, 6.0));
+        let potion_material = materials.add(Color::srgb(0.9, 0.3, 0.3));
+
         Self {
             character_mesh,
             player_material,
@@ -141,8 +152,67 @@ impl CharacterAssets {
             blood_droplet_mesh,
             blood_splat_material,
             blood_droplet_material,
+            item_glow_mesh,
+            item_glow_material,
+            potion_mesh,
+            potion_material,
         }
     }
+}
+
+pub fn spawn_ground_item(
+    commands: &mut Commands,
+    assets: &CharacterAssets,
+    item_id: ItemId,
+    quantity: u32,
+    position: Vec2,
+) {
+    let mut rng = rand::rng();
+
+    commands
+        .spawn((
+            GroundItem { item_id, quantity },
+            GroundItemBob {
+                phase: rng.random_range(0.0..std::f32::consts::TAU),
+                hovered: false,
+            },
+            Pickupable,
+            Transform::from_xyz(position.x, position.y, Z_PARTICLE),
+        ))
+        .with_children(|parent| {
+            // Glow effect underneath
+            parent.spawn((
+                Mesh2d(assets.item_glow_mesh.clone()),
+                MeshMaterial2d(assets.item_glow_material.clone()),
+                Transform::from_xyz(0.0, 0.0, -0.1),
+            ));
+
+            // Item visual based on type
+            match item_id {
+                ItemId::HealthPotion => {
+                    parent.spawn((
+                        Mesh2d(assets.potion_mesh.clone()),
+                        MeshMaterial2d(assets.potion_material.clone()),
+                        Transform::default(),
+                    ));
+                }
+                ItemId::RustyKnife => {
+                    parent.spawn((
+                        Mesh2d(assets.knife_blade_mesh.clone()),
+                        MeshMaterial2d(assets.blade_material.clone()),
+                        Transform::default(),
+                    ));
+                }
+                _ => {
+                    // Default: simple circle
+                    parent.spawn((
+                        Mesh2d(assets.resource_ball_mesh.clone()),
+                        MeshMaterial2d(assets.philosophy_material.clone()),
+                        Transform::default(),
+                    ));
+                }
+            }
+        });
 }
 
 pub fn spawn_player(commands: &mut Commands, assets: &CharacterAssets) {
@@ -151,6 +221,7 @@ pub fn spawn_player(commands: &mut Commands, assets: &CharacterAssets) {
         PlayerAnimation::default(),
         Health(10),
         Equipment::default(),
+        Inventory::default(),
         Mesh2d(assets.character_mesh.clone()),
         MeshMaterial2d(assets.player_material.clone()),
         Transform::from_xyz(0.0, 0.0, Z_PLAYER),

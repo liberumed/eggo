@@ -9,34 +9,51 @@ pub fn move_player(
     mut player_query: Query<(&mut Transform, &mut PlayerAnimation), (With<Player>, Without<Dead>)>,
     creatures_query: Query<(&Transform, Option<&Dead>), (With<Creature>, Without<Player>)>,
 ) {
-    let mut direction = Vec2::ZERO;
+    let mut input_dir = Vec2::ZERO;
 
     if keyboard.pressed(KeyCode::KeyW) {
-        direction.y += 1.0;
+        input_dir.y += 1.0;
     }
     if keyboard.pressed(KeyCode::KeyS) {
-        direction.y -= 1.0;
+        input_dir.y -= 1.0;
     }
     if keyboard.pressed(KeyCode::KeyA) {
-        direction.x -= 1.0;
+        input_dir.x -= 1.0;
     }
     if keyboard.pressed(KeyCode::KeyD) {
-        direction.x += 1.0;
+        input_dir.x += 1.0;
     }
 
     let collision_distance = COLLISION_RADIUS * 1.5;
+    let dt = time.delta_secs();
 
     for (mut transform, mut anim) in &mut player_query {
-        if direction == Vec2::ZERO {
-            anim.velocity = Vec2::ZERO;
+        if input_dir != Vec2::ZERO {
+            let target_velocity = input_dir.normalize() * PLAYER_SPEED;
+            let diff = target_velocity - anim.velocity;
+            let accel = diff.normalize_or_zero() * PLAYER_ACCELERATION * dt;
+            if accel.length() > diff.length() {
+                anim.velocity = target_velocity;
+            } else {
+                anim.velocity += accel;
+            }
+        } else if anim.velocity != Vec2::ZERO {
+            let friction = anim.velocity.normalize() * PLAYER_FRICTION * dt;
+            if friction.length() >= anim.velocity.length() {
+                anim.velocity = Vec2::ZERO;
+            } else {
+                anim.velocity -= friction;
+            }
+        }
+
+        if anim.velocity == Vec2::ZERO {
             continue;
         }
 
-        let dir_normalized = direction.normalize();
-        let velocity = dir_normalized * PLAYER_SPEED * time.delta_secs();
+        let movement = anim.velocity * dt;
         let new_pos = Vec2::new(
-            transform.translation.x + velocity.x,
-            transform.translation.y + velocity.y,
+            transform.translation.x + movement.x,
+            transform.translation.y + movement.y,
         );
 
         let mut blocked_x = false;
@@ -60,16 +77,16 @@ pub fn move_player(
             }
         }
 
-        let mut actual_velocity = Vec2::ZERO;
         if !blocked_x {
             transform.translation.x = new_pos.x;
-            actual_velocity.x = velocity.x;
+        } else {
+            anim.velocity.x = 0.0;
         }
         if !blocked_y {
             transform.translation.y = new_pos.y;
-            actual_velocity.y = velocity.y;
+        } else {
+            anim.velocity.y = 0.0;
         }
-        anim.velocity = actual_velocity;
     }
 }
 

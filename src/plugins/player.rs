@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::resources::GameState;
 use crate::systems::{
     aim_knife, animate_player, animate_weapon_swing, apply_knockback, knife_attack, move_player,
+    toggle_weapon,
 };
 
 pub struct PlayerPlugin;
@@ -15,6 +16,7 @@ impl Plugin for PlayerPlugin {
                 move_player,
                 apply_knockback,
                 animate_player,
+                toggle_weapon,
                 knife_attack,
                 aim_knife,
                 animate_weapon_swing,

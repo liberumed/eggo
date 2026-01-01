@@ -204,7 +204,7 @@ pub fn spawn_player(commands: &mut Commands, assets: &CharacterAssets) {
         parent.spawn((
             Knife,
             Transform::from_xyz(0.0, 0.0, Z_WEAPON),
-            Visibility::default(),
+            Visibility::Hidden,
         )).with_children(|knife| {
             knife.spawn((
                 Mesh2d(assets.knife_handle_mesh.clone()),

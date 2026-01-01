@@ -15,7 +15,9 @@ pub const Z_TARGET_OUTLINE: f32 = -0.5;
 pub const PIXEL_SCALE: f32 = 4.0;
 
 // Movement
-pub const PLAYER_SPEED: f32 = 75.0;
+pub const PLAYER_SPEED: f32 = 85.0;
+pub const PLAYER_ACCELERATION: f32 = 400.0;
+pub const PLAYER_FRICTION: f32 = 350.0;
 pub const HOSTILE_SPEED: f32 = 55.0;
 pub const PROVOKED_SPEED: f32 = 40.0;
 pub const KNOCKBACK_FORCE: f32 = 250.0;

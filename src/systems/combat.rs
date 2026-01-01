@@ -5,16 +5,30 @@ use crate::components::*;
 use crate::constants::*;
 use crate::spawners::CharacterAssets;
 
+pub fn toggle_weapon(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut knife_query: Query<&mut Visibility, With<Knife>>,
+) {
+    if keyboard.just_pressed(KeyCode::KeyR) {
+        for mut visibility in &mut knife_query {
+            *visibility = match *visibility {
+                Visibility::Hidden => Visibility::Inherited,
+                _ => Visibility::Hidden,
+            };
+        }
+    }
+}
+
 pub fn knife_attack(
     mut commands: Commands,
-    keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
     player_query: Query<&Transform, (With<Player>, Without<Dead>)>,
-    knife_query: Query<(Entity, &Transform), With<Knife>>,
+    knife_query: Query<(Entity, &Transform, &Visibility), With<Knife>>,
     knife_swing_query: Query<&WeaponSwing, With<Knife>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     assets: Res<CharacterAssets>,
 ) {
-    if !keyboard.just_pressed(KeyCode::Space) {
+    if !mouse.just_pressed(MouseButton::Left) {
         return;
     }
 
@@ -22,10 +36,16 @@ pub fn knife_attack(
         return;
     }
 
+    let Ok((knife_entity, _, visibility)) = knife_query.single() else { return };
+    if *visibility == Visibility::Hidden {
+        commands.entity(knife_entity).insert(Visibility::Inherited);
+        return;
+    }
+
     let Ok(player_transform) = player_query.single() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
 
-    let knife_dir = if let Ok((knife_entity, knife_transform)) = knife_query.single() {
+    let knife_dir = if let Ok((knife_entity, knife_transform, _)) = knife_query.single() {
         let (_, angle) = knife_transform.rotation.to_axis_angle();
         let base_angle = if knife_transform.rotation.z < 0.0 { -angle } else { angle };
         commands.entity(knife_entity).insert(WeaponSwing { timer: 0.0, duration: KNIFE_SWING_DURATION, base_angle: Some(base_angle) });
@@ -38,8 +58,13 @@ pub fn knife_attack(
 
     for (entity, creature_transform, mut health, hostile) in &mut creatures_query {
         let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
+        let to_creature = creature_pos - player_pos;
+        let distance = to_creature.length();
 
-        if player_pos.distance(creature_pos) < KNIFE_RANGE {
+        let in_range = distance < KNIFE_RANGE;
+        let in_cone = distance > 0.0 && to_creature.normalize().dot(knife_dir) > 0.5;
+
+        if in_range && in_cone {
             health.0 -= 1;
             commands.entity(entity).insert(Stunned(STUN_DURATION));
 
@@ -103,41 +128,28 @@ pub fn knife_attack(
 }
 
 pub fn aim_knife(
+    windows: Query<&Window>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     player_query: Query<&Transform, With<Player>>,
     mut knife_query: Query<&mut Transform, (With<Knife>, Without<Player>, Without<WeaponSwing>, Without<TargetOutline>)>,
-    creatures_query: Query<&Transform, (With<Creature>, Without<Dead>, Without<Player>, Without<Knife>, Without<TargetOutline>)>,
-    mut outline_query: Query<(&mut Transform, &mut Visibility), (With<TargetOutline>, Without<Knife>, Without<Player>, Without<Creature>)>,
+    mut outline_query: Query<&mut Visibility, With<TargetOutline>>,
 ) {
+    let Ok(window) = windows.single() else { return };
+    let Ok((camera, camera_transform)) = camera_query.single() else { return };
     let Ok(player_transform) = player_query.single() else { return };
     let Ok(mut knife_transform) = knife_query.single_mut() else { return };
-    let Ok((mut outline_transform, mut outline_visibility)) = outline_query.single_mut() else { return };
 
-    let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
-
-    let closest = creatures_query
-        .iter()
-        .min_by(|a, b| {
-            let pos_a = Vec2::new(a.translation.x, a.translation.y);
-            let pos_b = Vec2::new(b.translation.x, b.translation.y);
-            pos_a.distance(player_pos)
-                .partial_cmp(&pos_b.distance(player_pos))
-                .unwrap()
-        });
-
-    if let Some(target) = closest {
-        let target_pos = Vec2::new(target.translation.x, target.translation.y);
-        let dir = target_pos - player_pos;
-        let angle = dir.y.atan2(dir.x);
-        knife_transform.rotation = Quat::from_rotation_z(angle);
-
-        outline_transform.translation.x = target_pos.x;
-        outline_transform.translation.y = target_pos.y;
-        outline_transform.scale = target.scale;
-        outline_transform.rotation = target.rotation;
-        *outline_visibility = Visibility::Inherited;
-    } else {
+    if let Ok(mut outline_visibility) = outline_query.single_mut() {
         *outline_visibility = Visibility::Hidden;
     }
+
+    let Some(cursor_pos) = window.cursor_position() else { return };
+    let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else { return };
+
+    let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
+    let dir = world_pos - player_pos;
+    let angle = dir.y.atan2(dir.x);
+    knife_transform.rotation = Quat::from_rotation_z(angle);
 }
 
 pub fn hostile_ai(

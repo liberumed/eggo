@@ -21,11 +21,6 @@ pub enum AttackType {
     Smash,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DamageType {
-    #[default]
-    Physical,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Rarity {
@@ -40,35 +35,67 @@ pub enum Rarity {
 #[derive(Component)]
 pub struct Weapon {
     pub name: String,
-    pub attack_speed: f32,
     pub damage: i32,
-    pub range: f32,
-    pub cone_angle: f32,
-    pub knockback: f32,
+    pub speed: i32,
+    pub reach: i32,
+    pub arc: i32,
+    pub impact: i32,
     pub attack_type: AttackType,
-    pub damage_type: DamageType,
     pub rarity: Rarity,
-    pub cost: u32,
 }
 
 impl Weapon {
+    pub fn attack_speed(&self) -> f32 {
+        1.0 + self.speed as f32 * 0.5
+    }
+
     pub fn swing_duration(&self) -> f32 {
-        1.0 / self.attack_speed
+        1.0 / self.attack_speed()
+    }
+
+    pub fn range(&self) -> f32 {
+        25.0 + self.reach as f32 * 12.0
+    }
+
+    pub fn cone_angle(&self) -> f32 {
+        0.35 + self.arc as f32 * 0.25
+    }
+
+    pub fn knockback(&self) -> f32 {
+        50.0 + self.impact as f32 * 40.0
     }
 }
 
-pub const UNARMED_STATS: Weapon = Weapon {
-    name: String::new(),
-    attack_speed: 2.5,
-    damage: 1,
-    range: 30.0,
-    cone_angle: 1.57,
-    knockback: 50.0,
-    attack_type: AttackType::Smash,
-    damage_type: DamageType::Physical,
-    rarity: Rarity::Common,
-    cost: 0,
-};
+pub mod catalog {
+    use super::*;
+
+    pub fn rusty_knife() -> Weapon {
+        Weapon {
+            name: "Rusty Knife".to_string(),
+            damage: 1,
+            speed: 3,
+            reach: 3,
+            arc: 1,
+            impact: 3,
+            attack_type: AttackType::Slash,
+            rarity: Rarity::Common,
+        }
+    }
+
+    pub fn fist() -> Weapon {
+        Weapon {
+            name: "Fist".to_string(),
+            damage: 1,
+            speed: 4,
+            reach: 1,
+            arc: 5,
+            impact: 2,
+            attack_type: AttackType::Smash,
+            rarity: Rarity::Common,
+        }
+    }
+}
+
 
 #[derive(Component, Default)]
 pub struct Equipment {

@@ -63,7 +63,7 @@ pub fn player_attack(
         Vec2::X
     };
 
-    let cone_threshold = (weapon.cone_angle / 2.0).cos();
+    let cone_threshold = (weapon.cone_angle() / 2.0).cos();
     let mut rng = rand::rng();
 
     for (entity, creature_transform, mut health, hostile) in &mut creatures_query {
@@ -71,7 +71,7 @@ pub fn player_attack(
         let to_creature = creature_pos - player_pos;
         let distance = to_creature.length();
 
-        let in_range = distance < weapon.range;
+        let in_range = distance < weapon.range();
         let in_cone = distance > 0.0 && to_creature.normalize().dot(attack_dir) > cone_threshold;
 
         if in_range && in_cone {
@@ -121,18 +121,7 @@ pub fn player_attack(
                 // Spawn a fist for the newly hostile creature
                 let fist_entity = commands.spawn((
                     Fist,
-                    Weapon {
-                        name: "Creature Fist".to_string(),
-                        attack_speed: 3.3,
-                        damage: 1,
-                        range: FIST_RANGE,
-                        cone_angle: 1.57,
-                        knockback: KNOCKBACK_FORCE,
-                        attack_type: AttackType::Smash,
-                        damage_type: DamageType::Physical,
-                        rarity: Rarity::Common,
-                        cost: 0,
-                    },
+                    catalog::fist(),
                     Transform::from_xyz(0.0, 0.0, Z_WEAPON),
                     Visibility::default(),
                 )).with_children(|fist_holder| {
@@ -237,7 +226,7 @@ pub fn hostile_fist_aim(
 
 pub fn hostile_attack(
     mut commands: Commands,
-    mut player_query: Query<(Entity, &Transform, &mut Health), (With<Player>, Without<Creature>, Without<Dead>)>,
+    mut player_query: Query<(Entity, &Transform, &mut Health), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     hostile_query: Query<(&Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<WeaponSwing>)>,
     knockback_query: Query<&Knockback>,
@@ -255,7 +244,7 @@ pub fn hostile_attack(
 
         for child in children.iter() {
             if let Ok((fist_entity, weapon)) = fist_query.get(child) {
-                if distance < weapon.range {
+                if distance < weapon.range() {
                     commands.entity(fist_entity).insert(WeaponSwing {
                         timer: 0.0,
                         duration: weapon.swing_duration(),
@@ -266,7 +255,7 @@ pub fn hostile_attack(
 
                     let knockback_dir = (player_pos - creature_pos).normalize();
                     commands.entity(player_entity).insert(Knockback {
-                        velocity: knockback_dir * weapon.knockback,
+                        velocity: knockback_dir * weapon.knockback(),
                         timer: 0.0,
                     });
                     return;

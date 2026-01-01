@@ -20,3 +20,27 @@ pub struct NatureStudyCounter;
 
 #[derive(Component)]
 pub struct WisdomCounter;
+
+#[derive(Component)]
+pub struct WeaponInfoPanel;
+
+#[derive(Component)]
+pub struct WeaponNameText;
+
+#[derive(Component)]
+pub struct WeaponDamageText;
+
+#[derive(Component)]
+pub struct WeaponSpeedText;
+
+#[derive(Component)]
+pub struct WeaponRangeText;
+
+#[derive(Component)]
+pub struct WeaponConeText;
+
+#[derive(Component)]
+pub struct WeaponKnockbackText;
+
+#[derive(Component)]
+pub struct WeaponTypeText;

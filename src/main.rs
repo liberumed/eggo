@@ -79,6 +79,39 @@ fn setup_ui(mut commands: Commands) {
             spawn_stat_circle(parent, Color::srgb(0.3, 0.5, 0.9), WisdomCounter);
         });
 
+    commands
+        .spawn((
+            WeaponInfoPanel,
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(20.0),
+                left: Val::Px(20.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(12.0)),
+                row_gap: Val::Px(4.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.12, 0.85)),
+            BorderRadius::all(Val::Px(4.0)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                WeaponNameText,
+                Text::new("Rusty Knife"),
+                TextFont {
+                    font_size: 18.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.95, 0.85, 0.5)),
+            ));
+            spawn_weapon_stat(parent, "DMG", "1", WeaponDamageText);
+            spawn_weapon_stat(parent, "SPD", "3", WeaponSpeedText);
+            spawn_weapon_stat(parent, "RCH", "3", WeaponRangeText);
+            spawn_weapon_stat(parent, "ARC", "1", WeaponConeText);
+            spawn_weapon_stat(parent, "IMP", "3", WeaponKnockbackText);
+            spawn_weapon_stat(parent, "TYPE", "Slash", WeaponTypeText);
+        });
+
     commands.spawn((
         DeathScreen,
         Node {
@@ -121,6 +154,38 @@ fn setup_ui(mut commands: Commands) {
             ));
         });
     });
+}
+
+fn spawn_weapon_stat<T: Component>(
+    parent: &mut ChildSpawnerCommands,
+    label: &str,
+    value: &str,
+    marker: T,
+) {
+    parent
+        .spawn(Node {
+            column_gap: Val::Px(8.0),
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn((
+                Text::new(label),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.6, 0.6, 0.6)),
+            ));
+            row.spawn((
+                marker,
+                Text::new(value),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+            ));
+        });
 }
 
 fn spawn_stat_circle<T: Component>(parent: &mut ChildSpawnerCommands, color: Color, marker: T) {

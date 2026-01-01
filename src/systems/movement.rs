@@ -93,7 +93,7 @@ pub fn move_player(
 pub fn apply_knockback(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut Knockback, &Health), With<Player>>,
+    mut query: Query<(Entity, &mut Transform, &mut Knockback, &Health), (With<Player>, Without<DeathAnimation>)>,
 ) {
     for (entity, mut transform, mut knockback, health) in &mut query {
         knockback.timer += time.delta_secs();

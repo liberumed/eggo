@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::resources::GameState;
 use crate::systems::{
     handle_new_game_button, show_death_screen, stabilize_shadow, stabilize_text_rotation,
-    update_counters, update_hp_text,
+    update_counters, update_hp_text, update_weapon_info,
 };
 
 pub struct UiPlugin;
@@ -15,6 +15,7 @@ impl Plugin for UiPlugin {
             (
                 update_counters,
                 update_hp_text,
+                update_weapon_info,
                 stabilize_text_rotation,
                 stabilize_shadow,
             ),

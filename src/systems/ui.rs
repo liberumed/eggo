@@ -91,6 +91,41 @@ pub fn show_death_screen(
     }
 }
 
+pub fn update_weapon_info(
+    weapon_query: Query<&Weapon, With<PlayerWeapon>>,
+    mut name_query: Query<&mut Text, (With<WeaponNameText>, Without<WeaponDamageText>, Without<WeaponSpeedText>, Without<WeaponRangeText>, Without<WeaponConeText>, Without<WeaponKnockbackText>, Without<WeaponTypeText>)>,
+    mut damage_query: Query<&mut Text, (With<WeaponDamageText>, Without<WeaponNameText>, Without<WeaponSpeedText>, Without<WeaponRangeText>, Without<WeaponConeText>, Without<WeaponKnockbackText>, Without<WeaponTypeText>)>,
+    mut speed_query: Query<&mut Text, (With<WeaponSpeedText>, Without<WeaponNameText>, Without<WeaponDamageText>, Without<WeaponRangeText>, Without<WeaponConeText>, Without<WeaponKnockbackText>, Without<WeaponTypeText>)>,
+    mut range_query: Query<&mut Text, (With<WeaponRangeText>, Without<WeaponNameText>, Without<WeaponDamageText>, Without<WeaponSpeedText>, Without<WeaponConeText>, Without<WeaponKnockbackText>, Without<WeaponTypeText>)>,
+    mut cone_query: Query<&mut Text, (With<WeaponConeText>, Without<WeaponNameText>, Without<WeaponDamageText>, Without<WeaponSpeedText>, Without<WeaponRangeText>, Without<WeaponKnockbackText>, Without<WeaponTypeText>)>,
+    mut knockback_query: Query<&mut Text, (With<WeaponKnockbackText>, Without<WeaponNameText>, Without<WeaponDamageText>, Without<WeaponSpeedText>, Without<WeaponRangeText>, Without<WeaponConeText>, Without<WeaponTypeText>)>,
+    mut type_query: Query<&mut Text, (With<WeaponTypeText>, Without<WeaponNameText>, Without<WeaponDamageText>, Without<WeaponSpeedText>, Without<WeaponRangeText>, Without<WeaponConeText>, Without<WeaponKnockbackText>)>,
+) {
+    let Ok(weapon) = weapon_query.single() else { return };
+
+    if let Ok(mut text) = name_query.single_mut() {
+        **text = weapon.name.clone();
+    }
+    if let Ok(mut text) = damage_query.single_mut() {
+        **text = weapon.damage.to_string();
+    }
+    if let Ok(mut text) = speed_query.single_mut() {
+        **text = weapon.speed.to_string();
+    }
+    if let Ok(mut text) = range_query.single_mut() {
+        **text = weapon.reach.to_string();
+    }
+    if let Ok(mut text) = cone_query.single_mut() {
+        **text = weapon.arc.to_string();
+    }
+    if let Ok(mut text) = knockback_query.single_mut() {
+        **text = weapon.impact.to_string();
+    }
+    if let Ok(mut text) = type_query.single_mut() {
+        **text = format!("{:?}", weapon.attack_type);
+    }
+}
+
 pub fn handle_new_game_button(
     mut commands: Commands,
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<NewGameButton>)>,

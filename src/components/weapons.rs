@@ -23,6 +23,12 @@ pub enum AttackType {
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DamageType {
+    #[default]
+    Physical,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Rarity {
     #[default]
     Common,
@@ -41,7 +47,9 @@ pub struct Weapon {
     pub arc: i32,
     pub impact: i32,
     pub attack_type: AttackType,
+    pub damage_type: DamageType,
     pub rarity: Rarity,
+    pub cost: u32,
 }
 
 impl Weapon {
@@ -78,7 +86,9 @@ pub mod catalog {
             arc: 1,
             impact: 3,
             attack_type: AttackType::Slash,
+            damage_type: DamageType::Physical,
             rarity: Rarity::Common,
+            cost: 10,
         }
     }
 
@@ -91,7 +101,9 @@ pub mod catalog {
             arc: 5,
             impact: 2,
             attack_type: AttackType::Smash,
+            damage_type: DamageType::Physical,
             rarity: Rarity::Common,
+            cost: 0,
         }
     }
 }

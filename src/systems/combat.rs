@@ -23,6 +23,24 @@ pub fn toggle_weapon(
     }
 }
 
+pub fn handle_block(
+    mut commands: Commands,
+    mouse: Res<ButtonInput<MouseButton>>,
+    player_query: Query<Entity, (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
+    weapon_query: Query<Option<&Drawn>, With<PlayerWeapon>>,
+) {
+    let Ok(player_entity) = player_query.single() else { return };
+    let Ok(drawn) = weapon_query.single() else { return };
+
+    if drawn.is_none() { return; }
+
+    if mouse.pressed(MouseButton::Right) {
+        commands.entity(player_entity).insert(Blocking);
+    } else {
+        commands.entity(player_entity).remove::<Blocking>();
+    }
+}
+
 pub fn player_attack(
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
@@ -141,13 +159,14 @@ pub fn player_attack(
 pub fn aim_weapon(
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    player_query: Query<&Transform, With<Player>>,
+    player_query: Query<(Entity, &Transform), With<Player>>,
     mut weapon_query: Query<&mut Transform, (With<PlayerWeapon>, Without<Player>, Without<WeaponSwing>, Without<TargetOutline>)>,
     mut outline_query: Query<&mut Visibility, With<TargetOutline>>,
+    blocking_query: Query<&Blocking>,
 ) {
     let Ok(window) = windows.single() else { return };
     let Ok((camera, camera_transform)) = camera_query.single() else { return };
-    let Ok(player_transform) = player_query.single() else { return };
+    let Ok((player_entity, player_transform)) = player_query.single() else { return };
     let Ok(mut weapon_transform) = weapon_query.single_mut() else { return };
 
     if let Ok(mut outline_visibility) = outline_query.single_mut() {
@@ -160,7 +179,19 @@ pub fn aim_weapon(
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
     let dir = world_pos - player_pos;
     let angle = dir.y.atan2(dir.x);
-    weapon_transform.rotation = Quat::from_rotation_z(angle);
+
+    let is_blocking = blocking_query.get(player_entity).is_ok();
+    if is_blocking {
+        // Blocking stance: pull weapon closer and tilt defensively
+        let pull_back = -3.0;
+        weapon_transform.rotation = Quat::from_rotation_z(angle + 0.4); // ~23° tilt
+        weapon_transform.translation.x = pull_back * angle.cos();
+        weapon_transform.translation.y = pull_back * angle.sin();
+    } else {
+        weapon_transform.rotation = Quat::from_rotation_z(angle);
+        weapon_transform.translation.x = 0.0;
+        weapon_transform.translation.y = 0.0;
+    }
 }
 
 pub fn hostile_ai(
@@ -180,22 +211,27 @@ pub fn hostile_ai(
         .map(|(e, t)| (e, Vec2::new(t.translation.x, t.translation.y)))
         .collect();
 
-    let collision_dist = COLLISION_RADIUS * 1.8;
+    let creature_collision_dist = COLLISION_RADIUS * 1.8;
+    let player_collision_dist = COLLISION_RADIUS * 2.0;
 
     for (entity, mut transform, hostile) in creature_queries.p1().iter_mut() {
         let creature_pos = Vec2::new(transform.translation.x, transform.translation.y);
         let distance = player_pos.distance(creature_pos);
 
-        if distance < HOSTILE_SIGHT_RANGE && distance > COLLISION_RADIUS {
+        if distance < HOSTILE_SIGHT_RANGE && distance > player_collision_dist {
             let dir = (player_pos - creature_pos).normalize();
             let movement = dir * hostile.speed * time.delta_secs();
             let new_pos = creature_pos + movement;
 
-            let blocked = creature_positions.iter().any(|(other_entity, other_pos)| {
-                *other_entity != entity && new_pos.distance(*other_pos) < collision_dist
+            // Check collision with other creatures
+            let blocked_by_creature = creature_positions.iter().any(|(other_entity, other_pos)| {
+                *other_entity != entity && new_pos.distance(*other_pos) < creature_collision_dist
             });
 
-            if !blocked {
+            // Check collision with player - don't move if new position is too close
+            let blocked_by_player = new_pos.distance(player_pos) < player_collision_dist;
+
+            if !blocked_by_creature && !blocked_by_player {
                 transform.translation.x = new_pos.x;
                 transform.translation.y = new_pos.y;
             }
@@ -230,6 +266,8 @@ pub fn hostile_attack(
     hostile_query: Query<(&Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<WeaponSwing>)>,
     knockback_query: Query<&Knockback>,
+    blocking_query: Query<&Blocking>,
+    player_weapon_query: Query<(&Weapon, &Transform), With<PlayerWeapon>>,
 ) {
     let Ok((player_entity, player_transform, mut player_health)) = player_query.single_mut() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
@@ -237,6 +275,8 @@ pub fn hostile_attack(
     if knockback_query.get(player_entity).is_ok() {
         return;
     }
+
+    let is_blocking = blocking_query.get(player_entity).is_ok();
 
     for (creature_transform, children) in &hostile_query {
         let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
@@ -251,11 +291,39 @@ pub fn hostile_attack(
                         base_angle: None,
                     });
 
-                    player_health.0 -= weapon.damage;
+                    // Check if block is effective (facing the attacker)
+                    let (damage_mult, kb_mult) = if is_blocking {
+                        if let Ok((player_weapon, weapon_transform)) = player_weapon_query.single() {
+                            // Get weapon facing direction from rotation
+                            // Note: weapon is tilted 0.4 rad during block animation, so subtract that offset
+                            let (_, angle) = weapon_transform.rotation.to_axis_angle();
+                            let visual_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
+                            let facing_angle = visual_angle - 0.4;
+                            let facing_dir = Vec2::new(facing_angle.cos(), facing_angle.sin());
+
+                            // Direction from player to attacker
+                            let to_attacker = (creature_pos - player_pos).normalize();
+
+                            // Block works if facing toward the attacker (within ~120 degree arc)
+                            let block_threshold = 0.5; // cos(60°) - blocks attacks within 60° of facing
+                            if facing_dir.dot(to_attacker) > block_threshold {
+                                (1.0 - player_weapon.block_damage_reduction(), 1.0 - player_weapon.block_knockback_reduction())
+                            } else {
+                                (1.0, 1.0) // Attack from behind - no block
+                            }
+                        } else {
+                            (1.0, 1.0)
+                        }
+                    } else {
+                        (1.0, 1.0)
+                    };
+
+                    let final_damage = ((weapon.damage as f32) * damage_mult).floor() as i32;
+                    player_health.0 -= final_damage.max(0);
 
                     let knockback_dir = (player_pos - creature_pos).normalize();
                     commands.entity(player_entity).insert(Knockback {
-                        velocity: knockback_dir * weapon.knockback(),
+                        velocity: knockback_dir * weapon.knockback() * kb_mult,
                         timer: 0.0,
                     });
                     return;

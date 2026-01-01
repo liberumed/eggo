@@ -6,8 +6,9 @@ use crate::constants::*;
 pub fn move_player(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut player_query: Query<(&mut Transform, &mut PlayerAnimation), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
+    mut player_query: Query<(Entity, &mut Transform, &mut PlayerAnimation), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     creatures_query: Query<(&Transform, Option<&Dead>), (With<Creature>, Without<Player>)>,
+    blocking_query: Query<&Blocking>,
 ) {
     let mut input_dir = Vec2::ZERO;
 
@@ -27,9 +28,12 @@ pub fn move_player(
     let collision_distance = COLLISION_RADIUS * 1.5;
     let dt = time.delta_secs();
 
-    for (mut transform, mut anim) in &mut player_query {
+    for (entity, mut transform, mut anim) in &mut player_query {
+        let is_blocking = blocking_query.get(entity).is_ok();
+        let speed = if is_blocking { PLAYER_SPEED * 0.4 } else { PLAYER_SPEED };
+
         if input_dir != Vec2::ZERO {
-            let target_velocity = input_dir.normalize() * PLAYER_SPEED;
+            let target_velocity = input_dir.normalize() * speed;
             let diff = target_velocity - anim.velocity;
             let accel = diff.normalize_or_zero() * PLAYER_ACCELERATION * dt;
             if accel.length() > diff.length() {

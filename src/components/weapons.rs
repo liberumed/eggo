@@ -38,18 +38,32 @@ pub enum Rarity {
     Legendary,
 }
 
+/// Weapon stats use tier values (1-5) that scale to gameplay values via methods.
 #[derive(Component)]
 pub struct Weapon {
     pub name: String,
+    /// Direct damage value per hit
     pub damage: i32,
+    /// Attack speed tier: 1=slow, 5=fast → attack_speed() = 1.0 + speed * 0.5
     pub speed: i32,
+    /// Range tier: 1=short, 5=long → range() = 25 + reach * 12
     pub reach: i32,
+    /// Attack cone tier: 1=narrow, 5=wide → cone_angle() = 0.35 + arc * 0.25 rad
     pub arc: i32,
+    /// Knockback tier: 1=light, 5=heavy → knockback() = 50 + impact * 40
     pub impact: i32,
+    /// Slash=wide arc, Stab=narrow/fast, Smash=slow/heavy
     pub attack_type: AttackType,
+    /// Physical, Fire, Ice, etc. (for future resistances)
     pub damage_type: DamageType,
+    /// Common to Legendary (affects loot/visuals)
     pub rarity: Rarity,
+    /// Buy/sell value
     pub cost: u32,
+    /// Block damage reduction tier: 1=weak, 5=strong → block_damage_reduction() = 0.1 + block * 0.15
+    pub block: i32,
+    /// Block knockback reduction tier: 1=weak, 5=strong → block_knockback_reduction() = 0.2 + block_kb * 0.15
+    pub block_kb: i32,
 }
 
 impl Weapon {
@@ -72,6 +86,14 @@ impl Weapon {
     pub fn knockback(&self) -> f32 {
         50.0 + self.impact as f32 * 40.0
     }
+
+    pub fn block_damage_reduction(&self) -> f32 {
+        0.1 + self.block as f32 * 0.15
+    }
+
+    pub fn block_knockback_reduction(&self) -> f32 {
+        0.2 + self.block_kb as f32 * 0.15
+    }
 }
 
 pub mod catalog {
@@ -89,6 +111,8 @@ pub mod catalog {
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
             cost: 10,
+            block: 2,
+            block_kb: 3,
         }
     }
 
@@ -104,6 +128,8 @@ pub mod catalog {
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
             cost: 0,
+            block: 1,
+            block_kb: 1,
         }
     }
 }

@@ -16,6 +16,9 @@ pub struct Knockback {
 }
 
 #[derive(Component)]
+pub struct Blocking;
+
+#[derive(Component)]
 pub struct DespawnTimer(pub f32);
 
 /// Shadow component for characters

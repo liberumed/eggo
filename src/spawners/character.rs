@@ -149,7 +149,7 @@ pub fn spawn_player(commands: &mut Commands, assets: &CharacterAssets) {
     commands.spawn((
         Player,
         PlayerAnimation::default(),
-        Health(2),
+        Health(10),
         Equipment::default(),
         Mesh2d(assets.character_mesh.clone()),
         MeshMaterial2d(assets.player_material.clone()),

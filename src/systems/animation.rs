@@ -200,3 +200,59 @@ pub fn animate_death(
         commands.entity(child_entity).insert(Transform::from_xyz(world_pos.x, world_pos.y, world_pos.z));
     }
 }
+
+pub fn animate_player_death(
+    mut commands: Commands,
+    time: Res<Time>,
+    assets: Res<CharacterAssets>,
+    mut query: Query<(Entity, &Transform, &mut DeathAnimation), With<Player>>,
+) {
+    for (entity, transform, mut death) in &mut query {
+        death.timer += time.delta_secs();
+        let t = death.timer;
+
+        match death.stage {
+            0 => {
+                let shake = (t * 60.0).sin() * 0.15 * (1.0 - t * 2.0).max(0.0);
+                let expand = 1.0 + t * 0.5;
+
+                commands.entity(entity).insert(Transform {
+                    translation: Vec3::new(transform.translation.x, transform.translation.y, Z_DEAD),
+                    rotation: Quat::from_rotation_z(shake),
+                    scale: Vec3::new(expand, expand * 0.9, 1.0),
+                });
+
+                if t > DEATH_EXPAND_DURATION {
+                    death.stage = 1;
+                    death.timer = 0.0;
+
+                    commands.entity(entity).insert((
+                        Dead,
+                        MeshMaterial2d(assets.dead_material.clone()),
+                    ));
+                }
+            }
+            1 => {
+                let squish = 1.2 - t * 0.8;
+                let squash_x = squish.max(0.6) * 1.3;
+                let squash_y = (2.0 - squish).min(1.4) * 0.5;
+
+                commands.entity(entity).insert(Transform {
+                    translation: Vec3::new(transform.translation.x, transform.translation.y, Z_DEAD),
+                    rotation: Quat::IDENTITY,
+                    scale: Vec3::new(squash_x, squash_y, 1.0),
+                });
+
+                if t > DEATH_COLLAPSE_DURATION {
+                    commands.entity(entity).remove::<DeathAnimation>();
+                    commands.entity(entity).insert(Transform {
+                        translation: Vec3::new(transform.translation.x, transform.translation.y, Z_DEAD),
+                        rotation: Quat::IDENTITY,
+                        scale: Vec3::new(1.0, 0.4, 1.0),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+}

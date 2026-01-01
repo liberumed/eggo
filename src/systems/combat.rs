@@ -26,7 +26,7 @@ pub fn toggle_weapon(
 pub fn player_attack(
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
-    player_query: Query<&Transform, (With<Player>, Without<Dead>)>,
+    player_query: Query<&Transform, (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     weapon_query: Query<(Entity, &Transform, &Weapon, Option<&Drawn>), With<PlayerWeapon>>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
@@ -263,10 +263,6 @@ pub fn hostile_attack(
                     });
 
                     player_health.0 -= weapon.damage;
-
-                    if player_health.0 <= 0 {
-                        commands.entity(player_entity).insert(Dead);
-                    }
 
                     let knockback_dir = (player_pos - creature_pos).normalize();
                     commands.entity(player_entity).insert(Knockback {

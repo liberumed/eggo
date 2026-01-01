@@ -6,7 +6,7 @@ use crate::constants::*;
 pub fn move_player(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut player_query: Query<(&mut Transform, &mut PlayerAnimation), (With<Player>, Without<Dead>)>,
+    mut player_query: Query<(&mut Transform, &mut PlayerAnimation), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     creatures_query: Query<(&Transform, Option<&Dead>), (With<Creature>, Without<Player>)>,
 ) {
     let mut input_dir = Vec2::ZERO;
@@ -93,9 +93,9 @@ pub fn move_player(
 pub fn apply_knockback(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut Knockback), With<Player>>,
+    mut query: Query<(Entity, &mut Transform, &mut Knockback, &Health), With<Player>>,
 ) {
-    for (entity, mut transform, mut knockback) in &mut query {
+    for (entity, mut transform, mut knockback, health) in &mut query {
         knockback.timer += time.delta_secs();
 
         let decay = (1.0 - knockback.timer * 3.0).max(0.0);
@@ -105,6 +105,9 @@ pub fn apply_knockback(
 
         if knockback.timer > 0.3 {
             commands.entity(entity).remove::<Knockback>();
+            if health.0 <= 0 {
+                commands.entity(entity).insert(DeathAnimation { timer: 0.0, stage: 0 });
+            }
         }
     }
 }

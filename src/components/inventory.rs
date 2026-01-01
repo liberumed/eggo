@@ -95,6 +95,10 @@ impl Inventory {
     pub fn hotbar_slots(&self) -> &[Option<InventorySlot>] {
         &self.slots[..HOTBAR_SIZE]
     }
+
+    pub fn swap(&mut self, a: usize, b: usize) {
+        self.slots.swap(a, b);
+    }
 }
 
 #[derive(Component)]

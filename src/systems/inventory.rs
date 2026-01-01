@@ -11,6 +11,17 @@ pub struct InventoryUIState {
 #[derive(Resource, Default)]
 pub struct CursorOverUI(pub bool);
 
+/// Tracks drag and drop state for inventory
+#[derive(Resource, Default)]
+pub struct DragState {
+    pub dragging_from: Option<usize>,
+    pub drag_visual: Option<Entity>,
+}
+
+/// Marker for the dragged item visual
+#[derive(Component)]
+pub struct DraggedItemVisual;
+
 /// System that updates CursorOverUI resource - run this before other input systems
 pub fn update_cursor_over_ui(
     interaction_query: Query<&Interaction, With<Node>>,
@@ -275,5 +286,108 @@ fn use_consumable(item_id: ItemId, health: &mut Health) -> bool {
             true
         }
         _ => false,
+    }
+}
+
+pub fn start_inventory_drag(
+    mut commands: Commands,
+    mouse: Res<ButtonInput<MouseButton>>,
+    ui_state: Res<InventoryUIState>,
+    mut drag_state: ResMut<DragState>,
+    inventory_query: Query<&Inventory, With<Player>>,
+    slot_query: Query<(&Interaction, &InventorySlotUI)>,
+    windows: Query<&Window>,
+) {
+    if !ui_state.open || drag_state.dragging_from.is_some() {
+        return;
+    }
+
+    if !mouse.just_pressed(MouseButton::Left) {
+        return;
+    }
+
+    let Ok(inventory) = inventory_query.single() else { return };
+    let Ok(window) = windows.single() else { return };
+    let Some(cursor_pos) = window.cursor_position() else { return };
+
+    for (interaction, slot_ui) in &slot_query {
+        if *interaction == Interaction::Pressed || *interaction == Interaction::Hovered {
+            let slot_index = slot_ui.0;
+            if let Some(slot) = inventory.get(slot_index) {
+                // Start dragging
+                drag_state.dragging_from = Some(slot_index);
+
+                // Spawn drag visual
+                let color = get_item_color(slot.item_id);
+                let visual = commands.spawn((
+                    DraggedItemVisual,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(cursor_pos.x - 20.0),
+                        top: Val::Px(cursor_pos.y - 20.0),
+                        width: Val::Px(40.0),
+                        height: Val::Px(40.0),
+                        ..default()
+                    },
+                    BackgroundColor(color.with_alpha(0.8)),
+                    BorderRadius::all(Val::Px(4.0)),
+                    GlobalZIndex(100),
+                )).id();
+                drag_state.drag_visual = Some(visual);
+                return;
+            }
+        }
+    }
+}
+
+pub fn update_drag_visual(
+    drag_state: Res<DragState>,
+    windows: Query<&Window>,
+    mut visual_query: Query<&mut Node, With<DraggedItemVisual>>,
+) {
+    if drag_state.dragging_from.is_none() {
+        return;
+    }
+
+    let Ok(window) = windows.single() else { return };
+    let Some(cursor_pos) = window.cursor_position() else { return };
+
+    for mut node in &mut visual_query {
+        node.left = Val::Px(cursor_pos.x - 20.0);
+        node.top = Val::Px(cursor_pos.y - 20.0);
+    }
+}
+
+pub fn end_inventory_drag(
+    mut commands: Commands,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut drag_state: ResMut<DragState>,
+    mut inventory_query: Query<&mut Inventory, With<Player>>,
+    slot_query: Query<(&Interaction, &InventorySlotUI)>,
+) {
+    let Some(from_slot) = drag_state.dragging_from else { return };
+
+    if !mouse.just_released(MouseButton::Left) {
+        return;
+    }
+
+    // Clean up drag visual
+    if let Some(visual) = drag_state.drag_visual.take() {
+        commands.entity(visual).despawn();
+    }
+    drag_state.dragging_from = None;
+
+    let Ok(mut inventory) = inventory_query.single_mut() else { return };
+
+    // Find target slot
+    for (interaction, slot_ui) in &slot_query {
+        if *interaction == Interaction::Hovered || *interaction == Interaction::Pressed {
+            let to_slot = slot_ui.0;
+            if to_slot != from_slot {
+                // Swap items
+                inventory.swap(from_slot, to_slot);
+            }
+            return;
+        }
     }
 }

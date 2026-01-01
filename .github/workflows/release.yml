@@ -10,18 +10,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact: eggo-darwin-x86_64
-            binary: eggo
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact: eggo-darwin-arm64
-            binary: eggo
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact: eggo-linux-x86_64
-            binary: eggo
+          # - os: macos-latest
+          #   target: x86_64-apple-darwin
+          #   artifact: eggo-darwin-x86_64
+          #   binary: eggo
+          # - os: macos-latest
+          #   target: aarch64-apple-darwin
+          #   artifact: eggo-darwin-arm64
+          #   binary: eggo
+          # - os: ubuntu-latest
+          #   target: x86_64-unknown-linux-gnu
+          #   artifact: eggo-linux-x86_64
+          #   binary: eggo
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: eggo-windows-x86_64.exe
@@ -85,9 +85,9 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            eggo-darwin-x86_64/eggo-darwin-x86_64
-            eggo-darwin-arm64/eggo-darwin-arm64
-            eggo-linux-x86_64/eggo-linux-x86_64
-            eggo-windows-x86_64.exe/eggo-windows-x86_64.exe
+          # Future: add back other platforms
+          # eggo-darwin-x86_64/eggo-darwin-x86_64
+          # eggo-darwin-arm64/eggo-darwin-arm64
+          # eggo-linux-x86_64/eggo-linux-x86_64
+          files: eggo-windows-x86_64.exe/eggo-windows-x86_64.exe
           generate_release_notes: true

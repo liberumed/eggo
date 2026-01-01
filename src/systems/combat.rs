@@ -6,25 +6,29 @@ use crate::constants::*;
 use crate::spawners::CharacterAssets;
 
 pub fn toggle_weapon(
+    mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut knife_query: Query<&mut Visibility, With<Knife>>,
+    weapon_query: Query<(Entity, &Visibility, Option<&Drawn>), With<PlayerWeapon>>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyR) {
-        for mut visibility in &mut knife_query {
-            *visibility = match *visibility {
-                Visibility::Hidden => Visibility::Inherited,
-                _ => Visibility::Hidden,
-            };
+        for (entity, _, drawn) in &weapon_query {
+            if drawn.is_some() {
+                commands.entity(entity).remove::<Drawn>();
+                commands.entity(entity).insert(Visibility::Hidden);
+            } else {
+                commands.entity(entity).insert(Drawn);
+                commands.entity(entity).insert(Visibility::Inherited);
+            }
         }
     }
 }
 
-pub fn knife_attack(
+pub fn player_attack(
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
     player_query: Query<&Transform, (With<Player>, Without<Dead>)>,
-    knife_query: Query<(Entity, &Transform, &Visibility), With<Knife>>,
-    knife_swing_query: Query<&WeaponSwing, With<Knife>>,
+    weapon_query: Query<(Entity, &Transform, &Weapon, Option<&Drawn>), With<PlayerWeapon>>,
+    swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     assets: Res<CharacterAssets>,
 ) {
@@ -32,28 +36,34 @@ pub fn knife_attack(
         return;
     }
 
-    if knife_swing_query.iter().next().is_some() {
+    if swing_query.iter().next().is_some() {
         return;
     }
 
-    let Ok((knife_entity, _, visibility)) = knife_query.single() else { return };
-    if *visibility == Visibility::Hidden {
-        commands.entity(knife_entity).insert(Visibility::Inherited);
+    let Ok((weapon_entity, _, weapon, drawn)) = weapon_query.single() else { return };
+    if drawn.is_none() {
+        commands.entity(weapon_entity).insert(Drawn);
+        commands.entity(weapon_entity).insert(Visibility::Inherited);
         return;
     }
 
     let Ok(player_transform) = player_query.single() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
 
-    let knife_dir = if let Ok((knife_entity, knife_transform, _)) = knife_query.single() {
-        let (_, angle) = knife_transform.rotation.to_axis_angle();
-        let base_angle = if knife_transform.rotation.z < 0.0 { -angle } else { angle };
-        commands.entity(knife_entity).insert(WeaponSwing { timer: 0.0, duration: KNIFE_SWING_DURATION, base_angle: Some(base_angle) });
+    let attack_dir = if let Ok((weapon_entity, weapon_transform, weapon, _)) = weapon_query.single() {
+        let (_, angle) = weapon_transform.rotation.to_axis_angle();
+        let base_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
+        commands.entity(weapon_entity).insert(WeaponSwing {
+            timer: 0.0,
+            duration: weapon.swing_duration(),
+            base_angle: Some(base_angle),
+        });
         Vec2::new(base_angle.cos(), base_angle.sin())
     } else {
         Vec2::X
     };
 
+    let cone_threshold = (weapon.cone_angle / 2.0).cos();
     let mut rng = rand::rng();
 
     for (entity, creature_transform, mut health, hostile) in &mut creatures_query {
@@ -61,18 +71,18 @@ pub fn knife_attack(
         let to_creature = creature_pos - player_pos;
         let distance = to_creature.length();
 
-        let in_range = distance < KNIFE_RANGE;
-        let in_cone = distance > 0.0 && to_creature.normalize().dot(knife_dir) > 0.5;
+        let in_range = distance < weapon.range;
+        let in_cone = distance > 0.0 && to_creature.normalize().dot(attack_dir) > cone_threshold;
 
         if in_range && in_cone {
-            health.0 -= 1;
+            health.0 -= weapon.damage;
             commands.entity(entity).insert(Stunned(STUN_DURATION));
 
             let particle_count = if health.0 <= 0 { 25 } else { 12 };
             for i in 0..particle_count {
                 let spread = rng.random_range(-0.8..0.8);
                 let speed = rng.random_range(80.0..200.0);
-                let angle = knife_dir.y.atan2(knife_dir.x) + spread;
+                let angle = attack_dir.y.atan2(attack_dir.x) + spread;
                 let vel = Vec2::new(angle.cos() * speed, angle.sin() * speed);
 
                 let is_splat = i % 3 == 0;
@@ -111,6 +121,18 @@ pub fn knife_attack(
                 // Spawn a fist for the newly hostile creature
                 let fist_entity = commands.spawn((
                     Fist,
+                    Weapon {
+                        name: "Creature Fist".to_string(),
+                        attack_speed: 3.3,
+                        damage: 1,
+                        range: FIST_RANGE,
+                        cone_angle: 1.57,
+                        knockback: KNOCKBACK_FORCE,
+                        attack_type: AttackType::Smash,
+                        damage_type: DamageType::Physical,
+                        rarity: Rarity::Common,
+                        cost: 0,
+                    },
                     Transform::from_xyz(0.0, 0.0, Z_WEAPON),
                     Visibility::default(),
                 )).with_children(|fist_holder| {
@@ -127,17 +149,17 @@ pub fn knife_attack(
     }
 }
 
-pub fn aim_knife(
+pub fn aim_weapon(
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     player_query: Query<&Transform, With<Player>>,
-    mut knife_query: Query<&mut Transform, (With<Knife>, Without<Player>, Without<WeaponSwing>, Without<TargetOutline>)>,
+    mut weapon_query: Query<&mut Transform, (With<PlayerWeapon>, Without<Player>, Without<WeaponSwing>, Without<TargetOutline>)>,
     mut outline_query: Query<&mut Visibility, With<TargetOutline>>,
 ) {
     let Ok(window) = windows.single() else { return };
     let Ok((camera, camera_transform)) = camera_query.single() else { return };
     let Ok(player_transform) = player_query.single() else { return };
-    let Ok(mut knife_transform) = knife_query.single_mut() else { return };
+    let Ok(mut weapon_transform) = weapon_query.single_mut() else { return };
 
     if let Ok(mut outline_visibility) = outline_query.single_mut() {
         *outline_visibility = Visibility::Hidden;
@@ -149,7 +171,7 @@ pub fn aim_knife(
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
     let dir = world_pos - player_pos;
     let angle = dir.y.atan2(dir.x);
-    knife_transform.rotation = Quat::from_rotation_z(angle);
+    weapon_transform.rotation = Quat::from_rotation_z(angle);
 }
 
 pub fn hostile_ai(
@@ -217,7 +239,7 @@ pub fn hostile_attack(
     mut commands: Commands,
     mut player_query: Query<(Entity, &Transform, &mut Health), (With<Player>, Without<Creature>, Without<Dead>)>,
     hostile_query: Query<(&Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
-    fist_query: Query<Entity, (With<Fist>, Without<WeaponSwing>)>,
+    fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<WeaponSwing>)>,
     knockback_query: Query<&Knockback>,
 ) {
     let Ok((player_entity, player_transform, mut player_health)) = player_query.single_mut() else { return };
@@ -231,12 +253,16 @@ pub fn hostile_attack(
         let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
         let distance = player_pos.distance(creature_pos);
 
-        if distance < FIST_RANGE {
-            for child in children.iter() {
-                if let Ok(fist_entity) = fist_query.get(child) {
-                    commands.entity(fist_entity).insert(WeaponSwing { timer: 0.0, duration: FIST_SWING_DURATION, base_angle: None });
+        for child in children.iter() {
+            if let Ok((fist_entity, weapon)) = fist_query.get(child) {
+                if distance < weapon.range {
+                    commands.entity(fist_entity).insert(WeaponSwing {
+                        timer: 0.0,
+                        duration: weapon.swing_duration(),
+                        base_angle: None,
+                    });
 
-                    player_health.0 -= 1;
+                    player_health.0 -= weapon.damage;
 
                     if player_health.0 <= 0 {
                         commands.entity(player_entity).insert(Dead);
@@ -244,7 +270,7 @@ pub fn hostile_attack(
 
                     let knockback_dir = (player_pos - creature_pos).normalize();
                     commands.entity(player_entity).insert(Knockback {
-                        velocity: knockback_dir * KNOCKBACK_FORCE,
+                        velocity: knockback_dir * weapon.knockback,
                         timer: 0.0,
                     });
                     return;

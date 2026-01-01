@@ -150,6 +150,7 @@ pub fn spawn_player(commands: &mut Commands, assets: &CharacterAssets) {
         Player,
         PlayerAnimation::default(),
         Health(2),
+        Equipment::default(),
         Mesh2d(assets.character_mesh.clone()),
         MeshMaterial2d(assets.player_material.clone()),
         Transform::from_xyz(0.0, 0.0, Z_PLAYER),
@@ -203,6 +204,19 @@ pub fn spawn_player(commands: &mut Commands, assets: &CharacterAssets) {
         // Knife weapon
         parent.spawn((
             Knife,
+            PlayerWeapon,
+            Weapon {
+                name: "Rusty Knife".to_string(),
+                attack_speed: 2.5,
+                damage: 1,
+                range: 56.0,
+                cone_angle: 0.52,
+                knockback: 150.0,
+                attack_type: AttackType::Slash,
+                damage_type: DamageType::Physical,
+                rarity: Rarity::Common,
+                cost: 10,
+            },
             Transform::from_xyz(0.0, 0.0, Z_WEAPON),
             Visibility::Hidden,
         )).with_children(|knife| {
@@ -411,6 +425,18 @@ fn spawn_creature_children(
     if is_hostile {
         parent.spawn((
             Fist,
+            Weapon {
+                name: "Creature Fist".to_string(),
+                attack_speed: 3.3,
+                damage: 1,
+                range: FIST_RANGE,
+                cone_angle: 1.57,
+                knockback: KNOCKBACK_FORCE,
+                attack_type: AttackType::Smash,
+                damage_type: DamageType::Physical,
+                rarity: Rarity::Common,
+                cost: 0,
+            },
             Transform::from_xyz(0.0, 0.0, Z_WEAPON),
             Visibility::default(),
         )).with_children(|fist_holder| {

@@ -2,7 +2,6 @@ use bevy::prelude::*;
 
 use crate::components::*;
 use crate::resources::{GameState, Stats};
-use crate::spawners::{spawn_creatures, spawn_ground_item, spawn_player, spawn_target_outline, CharacterAssets};
 
 pub fn update_counters(
     stats: Res<Stats>,
@@ -127,40 +126,16 @@ pub fn update_weapon_info(
 }
 
 pub fn handle_new_game_button(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<NewGameButton>)>,
-    entities_query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>, With<GroundItem>)>>,
     mut death_screen_query: Query<&mut Visibility, With<DeathScreen>>,
-    mut stats: ResMut<Stats>,
     mut next_state: ResMut<NextState<GameState>>,
-    assets: Res<CharacterAssets>,
-    registry: Res<ItemRegistry>,
 ) {
     for interaction in &interaction_query {
         if *interaction == Interaction::Pressed {
-            for entity in &entities_query {
-                commands.entity(entity).despawn();
-            }
-
-            stats.philosophy = 0;
-            stats.nature_study = 0;
-            stats.wisdom = 0;
-
-            spawn_player(&mut commands, &assets, &mut meshes, &mut materials);
-            spawn_target_outline(&mut commands, &assets);
-            spawn_creatures(&mut commands, &assets, &mut meshes, &mut materials);
-
-            // Spawn test items
-            spawn_ground_item(&mut commands, &assets, &registry, ItemId::HealthPotion, 1, Vec2::new(30.0, 20.0));
-            spawn_ground_item(&mut commands, &assets, &registry, ItemId::HealthPotion, 3, Vec2::new(-40.0, 30.0));
-            spawn_ground_item(&mut commands, &assets, &registry, ItemId::RustyKnife, 1, Vec2::new(50.0, -10.0));
-
             if let Ok(mut visibility) = death_screen_query.single_mut() {
                 *visibility = Visibility::Hidden;
             }
-
+            // Transition to Playing triggers cleanup_world (OnExit Dead) then spawn_world (OnEnter Playing)
             next_state.set(GameState::Playing);
         }
     }

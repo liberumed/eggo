@@ -30,7 +30,14 @@ pub fn move_player(
 
     for (entity, mut transform, mut anim) in &mut player_query {
         let is_blocking = blocking_query.get(entity).is_ok();
-        let speed = if is_blocking { PLAYER_SPEED * 0.4 } else { PLAYER_SPEED };
+        let is_sprinting = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+        let speed = if is_blocking {
+            PLAYER_SPEED * 0.4
+        } else if is_sprinting {
+            PLAYER_SPEED * 1.6
+        } else {
+            PLAYER_SPEED
+        };
 
         if input_dir != Vec2::ZERO {
             let target_velocity = input_dir.normalize() * speed;

@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use components::*;
 use constants::*;
 use plugins::*;
-use resources::{GameState, Stats};
+use resources::{GameState, Stats, WorldConfig};
 use spawners::CharacterAssets;
 use components::build_item_registry;
 
@@ -25,9 +25,12 @@ fn main() {
             ..default()
         }))
         .init_resource::<Stats>()
+        .init_resource::<WorldConfig>()
         .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
         .add_systems(Startup, (setup, setup_ui))
+        .add_systems(OnEnter(GameState::Playing), spawn_world)
+        .add_systems(OnExit(GameState::Dead), cleanup_world)
         .add_plugins((
             PlayerPlugin,
             CreaturePlugin,
@@ -43,6 +46,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
     // Camera
     commands.spawn((
@@ -56,20 +60,45 @@ fn setup(
     // Build item registry
     let registry = build_item_registry(&mut meshes, &mut materials);
 
-    // Spawn game entities
-    spawners::spawn_player(&mut commands, &assets, &mut meshes, &mut materials);
-    spawners::spawn_target_outline(&mut commands, &assets);
-    spawners::spawn_creatures(&mut commands, &assets, &mut meshes, &mut materials);
+    // Spawn background (static, doesn't need reset)
     spawners::spawn_background_grid(&mut commands, &mut meshes, &mut materials);
-
-    // Spawn test items
-    spawners::spawn_ground_item(&mut commands, &assets, &registry, ItemId::HealthPotion, 1, Vec2::new(30.0, 20.0));
-    spawners::spawn_ground_item(&mut commands, &assets, &registry, ItemId::HealthPotion, 3, Vec2::new(-40.0, 30.0));
-    spawners::spawn_ground_item(&mut commands, &assets, &registry, ItemId::RustyKnife, 1, Vec2::new(50.0, -10.0));
 
     // Insert resources for later use
     commands.insert_resource(assets);
     commands.insert_resource(registry);
+
+    // Transition to Playing state (triggers spawn_world)
+    next_state.set(GameState::Playing);
+}
+
+fn spawn_world(
+    mut commands: Commands,
+    assets: Res<CharacterAssets>,
+    registry: Res<ItemRegistry>,
+    config: Res<WorldConfig>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    spawners::spawn_player(&mut commands, &assets, &mut meshes, &mut materials);
+    spawners::spawn_target_outline(&mut commands, &assets);
+    spawners::spawn_creatures(&mut commands, &assets, &mut meshes, &mut materials);
+
+    for (item_id, quantity, pos) in &config.starting_items {
+        spawners::spawn_ground_item(&mut commands, &assets, &registry, *item_id, *quantity, *pos);
+    }
+}
+
+fn cleanup_world(
+    mut commands: Commands,
+    query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>, With<GroundItem>)>>,
+    mut stats: ResMut<Stats>,
+) {
+    for entity in &query {
+        commands.entity(entity).despawn();
+    }
+    stats.philosophy = 0;
+    stats.nature_study = 0;
+    stats.wisdom = 0;
 }
 
 fn setup_ui(mut commands: Commands) {

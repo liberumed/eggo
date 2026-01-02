@@ -25,6 +25,7 @@ pub const KNOCKBACK_FORCE: f32 = 250.0;
 // Combat
 pub const COLLISION_RADIUS: f32 = 14.0;
 pub const HOSTILE_SIGHT_RANGE: f32 = 100.0;
+pub const BLOCK_KNOCKBACK: f32 = 120.0;
 pub const FIST_RANGE: f32 = COLLISION_RADIUS * 1.8;
 pub const KNIFE_RANGE: f32 = COLLISION_RADIUS * 4.0;
 

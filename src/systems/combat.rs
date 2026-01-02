@@ -279,7 +279,7 @@ pub fn hostile_fist_aim(
 pub fn hostile_attack(
     mut commands: Commands,
     mut player_query: Query<(Entity, &Transform, &mut Health), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    hostile_query: Query<(&Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    hostile_query: Query<(Entity, &Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<WeaponSwing>)>,
     knockback_query: Query<&Knockback>,
     blocking_query: Query<&Blocking>,
@@ -294,7 +294,7 @@ pub fn hostile_attack(
 
     let is_blocking = blocking_query.get(player_entity).is_ok();
 
-    for (creature_transform, children) in &hostile_query {
+    for (creature_entity, creature_transform, children) in &hostile_query {
         let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
         let distance = player_pos.distance(creature_pos);
 
@@ -308,7 +308,7 @@ pub fn hostile_attack(
                     });
 
                     // Check if block is effective (facing the attacker)
-                    let (damage_mult, kb_mult) = if is_blocking {
+                    let (damage_mult, kb_mult, blocked) = if is_blocking {
                         if let Ok((player_weapon, weapon_transform)) = player_weapon_query.single() {
                             // Get weapon facing direction from rotation
                             // Note: weapon is tilted 0.4 rad during block animation, so subtract that offset
@@ -323,15 +323,15 @@ pub fn hostile_attack(
                             // Block works if facing toward the attacker (within ~120 degree arc)
                             let block_threshold = 0.5; // cos(60°) - blocks attacks within 60° of facing
                             if facing_dir.dot(to_attacker) > block_threshold {
-                                (1.0 - player_weapon.block_damage_reduction(), 1.0 - player_weapon.block_knockback_reduction())
+                                (1.0 - player_weapon.block_damage_reduction(), 1.0 - player_weapon.block_knockback_reduction(), true)
                             } else {
-                                (1.0, 1.0) // Attack from behind - no block
+                                (1.0, 1.0, false) // Attack from behind - no block
                             }
                         } else {
-                            (1.0, 1.0)
+                            (1.0, 1.0, false)
                         }
                     } else {
-                        (1.0, 1.0)
+                        (1.0, 1.0, false)
                     };
 
                     let final_damage = ((weapon.damage as f32) * damage_mult).floor() as i32;
@@ -342,6 +342,14 @@ pub fn hostile_attack(
                         velocity: knockback_dir * weapon.knockback_force() * kb_mult,
                         timer: 0.0,
                     });
+
+                    // Knock back attacker when blocked
+                    if blocked {
+                        commands.entity(creature_entity).insert(Knockback {
+                            velocity: -knockback_dir * BLOCK_KNOCKBACK,
+                            timer: 0.0,
+                        });
+                    }
                     return;
                 }
             }

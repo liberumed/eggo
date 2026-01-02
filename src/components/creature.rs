@@ -20,3 +20,49 @@ pub struct Hostile {
 /// Marker for glowing creatures
 #[derive(Component)]
 pub struct Glowing;
+
+/// Identifier for creature types
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CreatureId {
+    Blob,
+}
+
+/// Loot drop chances for a creature
+#[derive(Clone)]
+pub struct LootTable {
+    pub philosophy_chance: f64,
+    pub nature_chance: f64,
+    pub wisdom_chance: f64,
+}
+
+/// Complete definition of a creature type
+#[derive(Clone)]
+pub struct CreatureDefinition {
+    pub name: String,
+    pub health: i32,
+    pub speed: f32,
+    pub damage: i32,
+    pub hostile_chance: f64,
+    pub glowing_chance: f64,
+    pub loot: LootTable,
+}
+
+pub mod creature_catalog {
+    use super::*;
+
+    pub fn blob() -> CreatureDefinition {
+        CreatureDefinition {
+            name: "Blob".to_string(),
+            health: 2,
+            speed: 55.0,
+            damage: 1,
+            hostile_chance: 0.15,
+            glowing_chance: 0.3,
+            loot: LootTable {
+                philosophy_chance: 0.5,
+                nature_chance: 0.5,
+                wisdom_chance: 0.5,
+            },
+        }
+    }
+}

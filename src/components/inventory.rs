@@ -191,11 +191,11 @@ pub fn get_weapon_stats(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) -> Option<super::Weapon> {
-    use super::catalog;
+    use super::weapon_catalog;
     match id {
-        ItemId::WoodenStick => Some(catalog::wooden_stick(meshes, materials)),
-        ItemId::RustyKnife => Some(catalog::rusty_knife(meshes, materials)),
-        ItemId::Fist => Some(catalog::fist(meshes, materials)),
+        ItemId::WoodenStick => Some(weapon_catalog::wooden_stick(meshes, materials)),
+        ItemId::RustyKnife => Some(weapon_catalog::rusty_knife(meshes, materials)),
+        ItemId::Fist => Some(weapon_catalog::fist(meshes, materials)),
         _ => None,
     }
 }
@@ -237,12 +237,12 @@ pub fn build_item_registry(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) -> ItemRegistry {
-    use super::catalog;
+    use super::weapon_catalog;
 
     let mut items = HashMap::new();
 
     // Wooden Stick
-    let stick_weapon = catalog::wooden_stick(meshes, materials);
+    let stick_weapon = weapon_catalog::wooden_stick(meshes, materials);
     items.insert(
         ItemId::WoodenStick,
         ItemDefinition {
@@ -262,7 +262,7 @@ pub fn build_item_registry(
     );
 
     // Rusty Knife
-    let knife_weapon = catalog::rusty_knife(meshes, materials);
+    let knife_weapon = weapon_catalog::rusty_knife(meshes, materials);
     items.insert(
         ItemId::RustyKnife,
         ItemDefinition {
@@ -289,7 +289,7 @@ pub fn build_item_registry(
     );
 
     // Fist
-    let fist_weapon = catalog::fist(meshes, materials);
+    let fist_weapon = weapon_catalog::fist(meshes, materials);
     items.insert(
         ItemId::Fist,
         ItemDefinition {

@@ -174,7 +174,7 @@ pub fn spawn_player(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) {
-    let weapon = catalog::wooden_stick(meshes, materials);
+    let weapon = weapon_catalog::wooden_stick(meshes, materials);
     let weapon_visual = weapon.visual.clone();
 
     commands.spawn((
@@ -269,6 +269,7 @@ pub fn spawn_creatures(
     materials: &mut Assets<ColorMaterial>,
 ) {
     let mut rng = rand::rng();
+    let blob = creature_catalog::blob();
     let world_size = WORLD_SIZE as f32 * GRID_SPACING;
     let min_distance = COLLISION_RADIUS * 6.0;
     let cell_size = min_distance * 1.2;
@@ -301,7 +302,7 @@ pub fn spawn_creatures(
 
             positions.push(pos);
 
-            spawn_creature(commands, assets, meshes, materials, &mut rng, x, y);
+            spawn_creature(commands, assets, meshes, materials, &mut rng, &blob, x, y);
         }
     }
 }
@@ -312,6 +313,7 @@ fn spawn_creature(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
     rng: &mut rand::prelude::ThreadRng,
+    definition: &CreatureDefinition,
     x: f32,
     y: f32,
 ) {
@@ -321,8 +323,8 @@ fn spawn_creature(
         amplitude: rng.random_range(0.04..0.10),
     };
 
-    let is_hostile = rng.random_bool(HOSTILE_CHANCE);
-    let is_glowing = !is_hostile && rng.random_bool(GLOWING_CHANCE);
+    let is_hostile = rng.random_bool(definition.hostile_chance);
+    let is_glowing = !is_hostile && rng.random_bool(definition.glowing_chance);
 
     let material = if is_hostile {
         assets.hostile_material.clone()
@@ -333,9 +335,9 @@ fn spawn_creature(
     };
 
     let loot = loop {
-        let p = rng.random_bool(0.5);
-        let n = rng.random_bool(0.5);
-        let w = rng.random_bool(0.5);
+        let p = rng.random_bool(definition.loot.philosophy_chance);
+        let n = rng.random_bool(definition.loot.nature_chance);
+        let w = rng.random_bool(definition.loot.wisdom_chance);
         let count = p as u8 + n as u8 + w as u8;
         if count >= 1 && count <= 3 {
             break Loot { philosophy: p, nature_study: n, wisdom: w };
@@ -344,7 +346,7 @@ fn spawn_creature(
 
     // Pre-create fist weapon if hostile (before entering closure)
     let fist_data = if is_hostile {
-        let fist = catalog::fist(meshes, materials);
+        let fist = weapon_catalog::fist(meshes, materials);
         Some((fist.visual.clone(), fist))
     } else {
         None
@@ -353,7 +355,7 @@ fn spawn_creature(
     let mut entity_commands = commands.spawn((
         Creature,
         anim,
-        Health(2),
+        Health(definition.health),
         loot,
         Mesh2d(assets.character_mesh.clone()),
         MeshMaterial2d(material),
@@ -361,7 +363,7 @@ fn spawn_creature(
     ));
 
     if is_hostile {
-        entity_commands.insert(Hostile { speed: HOSTILE_SPEED });
+        entity_commands.insert(Hostile { speed: definition.speed });
     }
     if is_glowing {
         entity_commands.insert(Glowing);

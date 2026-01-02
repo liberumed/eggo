@@ -125,7 +125,7 @@ impl Weapon {
     }
 }
 
-pub mod catalog {
+pub mod weapon_catalog {
     use super::*;
 
     pub fn wooden_stick(

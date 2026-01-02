@@ -139,7 +139,7 @@ pub fn player_attack(
                 commands.entity(entity).insert(Hostile { speed: PROVOKED_SPEED });
 
                 // Spawn a fist for the newly hostile creature
-                let fist_weapon = catalog::fist(&mut meshes, &mut materials);
+                let fist_weapon = weapon_catalog::fist(&mut meshes, &mut materials);
                 let fist_visual = fist_weapon.visual.clone();
                 let fist_entity = commands.spawn((
                     Fist,

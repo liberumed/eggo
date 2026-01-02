@@ -15,12 +15,27 @@ pub const Z_TARGET_OUTLINE: f32 = -0.5;
 pub const PIXEL_SCALE: f32 = 4.0;
 
 // Movement
-pub const PLAYER_SPEED: f32 = 85.0;
-pub const PLAYER_ACCELERATION: f32 = 400.0;
-pub const PLAYER_FRICTION: f32 = 350.0;
+pub const PLAYER_SPEED: f32 = 100.0;
+pub const PLAYER_ACCELERATION: f32 = 2000.0;  // Near-instant response
+pub const PLAYER_FRICTION: f32 = 2000.0;      // Near-instant stop
 pub const HOSTILE_SPEED: f32 = 55.0;
 pub const PROVOKED_SPEED: f32 = 40.0;
 pub const KNOCKBACK_FORCE: f32 = 250.0;
+
+// Dash
+pub const DASH_SPEED: f32 = 300.0;
+pub const DASH_DURATION: f32 = 0.12;
+pub const DASH_COOLDOWN: f32 = 0.4;
+
+// Sprint
+pub const SPRINT_MIN_MULTIPLIER: f32 = 1.3;   // Starting sprint speed
+pub const SPRINT_MAX_MULTIPLIER: f32 = 2.0;   // Max sprint speed after ramp
+pub const SPRINT_RAMP_TIME: f32 = 0.8;        // Time to reach max speed
+
+// Game Feel
+pub const HITSTOP_DURATION: f32 = 0.06;       // 60ms freeze on hit
+pub const SCREEN_SHAKE_INTENSITY: f32 = 3.0;  // Pixels
+pub const SCREEN_SHAKE_DURATION: f32 = 0.15;
 
 // Combat
 pub const COLLISION_RADIUS: f32 = 14.0;

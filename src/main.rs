@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use components::*;
 use constants::*;
 use plugins::*;
-use resources::{GameState, NewGameRequested, Stats, WorldConfig};
+use resources::{GameState, Hitstop, InputBindings, NewGameRequested, ScreenShake, Stats, WorldConfig};
 use spawners::CharacterAssets;
 use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, toggle_pause_menu};
 use components::build_item_registry;
@@ -28,6 +28,9 @@ fn main() {
         .init_resource::<Stats>()
         .init_resource::<WorldConfig>()
         .init_resource::<NewGameRequested>()
+        .init_resource::<InputBindings>()
+        .init_resource::<Hitstop>()
+        .init_resource::<ScreenShake>()
         .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
         .add_systems(Startup, (setup, setup_ui))

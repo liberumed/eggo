@@ -3,14 +3,17 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::*;
+use crate::resources::{GameAction, Hitstop, InputBindings, ScreenShake};
 use crate::spawners::CharacterAssets;
 
 pub fn toggle_weapon(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     weapon_query: Query<(Entity, &Visibility, Option<&Drawn>), With<PlayerWeapon>>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyR) {
+    if bindings.just_pressed(GameAction::ToggleWeapon, &keyboard, &mouse) {
         for (entity, _, drawn) in &weapon_query {
             if drawn.is_some() {
                 commands.entity(entity).remove::<Drawn>();
@@ -25,7 +28,9 @@ pub fn toggle_weapon(
 
 pub fn handle_block(
     mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     player_query: Query<Entity, (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     weapon_query: Query<Option<&Drawn>, With<PlayerWeapon>>,
 ) {
@@ -34,7 +39,7 @@ pub fn handle_block(
 
     if drawn.is_none() { return; }
 
-    if mouse.pressed(MouseButton::Right) {
+    if bindings.pressed(GameAction::Block, &keyboard, &mouse) {
         commands.entity(player_entity).insert(Blocking);
     } else {
         commands.entity(player_entity).remove::<Blocking>();
@@ -43,7 +48,11 @@ pub fn handle_block(
 
 pub fn player_attack(
     mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
+    mut hitstop: ResMut<Hitstop>,
+    mut screen_shake: ResMut<ScreenShake>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     player_query: Query<(Entity, &Transform), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
@@ -52,7 +61,7 @@ pub fn player_attack(
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     assets: Res<CharacterAssets>,
 ) {
-    if !mouse.just_pressed(MouseButton::Left) {
+    if !bindings.just_pressed(GameAction::Attack, &keyboard, &mouse) {
         return;
     }
 
@@ -162,13 +171,17 @@ pub fn player_attack(
         }
     }
 
-    // Apply recoil to player when hitting
+    // Apply recoil and game feel effects when hitting
     if hit_any {
         let recoil_force = weapon.knockback_force() * 0.15;
         commands.entity(player_entity).insert(Knockback {
             velocity: -attack_dir * recoil_force,
             timer: 0.0,
         });
+
+        // Trigger hitstop and screen shake
+        hitstop.trigger(HITSTOP_DURATION);
+        screen_shake.trigger(SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_DURATION);
     }
 }
 
@@ -282,11 +295,17 @@ pub fn hostile_attack(
     hostile_query: Query<(Entity, &Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<WeaponSwing>)>,
     knockback_query: Query<&Knockback>,
+    dashing_query: Query<&Dashing>,
     blocking_query: Query<&Blocking>,
     player_weapon_query: Query<(&Weapon, &Transform), With<PlayerWeapon>>,
 ) {
     let Ok((player_entity, player_transform, mut player_health)) = player_query.single_mut() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
+
+    // Invincible during dash (i-frames)
+    if dashing_query.get(player_entity).is_ok() {
+        return;
+    }
 
     if knockback_query.get(player_entity).is_ok() {
         return;

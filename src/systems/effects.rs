@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::components::*;
+use crate::resources::{Hitstop, ScreenShake};
 
 pub fn animate_blood(
     mut commands: Commands,
@@ -92,5 +93,81 @@ pub fn animate_magnetized_balls(
 
         let fade = (timer.0 / 3.0).powf(0.5);
         transform.scale = Vec3::splat(fade.max(0.1));
+    }
+}
+
+/// Tick hitstop timer
+pub fn tick_hitstop(
+    time: Res<Time>,
+    mut hitstop: ResMut<Hitstop>,
+) {
+    hitstop.tick(time.delta_secs());
+}
+
+/// Tick screen shake timer
+pub fn tick_screen_shake(
+    time: Res<Time>,
+    mut screen_shake: ResMut<ScreenShake>,
+) {
+    screen_shake.tick(time.delta_secs());
+}
+
+/// Animate dust particles (fade out and rise)
+pub fn animate_dust(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Transform, &mut DustParticle)>,
+) {
+    let dt = time.delta_secs();
+
+    for (entity, mut transform, mut dust) in &mut query {
+        dust.lifetime -= dt;
+
+        if dust.lifetime <= 0.0 {
+            commands.entity(entity).despawn();
+            continue;
+        }
+
+        // Slowly rise and expand
+        transform.translation.y += 8.0 * dt;
+        let fade = dust.lifetime / 0.4;
+        transform.scale = Vec3::splat(1.0 + (1.0 - fade) * 0.5) * fade;
+    }
+}
+
+/// Spawn dust particles behind sprinting player
+pub fn spawn_sprint_dust(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    query: Query<(&Transform, &Sprinting, &PlayerAnimation), With<Player>>,
+) {
+    for (transform, sprinting, anim) in &query {
+        // Only spawn dust when at higher speeds (ramped up)
+        if sprinting.duration < 0.2 || anim.velocity.length() < 50.0 {
+            continue;
+        }
+
+        // Spawn rate increases with sprint duration
+        let spawn_chance = (sprinting.duration * 2.0).min(1.0) * 0.3;
+        if rand::random::<f32>() > spawn_chance {
+            continue;
+        }
+
+        let offset = Vec2::new(
+            rand::random::<f32>() * 6.0 - 3.0,
+            rand::random::<f32>() * 2.0 - 4.0,
+        );
+
+        commands.spawn((
+            DustParticle { lifetime: 0.4 },
+            Mesh2d(meshes.add(Circle::new(2.0))),
+            MeshMaterial2d(materials.add(ColorMaterial::from_color(Color::srgba(0.6, 0.55, 0.45, 0.6)))),
+            Transform::from_xyz(
+                transform.translation.x + offset.x,
+                transform.translation.y + offset.y,
+                crate::constants::Z_PARTICLE,
+            ),
+        ));
     }
 }

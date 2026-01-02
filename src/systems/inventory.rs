@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::components::*;
+use crate::resources::{GameAction, InputBindings};
 
 #[derive(Resource, Default)]
 pub struct InventoryUIState {
@@ -39,10 +40,12 @@ pub fn cursor_not_over_ui(cursor_over_ui: Res<CursorOverUI>) -> bool {
 
 pub fn toggle_inventory(
     keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     mut ui_state: ResMut<InventoryUIState>,
     mut panel_query: Query<&mut Visibility, With<InventoryPanel>>,
 ) {
-    if keyboard.just_pressed(KeyCode::Tab) {
+    if bindings.just_pressed(GameAction::ToggleInventory, &keyboard, &mouse) {
         ui_state.open = !ui_state.open;
         if let Ok(mut visibility) = panel_query.single_mut() {
             *visibility = if ui_state.open {
@@ -183,13 +186,15 @@ pub fn apply_ground_item_hover(
 
 pub fn pickup_ground_items(
     mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     mut player_query: Query<(&Transform, &mut Inventory), With<Player>>,
     ground_items: Query<(Entity, &Transform, &GroundItem), (With<Pickupable>, Without<Player>)>,
 ) {
-    if !mouse.just_pressed(MouseButton::Left) {
+    if !bindings.just_pressed(GameAction::InventoryPickup, &keyboard, &mouse) {
         return;
     }
 
@@ -222,7 +227,9 @@ pub fn pickup_ground_items(
 
 pub fn handle_inventory_right_click(
     ui_state: Res<InventoryUIState>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     registry: Res<ItemRegistry>,
@@ -234,7 +241,7 @@ pub fn handle_inventory_right_click(
         return;
     }
 
-    if !mouse.just_pressed(MouseButton::Right) {
+    if !bindings.just_pressed(GameAction::InventoryUse, &keyboard, &mouse) {
         return;
     }
 
@@ -284,6 +291,8 @@ pub fn handle_inventory_right_click(
 
 pub fn use_hotbar_keys(
     keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     registry: Res<ItemRegistry>,
@@ -292,16 +301,16 @@ pub fn use_hotbar_keys(
 ) {
     let Ok((mut inventory, mut health, mut equipped)) = player_query.single_mut() else { return };
 
-    let keys = [
-        KeyCode::Digit1,
-        KeyCode::Digit2,
-        KeyCode::Digit3,
-        KeyCode::Digit4,
-        KeyCode::Digit5,
+    let actions = [
+        GameAction::Hotbar1,
+        GameAction::Hotbar2,
+        GameAction::Hotbar3,
+        GameAction::Hotbar4,
+        GameAction::Hotbar5,
     ];
 
-    for (slot_index, key) in keys.iter().enumerate() {
-        if keyboard.just_pressed(*key) {
+    for (slot_index, action) in actions.iter().enumerate() {
+        if bindings.just_pressed(*action, &keyboard, &mouse) {
             if let Some(slot) = inventory.get(slot_index) {
                 let Some(item) = registry.items.get(&slot.item_id) else { continue };
                 match item.category {
@@ -351,7 +360,9 @@ fn use_consumable(registry: &ItemRegistry, item_id: ItemId, health: &mut Health)
 
 pub fn start_inventory_drag(
     mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     ui_state: Res<InventoryUIState>,
     registry: Res<ItemRegistry>,
     mut drag_state: ResMut<DragState>,
@@ -363,7 +374,7 @@ pub fn start_inventory_drag(
         return;
     }
 
-    if !mouse.just_pressed(MouseButton::Left) {
+    if !bindings.just_pressed(GameAction::InventoryPickup, &keyboard, &mouse) {
         return;
     }
 
@@ -421,14 +432,16 @@ pub fn update_drag_visual(
 
 pub fn end_inventory_drag(
     mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     mut drag_state: ResMut<DragState>,
     mut inventory_query: Query<&mut Inventory, With<Player>>,
     slot_query: Query<(&Interaction, &InventorySlotUI)>,
 ) {
     let Some(from_slot) = drag_state.dragging_from else { return };
 
-    if !mouse.just_released(MouseButton::Left) {
+    if !bindings.just_released(GameAction::InventoryPickup, &keyboard, &mouse) {
         return;
     }
 

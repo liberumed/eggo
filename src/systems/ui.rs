@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::components::*;
-use crate::resources::{GameState, Stats};
+use crate::resources::{GameAction, GameState, InputBindings, Stats};
 
 pub fn update_counters(
     stats: Res<Stats>,
@@ -80,10 +80,12 @@ pub fn stabilize_shadow(
 // Toggle pause menu on Esc
 pub fn toggle_pause_menu(
     keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     current_state: Res<State<GameState>>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
-    if keyboard.just_pressed(KeyCode::Escape) {
+    if bindings.just_pressed(GameAction::Pause, &keyboard, &mouse) {
         match current_state.get() {
             GameState::Playing => next_state.set(GameState::Paused),
             GameState::Paused => next_state.set(GameState::Playing),

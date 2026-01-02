@@ -2,9 +2,9 @@ use bevy::prelude::*;
 
 use crate::resources::GameState;
 use crate::systems::{
-    aim_weapon, animate_player, animate_player_death, animate_weapon_swing, apply_knockback,
-    cursor_not_over_ui, handle_block, move_player, player_attack, toggle_weapon,
-    update_weapon_visual,
+    aim_weapon, animate_player, animate_player_death, animate_weapon_swing, apply_dash,
+    apply_knockback, cursor_not_over_ui, handle_block, handle_dash_input, move_player,
+    player_attack, tick_dash_cooldown, toggle_weapon, update_weapon_visual,
 };
 
 pub struct PlayerPlugin;
@@ -15,6 +15,9 @@ impl Plugin for PlayerPlugin {
             Update,
             (
                 move_player,
+                handle_dash_input,
+                apply_dash,
+                tick_dash_cooldown,
                 apply_knockback,
                 animate_player,
                 animate_player_death,

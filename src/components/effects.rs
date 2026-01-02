@@ -17,3 +17,9 @@ pub struct MagnetizedBall;
 /// Outline showing target direction
 #[derive(Component)]
 pub struct TargetOutline;
+
+/// Dust particle from sprinting
+#[derive(Component)]
+pub struct DustParticle {
+    pub lifetime: f32,
+}

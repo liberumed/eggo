@@ -77,14 +77,72 @@ pub fn stabilize_shadow(
     }
 }
 
-pub fn show_death_screen(
+// Toggle pause menu on Esc
+pub fn toggle_pause_menu(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    current_state: Res<State<GameState>>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    if keyboard.just_pressed(KeyCode::Escape) {
+        match current_state.get() {
+            GameState::Playing => next_state.set(GameState::Paused),
+            GameState::Paused => next_state.set(GameState::Playing),
+            _ => {}
+        }
+    }
+}
+
+// Show menu when entering Paused state
+pub fn show_pause_menu(
+    mut menu_query: Query<&mut Visibility, With<GameMenu>>,
+    mut title_query: Query<&mut Text, With<MenuTitle>>,
+    mut title_color_query: Query<&mut TextColor, With<MenuTitle>>,
+    mut resume_query: Query<&mut Visibility, (With<ResumeButton>, Without<GameMenu>)>,
+) {
+    if let Ok(mut visibility) = menu_query.single_mut() {
+        *visibility = Visibility::Inherited;
+    }
+    if let Ok(mut text) = title_query.single_mut() {
+        **text = "PAUSED".to_string();
+    }
+    if let Ok(mut color) = title_color_query.single_mut() {
+        *color = TextColor(Color::srgb(0.9, 0.9, 0.9));
+    }
+    if let Ok(mut visibility) = resume_query.single_mut() {
+        *visibility = Visibility::Inherited;
+    }
+}
+
+// Hide menu when exiting Paused state
+pub fn hide_pause_menu(
+    mut menu_query: Query<&mut Visibility, With<GameMenu>>,
+) {
+    if let Ok(mut visibility) = menu_query.single_mut() {
+        *visibility = Visibility::Hidden;
+    }
+}
+
+// Show death menu when player dies
+pub fn show_death_menu(
     player_query: Query<&Dead, With<Player>>,
-    mut death_screen_query: Query<&mut Visibility, With<DeathScreen>>,
+    mut menu_query: Query<&mut Visibility, With<GameMenu>>,
+    mut title_query: Query<&mut Text, With<MenuTitle>>,
+    mut title_color_query: Query<&mut TextColor, With<MenuTitle>>,
+    mut resume_query: Query<&mut Visibility, (With<ResumeButton>, Without<GameMenu>)>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
     if player_query.iter().next().is_some() {
-        if let Ok(mut visibility) = death_screen_query.single_mut() {
+        if let Ok(mut visibility) = menu_query.single_mut() {
             *visibility = Visibility::Inherited;
+        }
+        if let Ok(mut text) = title_query.single_mut() {
+            **text = "YOU DIED".to_string();
+        }
+        if let Ok(mut color) = title_color_query.single_mut() {
+            *color = TextColor(Color::srgb(0.9, 0.2, 0.2));
+        }
+        if let Ok(mut visibility) = resume_query.single_mut() {
+            *visibility = Visibility::Hidden;
         }
         next_state.set(GameState::Dead);
     }
@@ -125,18 +183,61 @@ pub fn update_weapon_info(
     }
 }
 
-pub fn handle_new_game_button(
-    interaction_query: Query<&Interaction, (Changed<Interaction>, With<NewGameButton>)>,
-    mut death_screen_query: Query<&mut Visibility, With<DeathScreen>>,
+// Resume button handler
+pub fn handle_resume_button(
+    interaction_query: Query<&Interaction, (Changed<Interaction>, With<ResumeButton>)>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
     for interaction in &interaction_query {
         if *interaction == Interaction::Pressed {
-            if let Ok(mut visibility) = death_screen_query.single_mut() {
-                *visibility = Visibility::Hidden;
-            }
-            // Transition to Playing triggers cleanup_world (OnExit Dead) then spawn_world (OnEnter Playing)
             next_state.set(GameState::Playing);
+        }
+    }
+}
+
+// New Game button handler
+pub fn handle_menu_new_game_button(
+    interaction_query: Query<&Interaction, (Changed<Interaction>, With<MenuNewGameButton>)>,
+    mut next_state: ResMut<NextState<GameState>>,
+    current_state: Res<State<GameState>>,
+    mut new_game_requested: ResMut<crate::resources::NewGameRequested>,
+) {
+    for interaction in &interaction_query {
+        if *interaction == Interaction::Pressed {
+            match current_state.get() {
+                GameState::Paused => {
+                    // Go to Dead first, flag will trigger auto-transition to Playing
+                    new_game_requested.0 = true;
+                    next_state.set(GameState::Dead);
+                }
+                GameState::Dead => {
+                    next_state.set(GameState::Playing);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+// Auto-transition from Dead to Playing when new game was requested from pause
+pub fn auto_start_new_game(
+    mut next_state: ResMut<NextState<GameState>>,
+    mut new_game_requested: ResMut<crate::resources::NewGameRequested>,
+) {
+    if new_game_requested.0 {
+        new_game_requested.0 = false;
+        next_state.set(GameState::Playing);
+    }
+}
+
+// Exit button handler
+pub fn handle_exit_button(
+    interaction_query: Query<&Interaction, (Changed<Interaction>, With<ExitButton>)>,
+    mut app_exit: MessageWriter<AppExit>,
+) {
+    for interaction in &interaction_query {
+        if *interaction == Interaction::Pressed {
+            app_exit.write(AppExit::Success);
         }
     }
 }

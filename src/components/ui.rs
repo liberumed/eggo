@@ -1,10 +1,20 @@
 use bevy::prelude::*;
 
+// Game Menu components (unified pause/death menu)
 #[derive(Component)]
-pub struct DeathScreen;
+pub struct GameMenu;
 
 #[derive(Component)]
-pub struct NewGameButton;
+pub struct MenuTitle;
+
+#[derive(Component)]
+pub struct ResumeButton;
+
+#[derive(Component)]
+pub struct MenuNewGameButton;
+
+#[derive(Component)]
+pub struct ExitButton;
 
 #[derive(Component)]
 pub struct HpText;

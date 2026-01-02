@@ -2,8 +2,8 @@ use bevy::prelude::*;
 
 use crate::resources::GameState;
 use crate::systems::{
-    handle_new_game_button, show_death_screen, stabilize_shadow, stabilize_text_rotation,
-    update_counters, update_hp_text, update_weapon_info,
+    handle_exit_button, handle_menu_new_game_button, handle_resume_button, show_death_menu,
+    stabilize_shadow, stabilize_text_rotation, update_counters, update_hp_text, update_weapon_info,
 };
 
 pub struct UiPlugin;
@@ -22,8 +22,15 @@ impl Plugin for UiPlugin {
         )
         .add_systems(
             Update,
-            show_death_screen.run_if(in_state(GameState::Playing)),
+            show_death_menu.run_if(in_state(GameState::Playing)),
         )
-        .add_systems(Update, handle_new_game_button);
+        .add_systems(
+            Update,
+            (
+                handle_resume_button,
+                handle_menu_new_game_button,
+                handle_exit_button,
+            ),
+        );
     }
 }

@@ -7,6 +7,7 @@ pub enum GameState {
     #[default]
     Loading,
     Playing,
+    Paused,
     Dead,
 }
 
@@ -26,3 +27,7 @@ impl Default for WorldConfig {
         }
     }
 }
+
+/// Flag to indicate new game was requested (needs cleanup before spawn)
+#[derive(Resource, Default)]
+pub struct NewGameRequested(pub bool);

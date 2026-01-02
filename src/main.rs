@@ -9,8 +9,9 @@ use bevy::prelude::*;
 use components::*;
 use constants::*;
 use plugins::*;
-use resources::{GameState, Stats, WorldConfig};
+use resources::{GameState, NewGameRequested, Stats, WorldConfig};
 use spawners::CharacterAssets;
+use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, toggle_pause_menu};
 use components::build_item_registry;
 
 fn main() {
@@ -26,11 +27,16 @@ fn main() {
         }))
         .init_resource::<Stats>()
         .init_resource::<WorldConfig>()
+        .init_resource::<NewGameRequested>()
         .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
         .add_systems(Startup, (setup, setup_ui))
+        .add_systems(Update, toggle_pause_menu)
         .add_systems(OnEnter(GameState::Playing), spawn_world)
-        .add_systems(OnExit(GameState::Dead), cleanup_world)
+        .add_systems(OnEnter(GameState::Paused), show_pause_menu)
+        .add_systems(OnExit(GameState::Paused), hide_pause_menu)
+        .add_systems(OnEnter(GameState::Dead), auto_start_new_game)
+        .add_systems(OnExit(GameState::Dead), (hide_pause_menu, cleanup_world).chain())
         .add_plugins((
             PlayerPlugin,
             CreaturePlugin,
@@ -78,7 +84,13 @@ fn spawn_world(
     config: Res<WorldConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    player_query: Query<Entity, With<Player>>,
 ) {
+    // Skip if player already exists (resuming from pause)
+    if player_query.iter().next().is_some() {
+        return;
+    }
+
     spawners::spawn_player(&mut commands, &assets, &mut meshes, &mut materials);
     spawners::spawn_target_outline(&mut commands, &assets);
     spawners::spawn_creatures(&mut commands, &assets, &mut meshes, &mut materials);
@@ -308,31 +320,56 @@ fn setup_ui(mut commands: Commands) {
             ));
         });
 
+    // Game Menu (unified pause/death menu)
     commands.spawn((
-        DeathScreen,
+        GameMenu,
         Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(40.0),
+            row_gap: Val::Px(30.0),
             position_type: PositionType::Absolute,
             ..default()
         },
         BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
         Visibility::Hidden,
     )).with_children(|parent| {
+        // Title (changes between "PAUSED" and "YOU DIED")
         parent.spawn((
-            Text::new("YOU DIED"),
+            MenuTitle,
+            Text::new("PAUSED"),
             TextFont {
                 font_size: 64.0,
                 ..default()
             },
-            TextColor(Color::srgb(0.9, 0.2, 0.2)),
+            TextColor(Color::srgb(0.9, 0.9, 0.9)),
         ));
+
+        // Resume button (hidden when dead)
         parent.spawn((
-            NewGameButton,
+            ResumeButton,
+            Button,
+            Node {
+                padding: UiRect::axes(Val::Px(30.0), Val::Px(15.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgb(0.3, 0.5, 0.3)),
+        )).with_children(|btn| {
+            btn.spawn((
+                Text::new("RESUME"),
+                TextFont {
+                    font_size: 32.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+            ));
+        });
+
+        // New Game button
+        parent.spawn((
+            MenuNewGameButton,
             Button,
             Node {
                 padding: UiRect::axes(Val::Px(30.0), Val::Px(15.0)),
@@ -342,6 +379,26 @@ fn setup_ui(mut commands: Commands) {
         )).with_children(|btn| {
             btn.spawn((
                 Text::new("NEW GAME"),
+                TextFont {
+                    font_size: 32.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+            ));
+        });
+
+        // Exit button
+        parent.spawn((
+            ExitButton,
+            Button,
+            Node {
+                padding: UiRect::axes(Val::Px(30.0), Val::Px(15.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgb(0.5, 0.3, 0.3)),
+        )).with_children(|btn| {
+            btn.spawn((
+                Text::new("EXIT"),
                 TextFont {
                     font_size: 32.0,
                     ..default()

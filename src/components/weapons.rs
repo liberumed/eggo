@@ -175,7 +175,7 @@ pub mod weapon_catalog {
             },
             damage: 1,
             speed: 1,
-            reach: 2,
+            reach: 3,
             arc: 2,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
@@ -184,7 +184,7 @@ pub mod weapon_catalog {
             block: 1,
             block_kb: 1,
             on_hit: vec![
-                OnHitEffect::Stun { duration: 0.7 },
+                //OnHitEffect::Stun { duration: 0.7 },
                 OnHitEffect::Knockback { force: 130.0 },
             ],
         }
@@ -217,7 +217,7 @@ pub mod weapon_catalog {
             block_kb: 3,
             on_hit: vec![
                 OnHitEffect::Stun { duration: 0.45 },
-                OnHitEffect::Knockback { force: 90.0 },
+                OnHitEffect::Knockback { force: 20.0 },
             ],
         }
     }
@@ -244,8 +244,8 @@ pub mod weapon_catalog {
             block: 1,
             block_kb: 1,
             on_hit: vec![
-                OnHitEffect::Stun { duration: 0.45 },
-                OnHitEffect::Knockback { force: 90.0 },
+                OnHitEffect::Stun { duration: 0.15 },
+                OnHitEffect::Knockback { force: 10.0 },
             ],
         }
     }

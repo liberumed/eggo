@@ -270,6 +270,7 @@ pub fn spawn_creatures(
 ) {
     let mut rng = rand::rng();
     let blob = creature_catalog::blob();
+    let hostile_blob = creature_catalog::hostile_blob();
     let world_size = WORLD_SIZE as f32 * GRID_SPACING;
     let min_distance = COLLISION_RADIUS * 6.0;
     let cell_size = min_distance * 1.2;
@@ -302,7 +303,13 @@ pub fn spawn_creatures(
 
             positions.push(pos);
 
-            spawn_creature(commands, assets, meshes, materials, &mut rng, &blob, x, y);
+            // 15% chance to spawn hostile variant
+            let definition = if rng.random_bool(0.15) {
+                &hostile_blob
+            } else {
+                &blob
+            };
+            spawn_creature(commands, assets, meshes, materials, &mut rng, definition, x, y);
         }
     }
 }

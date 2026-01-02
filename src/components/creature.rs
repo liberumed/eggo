@@ -50,18 +50,36 @@ pub struct CreatureDefinition {
 pub mod creature_catalog {
     use super::*;
 
+    /// Neutral blob - can become hostile when provoked
     pub fn blob() -> CreatureDefinition {
         CreatureDefinition {
             name: "Blob".to_string(),
             health: 2,
             speed: 55.0,
             damage: 1,
-            hostile_chance: 0.15,
-            glowing_chance: 0.3,
+            hostile_chance: 0.0,
+            glowing_chance: 0.35,
             loot: LootTable {
                 philosophy_chance: 0.5,
                 nature_chance: 0.5,
                 wisdom_chance: 0.5,
+            },
+        }
+    }
+
+    /// Hostile blob - always aggressive, tougher
+    pub fn hostile_blob() -> CreatureDefinition {
+        CreatureDefinition {
+            name: "Hostile Blob".to_string(),
+            health: 6,
+            speed: 55.0,
+            damage: 1,
+            hostile_chance: 1.0,
+            glowing_chance: 0.0,
+            loot: LootTable {
+                philosophy_chance: 0.6,
+                nature_chance: 0.6,
+                wisdom_chance: 0.6,
             },
         }
     }

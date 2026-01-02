@@ -11,7 +11,7 @@ use constants::*;
 use plugins::*;
 use resources::{GameState, Hitstop, InputBindings, NewGameRequested, ScreenShake, Stats, WorldConfig};
 use spawners::CharacterAssets;
-use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, toggle_pause_menu};
+use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_key_bindings_panel, toggle_pause_menu};
 use components::build_item_registry;
 
 fn main() {
@@ -33,7 +33,7 @@ fn main() {
         .init_resource::<ScreenShake>()
         .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
-        .add_systems(Startup, (setup, setup_ui))
+        .add_systems(Startup, (setup, setup_ui, spawn_key_bindings_panel))
         .add_systems(Update, toggle_pause_menu)
         .add_systems(OnEnter(GameState::Playing), spawn_world)
         .add_systems(OnEnter(GameState::Paused), show_pause_menu)

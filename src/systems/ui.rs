@@ -243,3 +243,59 @@ pub fn handle_exit_button(
         }
     }
 }
+
+/// Spawn key bindings guide panel (bottom-left)
+pub fn spawn_key_bindings_panel(mut commands: Commands) {
+    commands
+        .spawn((
+            KeyBindingsPanel,
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(20.0),
+                left: Val::Px(20.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(10.0)),
+                row_gap: Val::Px(2.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.12, 0.7)),
+            BorderRadius::all(Val::Px(4.0)),
+        ))
+        .with_children(|parent| {
+            let bindings = [
+                ("WASD", "Move"),
+                ("Shift", "Sprint"),
+                ("Space", "Dash"),
+                ("LMB", "Attack"),
+                ("RMB", "Block"),
+                ("R", "Weapon"),
+                ("Tab", "Inventory"),
+                ("Esc", "Pause"),
+            ];
+            for (key, action) in bindings {
+                parent
+                    .spawn(Node {
+                        column_gap: Val::Px(8.0),
+                        ..default()
+                    })
+                    .with_children(|row| {
+                        row.spawn((
+                            Text::new(key),
+                            TextFont {
+                                font_size: 11.0,
+                                ..default()
+                            },
+                            TextColor(Color::srgb(0.8, 0.75, 0.5)),
+                        ));
+                        row.spawn((
+                            Text::new(action),
+                            TextFont {
+                                font_size: 11.0,
+                                ..default()
+                            },
+                            TextColor(Color::srgb(0.6, 0.6, 0.6)),
+                        ));
+                    });
+            }
+        });
+}

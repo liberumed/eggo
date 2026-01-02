@@ -73,3 +73,6 @@ pub struct InventorySlotUI(pub usize);
 
 #[derive(Component)]
 pub struct InventorySlotCount(pub usize);
+
+#[derive(Component)]
+pub struct KeyBindingsPanel;

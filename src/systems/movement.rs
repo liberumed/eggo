@@ -11,7 +11,7 @@ pub fn move_player(
     bindings: Res<InputBindings>,
     hitstop: Res<Hitstop>,
     time: Res<Time>,
-    mut player_query: Query<(Entity, &mut Transform, &mut PlayerAnimation, Option<&mut Sprinting>), (With<Player>, Without<Dead>, Without<DeathAnimation>, Without<Dashing>)>,
+    mut player_query: Query<(Entity, &mut Transform, &mut PlayerAnimation, Option<&mut Sprinting>, Option<&PhaseThrough>), (With<Player>, Without<Dead>, Without<DeathAnimation>, Without<Dashing>)>,
     creatures_query: Query<(&Transform, Option<&Dead>), (With<Creature>, Without<Player>)>,
     blocking_query: Query<&Blocking>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
@@ -45,9 +45,10 @@ pub fn move_player(
     let collision_distance = COLLISION_RADIUS * 1.5;
     let dt = time.delta_secs();
 
-    for (entity, mut transform, mut anim, sprinting) in &mut player_query {
+    for (entity, mut transform, mut anim, sprinting, phase_through) in &mut player_query {
         let is_blocking = blocking_query.get(entity).is_ok();
         let is_sprinting = bindings.pressed(GameAction::Sprint, &keyboard, &mouse) && input_dir != Vec2::ZERO;
+        let is_phasing = phase_through.is_some();
 
         // Handle sprint state and ramp-up
         let sprint_multiplier = if is_sprinting {
@@ -104,21 +105,24 @@ pub fn move_player(
         let mut blocked_x = false;
         let mut blocked_y = false;
 
-        for (creature_transform, dead) in &creatures_query {
-            if dead.is_some() {
-                continue;
-            }
+        // Skip collision when phasing through (after dash)
+        if !is_phasing {
+            for (creature_transform, dead) in &creatures_query {
+                if dead.is_some() {
+                    continue;
+                }
 
-            let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
+                let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
 
-            let test_x = Vec2::new(new_pos.x, transform.translation.y);
-            if test_x.distance(creature_pos) < collision_distance {
-                blocked_x = true;
-            }
+                let test_x = Vec2::new(new_pos.x, transform.translation.y);
+                if test_x.distance(creature_pos) < collision_distance {
+                    blocked_x = true;
+                }
 
-            let test_y = Vec2::new(transform.translation.x, new_pos.y);
-            if test_y.distance(creature_pos) < collision_distance {
-                blocked_y = true;
+                let test_y = Vec2::new(transform.translation.x, new_pos.y);
+                if test_y.distance(creature_pos) < collision_distance {
+                    blocked_y = true;
+                }
             }
         }
 
@@ -201,6 +205,23 @@ pub fn apply_dash(
 
         if dash.timer <= 0.0 {
             commands.entity(entity).remove::<Dashing>();
+            // Add brief phase-through to prevent getting stuck in creatures
+            commands.entity(entity).insert(PhaseThrough { timer: 0.15 });
+        }
+    }
+}
+
+/// Tick phase-through timer
+pub fn tick_phase_through(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut PhaseThrough)>,
+) {
+    let dt = time.delta_secs();
+    for (entity, mut phase) in &mut query {
+        phase.timer -= dt;
+        if phase.timer <= 0.0 {
+            commands.entity(entity).remove::<PhaseThrough>();
         }
     }
 }

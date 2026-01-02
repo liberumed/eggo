@@ -28,3 +28,9 @@ pub struct DashCooldown {
 pub struct Sprinting {
     pub duration: f32,
 }
+
+/// Brief phase-through after dash (prevents getting stuck in creatures)
+#[derive(Component)]
+pub struct PhaseThrough {
+    pub timer: f32,
+}

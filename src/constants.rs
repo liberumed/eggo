@@ -23,9 +23,9 @@ pub const PROVOKED_SPEED: f32 = 40.0;
 pub const KNOCKBACK_FORCE: f32 = 250.0;
 
 // Dash
-pub const DASH_SPEED: f32 = 300.0;
-pub const DASH_DURATION: f32 = 0.12;
-pub const DASH_COOLDOWN: f32 = 0.4;
+pub const DASH_SPEED: f32 = 350.0;
+pub const DASH_DURATION: f32 = 0.18;
+pub const DASH_COOLDOWN: f32 = 0.5;
 
 // Sprint
 pub const SPRINT_MIN_MULTIPLIER: f32 = 1.3;   // Starting sprint speed

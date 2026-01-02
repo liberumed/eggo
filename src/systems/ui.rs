@@ -119,7 +119,7 @@ pub fn update_weapon_info(
         **text = weapon.arc.to_string();
     }
     if let Ok(mut text) = knockback_query.single_mut() {
-        **text = weapon.impact.to_string();
+        **text = format!("{:.0}", weapon.knockback_force());
     }
     if let Ok(mut text) = type_query.single_mut() {
         **text = format!("{:?}", weapon.attack_type);

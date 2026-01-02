@@ -96,7 +96,7 @@ pub fn player_attack(
 
         if in_range && in_cone {
             health.0 -= weapon.damage;
-            commands.entity(entity).insert(Stunned(weapon.stun_duration()));
+            weapon.apply_on_hit(&mut commands, entity, to_creature.normalize());
 
             let particle_count = if health.0 <= 0 { 25 } else { 12 };
             for i in 0..particle_count {
@@ -328,7 +328,7 @@ pub fn hostile_attack(
 
                     let knockback_dir = (player_pos - creature_pos).normalize();
                     commands.entity(player_entity).insert(Knockback {
-                        velocity: knockback_dir * weapon.knockback() * kb_mult,
+                        velocity: knockback_dir * weapon.knockback_force() * kb_mult,
                         timer: 0.0,
                     });
                     return;

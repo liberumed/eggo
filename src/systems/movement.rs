@@ -97,9 +97,9 @@ pub fn move_player(
 pub fn apply_knockback(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut Knockback, &Health), (With<Player>, Without<DeathAnimation>)>,
+    mut query: Query<(Entity, &mut Transform, &mut Knockback, Option<&Health>, Option<&DeathAnimation>), Or<(With<Player>, With<Creature>)>>,
 ) {
-    for (entity, mut transform, mut knockback, health) in &mut query {
+    for (entity, mut transform, mut knockback, health, death_anim) in &mut query {
         knockback.timer += time.delta_secs();
 
         let decay = (1.0 - knockback.timer * 3.0).max(0.0);
@@ -109,8 +109,13 @@ pub fn apply_knockback(
 
         if knockback.timer > 0.3 {
             commands.entity(entity).remove::<Knockback>();
-            if health.0 <= 0 {
-                commands.entity(entity).insert(DeathAnimation { timer: 0.0, stage: 0 });
+            // Only start death animation if not already dying and health is depleted
+            if death_anim.is_none() {
+                if let Some(h) = health {
+                    if h.0 <= 0 {
+                        commands.entity(entity).insert(DeathAnimation { timer: 0.0, stage: 0 });
+                    }
+                }
             }
         }
     }

@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use super::{Knockback, Stunned};
+
 use super::ItemId;
 
 #[derive(Component)]
@@ -59,6 +61,30 @@ pub enum Rarity {
     Legendary,
 }
 
+/// Effect applied when a weapon hits a target
+#[derive(Clone)]
+pub enum OnHitEffect {
+    Stun { duration: f32 },
+    Knockback { force: f32 },
+}
+
+impl OnHitEffect {
+    /// Apply this effect to an entity
+    pub fn apply(&self, commands: &mut Commands, entity: Entity, direction: Vec2) {
+        match self {
+            OnHitEffect::Stun { duration } => {
+                commands.entity(entity).insert(Stunned(*duration));
+            }
+            OnHitEffect::Knockback { force } => {
+                commands.entity(entity).insert(Knockback {
+                    velocity: direction * *force,
+                    timer: 0.0,
+                });
+            }
+        }
+    }
+}
+
 /// Weapon stats use tier values (1-5) that scale to gameplay values via methods.
 #[derive(Component, Clone)]
 pub struct Weapon {
@@ -73,8 +99,6 @@ pub struct Weapon {
     pub reach: i32,
     /// Attack cone tier: 1=narrow, 5=wide → cone_angle() = 0.35 + arc * 0.25 rad
     pub arc: i32,
-    /// Knockback tier: 1=light, 5=heavy → knockback() = 50 + impact * 40
-    pub impact: i32,
     /// Slash=wide arc, Stab=narrow/fast, Smash=slow/heavy
     pub attack_type: AttackType,
     /// Physical, Fire, Ice, etc. (for future resistances)
@@ -87,8 +111,8 @@ pub struct Weapon {
     pub block: i32,
     /// Block knockback reduction tier: 1=weak, 5=strong → block_knockback_reduction() = 0.2 + block_kb * 0.15
     pub block_kb: i32,
-    /// Stun tier: 1=short, 5=long → stun_duration() = 0.2 + stun * 0.25
-    pub stun: i32,
+    /// Effects applied when this weapon hits a target
+    pub on_hit: Vec<OnHitEffect>,
 }
 
 impl Weapon {
@@ -108,10 +132,6 @@ impl Weapon {
         0.35 + self.arc as f32 * 0.25
     }
 
-    pub fn knockback(&self) -> f32 {
-        50.0 + self.impact as f32 * 40.0
-    }
-
     pub fn block_damage_reduction(&self) -> f32 {
         0.1 + self.block as f32 * 0.15
     }
@@ -120,8 +140,22 @@ impl Weapon {
         0.2 + self.block_kb as f32 * 0.15
     }
 
-    pub fn stun_duration(&self) -> f32 {
-        0.2 + self.stun as f32 * 0.25
+    /// Apply all on-hit effects to a target entity
+    pub fn apply_on_hit(&self, commands: &mut Commands, entity: Entity, direction: Vec2) {
+        for effect in &self.on_hit {
+            effect.apply(commands, entity, direction);
+        }
+    }
+
+    /// Get the knockback force from on_hit effects (for blocking calculations)
+    pub fn knockback_force(&self) -> f32 {
+        self.on_hit
+            .iter()
+            .filter_map(|e| match e {
+                OnHitEffect::Knockback { force } => Some(*force),
+                _ => None,
+            })
+            .sum()
     }
 }
 
@@ -143,14 +177,16 @@ pub mod weapon_catalog {
             speed: 1,
             reach: 2,
             arc: 2,
-            impact: 2,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
             cost: 0,
             block: 1,
             block_kb: 1,
-            stun: 2,
+            on_hit: vec![
+                OnHitEffect::Stun { duration: 0.7 },
+                OnHitEffect::Knockback { force: 130.0 },
+            ],
         }
     }
 
@@ -173,14 +209,16 @@ pub mod weapon_catalog {
             speed: 4,
             reach: 2,
             arc: 2,
-            impact: 1,
             attack_type: AttackType::Slash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
             cost: 10,
             block: 2,
             block_kb: 3,
-            stun: 1,
+            on_hit: vec![
+                OnHitEffect::Stun { duration: 0.45 },
+                OnHitEffect::Knockback { force: 90.0 },
+            ],
         }
     }
 
@@ -199,14 +237,16 @@ pub mod weapon_catalog {
             speed: 2,
             reach: 1,
             arc: 2,
-            impact: 1,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
             cost: 0,
             block: 1,
             block_kb: 1,
-            stun: 1,
+            on_hit: vec![
+                OnHitEffect::Stun { duration: 0.45 },
+                OnHitEffect::Knockback { force: 90.0 },
+            ],
         }
     }
 }

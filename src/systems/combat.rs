@@ -46,7 +46,7 @@ pub fn player_attack(
     mouse: Res<ButtonInput<MouseButton>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    player_query: Query<&Transform, (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
+    player_query: Query<(Entity, &Transform), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     weapon_query: Query<(Entity, &Transform, &Weapon, Option<&Drawn>), With<PlayerWeapon>>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
@@ -67,10 +67,10 @@ pub fn player_attack(
         return;
     }
 
-    let Ok(player_transform) = player_query.single() else { return };
+    let Ok((player_entity, player_transform)) = player_query.single() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
 
-    let attack_dir = if let Ok((weapon_entity, weapon_transform, weapon, _)) = weapon_query.single() {
+    let attack_dir = if let Ok((weapon_entity, weapon_transform, _weapon, _)) = weapon_query.single() {
         let (_, angle) = weapon_transform.rotation.to_axis_angle();
         let base_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
         commands.entity(weapon_entity).insert(WeaponSwing {
@@ -85,6 +85,7 @@ pub fn player_attack(
 
     let cone_threshold = (weapon.cone_angle() / 2.0).cos();
     let mut rng = rand::rng();
+    let mut hit_any = false;
 
     for (entity, creature_transform, mut health, hostile) in &mut creatures_query {
         let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
@@ -95,6 +96,7 @@ pub fn player_attack(
         let in_cone = distance > 0.0 && to_creature.normalize().dot(attack_dir) > cone_threshold;
 
         if in_range && in_cone {
+            hit_any = true;
             health.0 -= weapon.damage;
             weapon.apply_on_hit(&mut commands, entity, to_creature.normalize());
 
@@ -158,6 +160,15 @@ pub fn player_attack(
                 commands.entity(entity).add_child(fist_entity);
             }
         }
+    }
+
+    // Apply recoil to player when hitting
+    if hit_any {
+        let recoil_force = weapon.knockback_force() * 0.15;
+        commands.entity(player_entity).insert(Knockback {
+            velocity: -attack_dir * recoil_force,
+            timer: 0.0,
+        });
     }
 }
 

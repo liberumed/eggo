@@ -81,22 +81,47 @@ pub fn animate_weapon_swing(
             let progress = t / swing.duration;
 
             if let Some(base_angle) = swing.base_angle {
-                let (thrust_scale, rotation_offset) = if progress < 0.15 {
-                    let p = progress / 0.15;
-                    (1.0 - p * 0.2, p * 0.15)
-                } else if progress < 0.4 {
-                    let p = (progress - 0.15) / 0.25;
-                    (0.8 + p * 0.8, 0.15 - p * 0.15)
-                } else if progress < 0.6 {
-                    let p = (progress - 0.4) / 0.2;
-                    (1.6 - p * 0.1, -p * 0.1)
-                } else {
-                    let p = (progress - 0.6) / 0.4;
-                    (1.5 - p * 0.5, -0.1 + p * 0.1)
-                };
-                transform.scale = Vec3::new(thrust_scale, 1.0, 1.0);
-                transform.rotation = Quat::from_rotation_z(base_angle + rotation_offset);
+                match swing.attack_type {
+                    AttackType::Smash => {
+                        // Overhead swing arc (stick/club) - from head down to face
+                        let swing_arc = 1.5; // radians (~85 degrees)
+                        let (scale, rotation_offset) = if progress < 0.15 {
+                            // Wind up - raise overhead
+                            let p = progress / 0.15;
+                            (1.0, -swing_arc * 0.6 * p)
+                        } else if progress < 0.45 {
+                            // Swing down
+                            let p = (progress - 0.15) / 0.3;
+                            (1.0 + p * 0.15, -swing_arc * 0.6 + swing_arc * 1.0 * p)
+                        } else {
+                            // Follow through and recover
+                            let p = (progress - 0.45) / 0.55;
+                            (1.15 - p * 0.15, swing_arc * 0.4 - swing_arc * 0.4 * p)
+                        };
+                        transform.scale = Vec3::new(scale, 1.0, 1.0);
+                        transform.rotation = Quat::from_rotation_z(base_angle + rotation_offset);
+                    }
+                    AttackType::Slash | AttackType::Stab => {
+                        // Thrust animation (knife/sword)
+                        let (thrust_scale, rotation_offset) = if progress < 0.15 {
+                            let p = progress / 0.15;
+                            (1.0 - p * 0.2, p * 0.15)
+                        } else if progress < 0.4 {
+                            let p = (progress - 0.15) / 0.25;
+                            (0.8 + p * 0.8, 0.15 - p * 0.15)
+                        } else if progress < 0.6 {
+                            let p = (progress - 0.4) / 0.2;
+                            (1.6 - p * 0.1, -p * 0.1)
+                        } else {
+                            let p = (progress - 0.6) / 0.4;
+                            (1.5 - p * 0.5, -0.1 + p * 0.1)
+                        };
+                        transform.scale = Vec3::new(thrust_scale, 1.0, 1.0);
+                        transform.rotation = Quat::from_rotation_z(base_angle + rotation_offset);
+                    }
+                }
             } else {
+                // Fist punch (no base_angle)
                 let punch_scale = if progress < 0.3 {
                     1.0 + (progress / 0.3) * 0.5
                 } else {

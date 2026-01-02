@@ -86,6 +86,7 @@ pub fn player_attack(
             timer: 0.0,
             duration: weapon.swing_duration(),
             base_angle: Some(base_angle),
+            attack_type: weapon.attack_type,
         });
         Vec2::new(base_angle.cos(), base_angle.sin())
     } else {
@@ -324,6 +325,7 @@ pub fn hostile_attack(
                         timer: 0.0,
                         duration: weapon.swing_duration(),
                         base_angle: None,
+                        attack_type: weapon.attack_type,
                     });
 
                     // Check if block is effective (facing the attacker)

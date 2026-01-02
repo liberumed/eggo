@@ -36,6 +36,7 @@ pub struct WeaponSwing {
     pub timer: f32,
     pub duration: f32,
     pub base_angle: Option<f32>,
+    pub attack_type: AttackType,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

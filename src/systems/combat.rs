@@ -96,7 +96,7 @@ pub fn player_attack(
 
         if in_range && in_cone {
             health.0 -= weapon.damage;
-            commands.entity(entity).insert(Stunned(STUN_DURATION));
+            commands.entity(entity).insert(Stunned(weapon.stun_duration()));
 
             let particle_count = if health.0 <= 0 { 25 } else { 12 };
             for i in 0..particle_count {

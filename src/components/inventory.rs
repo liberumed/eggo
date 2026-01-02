@@ -237,63 +237,43 @@ pub fn build_item_registry(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) -> ItemRegistry {
-    use super::{AttackType, DamageType, WeaponVisual};
+    use super::catalog;
 
     let mut items = HashMap::new();
 
     // Wooden Stick
+    let stick_weapon = catalog::wooden_stick(meshes, materials);
     items.insert(
         ItemId::WoodenStick,
         ItemDefinition {
-            name: "Wooden Stick".to_string(),
+            name: stick_weapon.name.clone(),
             category: ItemCategory::Weapon,
             stack_max: 1,
             ground_visual: GroundItemVisual {
                 meshes: vec![(
-                    meshes.add(Rectangle::new(18.0, 2.5)),
-                    materials.add(Color::srgb(0.55, 0.4, 0.25)),
+                    stick_weapon.visual.mesh.clone(),
+                    stick_weapon.visual.material.clone(),
                     Vec3::ZERO,
                 )],
             },
-            weapon: Some(Weapon {
-                name: "Wooden Stick".to_string(),
-                visual: WeaponVisual {
-                    mesh: meshes.add(Rectangle::new(18.0, 2.5)),
-                    material: materials.add(Color::srgb(0.55, 0.4, 0.25)),
-                    offset: 12.0,
-                },
-                damage: 1,
-                speed: 2,
-                reach: 2,
-                arc: 2,
-                impact: 1,
-                attack_type: AttackType::Smash,
-                damage_type: DamageType::Physical,
-                rarity: Rarity::Common,
-                cost: 0,
-                block: 1,
-                block_kb: 1,
-            }),
+            weapon: Some(stick_weapon),
             consumable_effect: None,
         },
     );
 
     // Rusty Knife
+    let knife_weapon = catalog::rusty_knife(meshes, materials);
     items.insert(
         ItemId::RustyKnife,
         ItemDefinition {
-            name: "Rusty Knife".to_string(),
+            name: knife_weapon.name.clone(),
             category: ItemCategory::Weapon,
             stack_max: 1,
             ground_visual: GroundItemVisual {
                 meshes: vec![
                     (
-                        meshes.add(Triangle2d::new(
-                            Vec2::new(0.0, 2.0),
-                            Vec2::new(0.0, -2.0),
-                            Vec2::new(9.0, 0.0),
-                        )),
-                        materials.add(Color::srgb(0.75, 0.75, 0.8)),
+                        knife_weapon.visual.mesh.clone(),
+                        knife_weapon.visual.material.clone(),
                         Vec3::ZERO,
                     ),
                     (
@@ -303,66 +283,27 @@ pub fn build_item_registry(
                     ),
                 ],
             },
-            weapon: Some(Weapon {
-                name: "Rusty Knife".to_string(),
-                visual: WeaponVisual {
-                    mesh: meshes.add(Triangle2d::new(
-                        Vec2::new(0.0, 2.0),
-                        Vec2::new(0.0, -2.0),
-                        Vec2::new(12.0, 0.0),
-                    )),
-                    material: materials.add(Color::srgb(0.75, 0.75, 0.8)),
-                    offset: 14.0,
-                },
-                damage: 1,
-                speed: 3,
-                reach: 3,
-                arc: 1,
-                impact: 3,
-                attack_type: AttackType::Slash,
-                damage_type: DamageType::Physical,
-                rarity: Rarity::Common,
-                cost: 10,
-                block: 2,
-                block_kb: 3,
-            }),
+            weapon: Some(knife_weapon),
             consumable_effect: None,
         },
     );
 
     // Fist
+    let fist_weapon = catalog::fist(meshes, materials);
     items.insert(
         ItemId::Fist,
         ItemDefinition {
-            name: "Fist".to_string(),
+            name: fist_weapon.name.clone(),
             category: ItemCategory::Weapon,
             stack_max: 1,
             ground_visual: GroundItemVisual {
                 meshes: vec![(
-                    meshes.add(Circle::new(3.0)),
-                    materials.add(Color::srgb(0.8, 0.65, 0.5)),
+                    fist_weapon.visual.mesh.clone(),
+                    fist_weapon.visual.material.clone(),
                     Vec3::ZERO,
                 )],
             },
-            weapon: Some(Weapon {
-                name: "Fist".to_string(),
-                visual: WeaponVisual {
-                    mesh: meshes.add(Circle::new(3.0)),
-                    material: materials.add(Color::srgb(0.8, 0.65, 0.5)),
-                    offset: 11.0,
-                },
-                damage: 1,
-                speed: 4,
-                reach: 1,
-                arc: 5,
-                impact: 2,
-                attack_type: AttackType::Smash,
-                damage_type: DamageType::Physical,
-                rarity: Rarity::Common,
-                cost: 0,
-                block: 1,
-                block_kb: 1,
-            }),
+            weapon: Some(fist_weapon),
             consumable_effect: None,
         },
     );

@@ -87,6 +87,8 @@ pub struct Weapon {
     pub block: i32,
     /// Block knockback reduction tier: 1=weak, 5=strong → block_knockback_reduction() = 0.2 + block_kb * 0.15
     pub block_kb: i32,
+    /// Stun tier: 1=short, 5=long → stun_duration() = 0.2 + stun * 0.25
+    pub stun: i32,
 }
 
 impl Weapon {
@@ -99,7 +101,7 @@ impl Weapon {
     }
 
     pub fn range(&self) -> f32 {
-        25.0 + self.reach as f32 * 12.0
+        30.0 + self.reach as f32 * 10.0
     }
 
     pub fn cone_angle(&self) -> f32 {
@@ -116,6 +118,10 @@ impl Weapon {
 
     pub fn block_knockback_reduction(&self) -> f32 {
         0.2 + self.block_kb as f32 * 0.15
+    }
+
+    pub fn stun_duration(&self) -> f32 {
+        0.2 + self.stun as f32 * 0.25
     }
 }
 
@@ -134,16 +140,17 @@ pub mod catalog {
                 offset: 12.0,
             },
             damage: 1,
-            speed: 2,
+            speed: 1,
             reach: 2,
             arc: 2,
-            impact: 1,
+            impact: 2,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
             cost: 0,
             block: 1,
             block_kb: 1,
+            stun: 2,
         }
     }
 
@@ -162,17 +169,18 @@ pub mod catalog {
                 material: materials.add(Color::srgb(0.75, 0.75, 0.8)),
                 offset: 14.0,
             },
-            damage: 1,
-            speed: 3,
-            reach: 3,
-            arc: 1,
-            impact: 3,
+            damage: 2,
+            speed: 4,
+            reach: 2,
+            arc: 2,
+            impact: 1,
             attack_type: AttackType::Slash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
             cost: 10,
             block: 2,
             block_kb: 3,
+            stun: 1,
         }
     }
 
@@ -188,16 +196,17 @@ pub mod catalog {
                 offset: 11.0,
             },
             damage: 1,
-            speed: 4,
+            speed: 2,
             reach: 1,
-            arc: 5,
-            impact: 2,
+            arc: 2,
+            impact: 1,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
             cost: 0,
             block: 1,
             block_kb: 1,
+            stun: 1,
         }
     }
 }

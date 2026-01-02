@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 // Z-Layers (rendering order)
 pub const Z_BACKGROUND: f32 = -10.0;
 pub const Z_SHADOW: f32 = -5.0;

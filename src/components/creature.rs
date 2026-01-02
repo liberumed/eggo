@@ -21,7 +21,8 @@ pub struct Hostile {
 #[derive(Component)]
 pub struct Glowing;
 
-/// Identifier for creature types
+/// Identifier for creature types (for future creature variety)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CreatureId {
     Blob,
@@ -36,6 +37,7 @@ pub struct LootTable {
 }
 
 /// Complete definition of a creature type
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct CreatureDefinition {
     pub name: String,

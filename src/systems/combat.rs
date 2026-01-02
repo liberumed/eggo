@@ -44,6 +44,8 @@ pub fn handle_block(
 pub fn player_attack(
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     player_query: Query<&Transform, (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     weapon_query: Query<(Entity, &Transform, &Weapon, Option<&Drawn>), With<PlayerWeapon>>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
@@ -137,16 +139,19 @@ pub fn player_attack(
                 commands.entity(entity).insert(Hostile { speed: PROVOKED_SPEED });
 
                 // Spawn a fist for the newly hostile creature
+                let fist_weapon = catalog::fist(&mut meshes, &mut materials);
+                let fist_visual = fist_weapon.visual.clone();
                 let fist_entity = commands.spawn((
                     Fist,
-                    catalog::fist(),
+                    fist_weapon,
                     Transform::from_xyz(0.0, 0.0, Z_WEAPON),
                     Visibility::default(),
                 )).with_children(|fist_holder| {
                     fist_holder.spawn((
-                        Mesh2d(assets.fist_mesh.clone()),
-                        MeshMaterial2d(assets.fist_material.clone()),
-                        Transform::from_xyz(11.0, 0.0, 0.0),
+                        WeaponVisualMesh,
+                        Mesh2d(fist_visual.mesh),
+                        MeshMaterial2d(fist_visual.material),
+                        Transform::from_xyz(fist_visual.offset, 0.0, 0.0),
                     ));
                 }).id();
 
@@ -330,5 +335,36 @@ pub fn hostile_attack(
                 }
             }
         }
+    }
+}
+
+/// Updates weapon visual mesh when weapon stats change (reads visual from weapon data)
+pub fn update_weapon_visual(
+    mut commands: Commands,
+    weapon_query: Query<(Entity, &Weapon, Option<&Children>), (With<PlayerWeapon>, Changed<Weapon>)>,
+    visual_mesh_query: Query<Entity, With<WeaponVisualMesh>>,
+) {
+    for (weapon_entity, weapon, children) in &weapon_query {
+        // Despawn old visual children
+        if let Some(children) = children {
+            for child in children.iter() {
+                if visual_mesh_query.get(child).is_ok() {
+                    commands.entity(child).despawn();
+                }
+            }
+        }
+
+        // Spawn new visual from weapon data
+        let visual = &weapon.visual;
+        let visual_entity = commands
+            .spawn((
+                WeaponVisualMesh,
+                Mesh2d(visual.mesh.clone()),
+                MeshMaterial2d(visual.material.clone()),
+                Transform::from_xyz(visual.offset, 0.0, 0.0),
+            ))
+            .id();
+
+        commands.entity(weapon_entity).add_child(visual_entity);
     }
 }

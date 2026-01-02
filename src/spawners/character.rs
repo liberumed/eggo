@@ -35,14 +35,6 @@ pub struct CharacterAssets {
     pub nature_material: Handle<ColorMaterial>,
     pub wisdom_material: Handle<ColorMaterial>,
 
-    // Weapons
-    pub fist_mesh: Handle<Mesh>,
-    pub fist_material: Handle<ColorMaterial>,
-    pub knife_blade_mesh: Handle<Mesh>,
-    pub knife_handle_mesh: Handle<Mesh>,
-    pub blade_material: Handle<ColorMaterial>,
-    pub handle_material: Handle<ColorMaterial>,
-
     // Outline
     pub outline_mesh: Handle<Mesh>,
     pub outline_material: Handle<ColorMaterial>,
@@ -56,8 +48,6 @@ pub struct CharacterAssets {
     // Ground items
     pub item_glow_mesh: Handle<Mesh>,
     pub item_glow_material: Handle<ColorMaterial>,
-    pub potion_mesh: Handle<Mesh>,
-    pub potion_material: Handle<ColorMaterial>,
 }
 
 impl CharacterAssets {
@@ -95,18 +85,6 @@ impl CharacterAssets {
         let nature_material = materials.add(Color::srgb(0.3, 0.7, 0.3));
         let wisdom_material = materials.add(Color::srgb(0.3, 0.5, 0.9));
 
-        let fist_mesh = meshes.add(Circle::new(3.0));
-        let fist_material = materials.add(Color::srgb(0.8, 0.65, 0.5));
-
-        let knife_blade_mesh = meshes.add(Triangle2d::new(
-            Vec2::new(0.0, 2.0),
-            Vec2::new(0.0, -2.0),
-            Vec2::new(9.0, 0.0),
-        ));
-        let knife_handle_mesh = meshes.add(Rectangle::new(4.0, 3.0));
-        let blade_material = materials.add(Color::srgb(0.75, 0.75, 0.8));
-        let handle_material = materials.add(Color::srgb(0.45, 0.3, 0.15));
-
         let outline_mesh = meshes.add(Ellipse::new(11.7, 16.25));
         let outline_material = materials.add(Color::srgba(0.75, 1.0, 0.0, 0.9));
 
@@ -117,8 +95,6 @@ impl CharacterAssets {
 
         let item_glow_mesh = meshes.add(Circle::new(12.0));
         let item_glow_material = materials.add(Color::srgba(1.0, 1.0, 0.8, 0.3));
-        let potion_mesh = meshes.add(Capsule2d::new(4.0, 6.0));
-        let potion_material = materials.add(Color::srgb(0.9, 0.3, 0.3));
 
         Self {
             character_mesh,
@@ -140,12 +116,6 @@ impl CharacterAssets {
             philosophy_material,
             nature_material,
             wisdom_material,
-            fist_mesh,
-            fist_material,
-            knife_blade_mesh,
-            knife_handle_mesh,
-            blade_material,
-            handle_material,
             outline_mesh,
             outline_material,
             blood_splat_mesh,
@@ -154,8 +124,6 @@ impl CharacterAssets {
             blood_droplet_material,
             item_glow_mesh,
             item_glow_material,
-            potion_mesh,
-            potion_material,
         }
     }
 }
@@ -163,11 +131,13 @@ impl CharacterAssets {
 pub fn spawn_ground_item(
     commands: &mut Commands,
     assets: &CharacterAssets,
+    registry: &ItemRegistry,
     item_id: ItemId,
     quantity: u32,
     position: Vec2,
 ) {
     let mut rng = rand::rng();
+    let item = registry.items.get(&item_id).expect("Item not found in registry");
 
     commands
         .spawn((
@@ -187,41 +157,33 @@ pub fn spawn_ground_item(
                 Transform::from_xyz(0.0, 0.0, -0.1),
             ));
 
-            // Item visual based on type
-            match item_id {
-                ItemId::HealthPotion => {
-                    parent.spawn((
-                        Mesh2d(assets.potion_mesh.clone()),
-                        MeshMaterial2d(assets.potion_material.clone()),
-                        Transform::default(),
-                    ));
-                }
-                ItemId::RustyKnife => {
-                    parent.spawn((
-                        Mesh2d(assets.knife_blade_mesh.clone()),
-                        MeshMaterial2d(assets.blade_material.clone()),
-                        Transform::default(),
-                    ));
-                }
-                _ => {
-                    // Default: simple circle
-                    parent.spawn((
-                        Mesh2d(assets.resource_ball_mesh.clone()),
-                        MeshMaterial2d(assets.philosophy_material.clone()),
-                        Transform::default(),
-                    ));
-                }
+            // Item visuals from registry - no match needed!
+            for (mesh, material, offset) in &item.ground_visual.meshes {
+                parent.spawn((
+                    Mesh2d(mesh.clone()),
+                    MeshMaterial2d(material.clone()),
+                    Transform::from_translation(*offset),
+                ));
             }
         });
 }
 
-pub fn spawn_player(commands: &mut Commands, assets: &CharacterAssets) {
+pub fn spawn_player(
+    commands: &mut Commands,
+    assets: &CharacterAssets,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+) {
+    let weapon = catalog::wooden_stick(meshes, materials);
+    let weapon_visual = weapon.visual.clone();
+
     commands.spawn((
         Player,
         PlayerAnimation::default(),
         Health(10),
         Equipment::default(),
         Inventory::default(),
+        EquippedWeaponId(ItemId::WoodenStick),
         Mesh2d(assets.character_mesh.clone()),
         MeshMaterial2d(assets.player_material.clone()),
         Transform::from_xyz(0.0, 0.0, Z_PLAYER),
@@ -272,23 +234,19 @@ pub fn spawn_player(commands: &mut Commands, assets: &CharacterAssets) {
             TextColor(Color::srgb(1.0, 1.0, 1.0)),
             Transform::from_xyz(2.0, 18.0, Z_UI_WORLD).with_scale(Vec3::splat(0.25)),
         ));
-        // Knife weapon
+        // Default weapon with visual
         parent.spawn((
-            Knife,
+            Stick,
             PlayerWeapon,
-            catalog::rusty_knife(),
+            weapon,
             Transform::from_xyz(0.0, 0.0, Z_WEAPON),
             Visibility::Hidden,
-        )).with_children(|knife| {
-            knife.spawn((
-                Mesh2d(assets.knife_handle_mesh.clone()),
-                MeshMaterial2d(assets.handle_material.clone()),
-                Transform::from_xyz(11.0, 0.0, 0.0),
-            ));
-            knife.spawn((
-                Mesh2d(assets.knife_blade_mesh.clone()),
-                MeshMaterial2d(assets.blade_material.clone()),
-                Transform::from_xyz(15.0, 0.0, 0.0),
+        )).with_children(|weapon_parent| {
+            weapon_parent.spawn((
+                WeaponVisualMesh,
+                Mesh2d(weapon_visual.mesh),
+                MeshMaterial2d(weapon_visual.material),
+                Transform::from_xyz(weapon_visual.offset, 0.0, 0.0),
             ));
         });
     });
@@ -304,7 +262,12 @@ pub fn spawn_target_outline(commands: &mut Commands, assets: &CharacterAssets) {
     ));
 }
 
-pub fn spawn_creatures(commands: &mut Commands, assets: &CharacterAssets) {
+pub fn spawn_creatures(
+    commands: &mut Commands,
+    assets: &CharacterAssets,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+) {
     let mut rng = rand::rng();
     let world_size = WORLD_SIZE as f32 * GRID_SPACING;
     let min_distance = COLLISION_RADIUS * 6.0;
@@ -338,7 +301,7 @@ pub fn spawn_creatures(commands: &mut Commands, assets: &CharacterAssets) {
 
             positions.push(pos);
 
-            spawn_creature(commands, assets, &mut rng, x, y);
+            spawn_creature(commands, assets, meshes, materials, &mut rng, x, y);
         }
     }
 }
@@ -346,6 +309,8 @@ pub fn spawn_creatures(commands: &mut Commands, assets: &CharacterAssets) {
 fn spawn_creature(
     commands: &mut Commands,
     assets: &CharacterAssets,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
     rng: &mut rand::prelude::ThreadRng,
     x: f32,
     y: f32,
@@ -377,6 +342,14 @@ fn spawn_creature(
         }
     };
 
+    // Pre-create fist weapon if hostile (before entering closure)
+    let fist_data = if is_hostile {
+        let fist = catalog::fist(meshes, materials);
+        Some((fist.visual.clone(), fist))
+    } else {
+        None
+    };
+
     let mut entity_commands = commands.spawn((
         Creature,
         anim,
@@ -395,7 +368,7 @@ fn spawn_creature(
     }
 
     entity_commands.with_children(|parent| {
-        spawn_creature_children(parent, assets, rng, &loot, is_hostile);
+        spawn_creature_children(parent, assets, rng, &loot, fist_data);
     });
 }
 
@@ -404,7 +377,7 @@ fn spawn_creature_children(
     assets: &CharacterAssets,
     rng: &mut rand::prelude::ThreadRng,
     loot: &Loot,
-    is_hostile: bool,
+    fist_data: Option<(WeaponVisual, Weapon)>,
 ) {
     // Shadow
     parent.spawn((
@@ -482,17 +455,18 @@ fn spawn_creature_children(
     }
 
     // Fist for hostile creatures
-    if is_hostile {
+    if let Some((fist_visual, fist_weapon)) = fist_data {
         parent.spawn((
             Fist,
-            catalog::fist(),
+            fist_weapon,
             Transform::from_xyz(0.0, 0.0, Z_WEAPON),
             Visibility::default(),
         )).with_children(|fist_holder| {
             fist_holder.spawn((
-                Mesh2d(assets.fist_mesh.clone()),
-                MeshMaterial2d(assets.fist_material.clone()),
-                Transform::from_xyz(11.0, 0.0, 0.0),
+                WeaponVisualMesh,
+                Mesh2d(fist_visual.mesh),
+                MeshMaterial2d(fist_visual.material),
+                Transform::from_xyz(fist_visual.offset, 0.0, 0.0),
             ));
         });
     }

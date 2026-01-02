@@ -1,10 +1,31 @@
 use bevy::prelude::*;
 
+use super::ItemId;
+
 #[derive(Component)]
 pub struct Knife;
 
 #[derive(Component)]
+pub struct Stick;
+
+#[derive(Component)]
 pub struct Fist;
+
+/// Tracks which weapon ItemId is currently equipped
+#[derive(Component)]
+pub struct EquippedWeaponId(pub ItemId);
+
+/// Visual assets for weapon rendering - stores actual asset handles
+#[derive(Clone)]
+pub struct WeaponVisual {
+    pub mesh: Handle<Mesh>,
+    pub material: Handle<ColorMaterial>,
+    pub offset: f32,
+}
+
+/// Marker for weapon visual mesh children - used to find and despawn when swapping
+#[derive(Component)]
+pub struct WeaponVisualMesh;
 
 #[derive(Component)]
 pub struct WeaponSwing {
@@ -39,9 +60,11 @@ pub enum Rarity {
 }
 
 /// Weapon stats use tier values (1-5) that scale to gameplay values via methods.
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Weapon {
     pub name: String,
+    /// Visual appearance of the weapon
+    pub visual: WeaponVisual,
     /// Direct damage value per hit
     pub damage: i32,
     /// Attack speed tier: 1=slow, 5=fast → attack_speed() = 1.0 + speed * 0.5
@@ -99,9 +122,46 @@ impl Weapon {
 pub mod catalog {
     use super::*;
 
-    pub fn rusty_knife() -> Weapon {
+    pub fn wooden_stick(
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<ColorMaterial>,
+    ) -> Weapon {
+        Weapon {
+            name: "Wooden Stick".to_string(),
+            visual: WeaponVisual {
+                mesh: meshes.add(Rectangle::new(18.0, 2.5)),
+                material: materials.add(Color::srgb(0.55, 0.4, 0.25)),
+                offset: 12.0,
+            },
+            damage: 1,
+            speed: 2,
+            reach: 2,
+            arc: 2,
+            impact: 1,
+            attack_type: AttackType::Smash,
+            damage_type: DamageType::Physical,
+            rarity: Rarity::Common,
+            cost: 0,
+            block: 1,
+            block_kb: 1,
+        }
+    }
+
+    pub fn rusty_knife(
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<ColorMaterial>,
+    ) -> Weapon {
         Weapon {
             name: "Rusty Knife".to_string(),
+            visual: WeaponVisual {
+                mesh: meshes.add(Triangle2d::new(
+                    Vec2::new(0.0, 2.0),
+                    Vec2::new(0.0, -2.0),
+                    Vec2::new(12.0, 0.0),
+                )),
+                material: materials.add(Color::srgb(0.75, 0.75, 0.8)),
+                offset: 14.0,
+            },
             damage: 1,
             speed: 3,
             reach: 3,
@@ -116,9 +176,17 @@ pub mod catalog {
         }
     }
 
-    pub fn fist() -> Weapon {
+    pub fn fist(
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<ColorMaterial>,
+    ) -> Weapon {
         Weapon {
             name: "Fist".to_string(),
+            visual: WeaponVisual {
+                mesh: meshes.add(Circle::new(3.0)),
+                material: materials.add(Color::srgb(0.8, 0.65, 0.5)),
+                offset: 11.0,
+            },
             damage: 1,
             speed: 4,
             reach: 1,

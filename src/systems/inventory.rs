@@ -55,6 +55,7 @@ pub fn toggle_inventory(
 }
 
 pub fn update_hotbar_ui(
+    registry: Res<ItemRegistry>,
     inventory_query: Query<&Inventory, With<Player>>,
     mut slot_query: Query<(&HotbarSlot, &mut BackgroundColor)>,
     mut count_query: Query<(&HotbarSlotCount, &mut Text)>,
@@ -64,7 +65,7 @@ pub fn update_hotbar_ui(
     for (slot, mut bg) in &mut slot_query {
         let item = inventory.get(slot.0);
         *bg = BackgroundColor(match item {
-            Some(s) => get_item_color(s.item_id),
+            Some(s) => get_item_color(&registry, s.item_id),
             None => Color::srgba(0.2, 0.2, 0.22, 0.9),
         });
     }
@@ -80,6 +81,7 @@ pub fn update_hotbar_ui(
 
 pub fn update_inventory_panel_ui(
     ui_state: Res<InventoryUIState>,
+    registry: Res<ItemRegistry>,
     inventory_query: Query<&Inventory, With<Player>>,
     mut slot_query: Query<(&InventorySlotUI, &mut BackgroundColor)>,
     mut count_query: Query<(&InventorySlotCount, &mut Text)>,
@@ -93,7 +95,7 @@ pub fn update_inventory_panel_ui(
     for (slot_ui, mut bg) in &mut slot_query {
         let item = inventory.get(slot_ui.0);
         *bg = BackgroundColor(match item {
-            Some(s) => get_item_color(s.item_id),
+            Some(s) => get_item_color(&registry, s.item_id),
             None => Color::srgba(0.2, 0.2, 0.22, 1.0),
         });
     }
@@ -107,8 +109,13 @@ pub fn update_inventory_panel_ui(
     }
 }
 
-fn get_item_color(id: ItemId) -> Color {
-    match get_item_data(id).category {
+fn get_item_color(registry: &ItemRegistry, id: ItemId) -> Color {
+    let category = registry
+        .items
+        .get(&id)
+        .map(|item| item.category)
+        .unwrap_or(ItemCategory::Consumable);
+    match category {
         ItemCategory::Weapon => Color::srgba(0.6, 0.4, 0.3, 1.0),
         ItemCategory::Armor => Color::srgba(0.4, 0.5, 0.6, 1.0),
         ItemCategory::Consumable => Color::srgba(0.4, 0.6, 0.4, 1.0),
@@ -216,7 +223,11 @@ pub fn pickup_ground_items(
 pub fn handle_inventory_right_click(
     ui_state: Res<InventoryUIState>,
     mouse: Res<ButtonInput<MouseButton>>,
-    mut inventory_query: Query<(&mut Inventory, &mut Health), With<Player>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    registry: Res<ItemRegistry>,
+    mut player_query: Query<(&mut Inventory, &mut Health, &mut EquippedWeaponId), With<Player>>,
+    mut weapon_query: Query<&mut Weapon, With<PlayerWeapon>>,
     slot_query: Query<(&Interaction, &InventorySlotUI)>,
 ) {
     if !ui_state.open {
@@ -227,7 +238,7 @@ pub fn handle_inventory_right_click(
         return;
     }
 
-    let Ok((mut inventory, mut health)) = inventory_query.single_mut() else { return };
+    let Ok((mut inventory, mut health, mut equipped)) = player_query.single_mut() else { return };
 
     for (interaction, slot_ui) in &slot_query {
         if *interaction != Interaction::Hovered && *interaction != Interaction::Pressed {
@@ -237,12 +248,35 @@ pub fn handle_inventory_right_click(
         let slot_index = slot_ui.0;
 
         if let Some(slot) = inventory.get(slot_index) {
-            let data = get_item_data(slot.item_id);
+            let Some(item) = registry.items.get(&slot.item_id) else { continue };
 
-            if data.category == ItemCategory::Consumable {
-                if use_consumable(slot.item_id, &mut health) {
-                    inventory.remove(slot_index, 1);
+            match item.category {
+                ItemCategory::Consumable => {
+                    if use_consumable(&registry, slot.item_id, &mut health) {
+                        inventory.remove(slot_index, 1);
+                    }
                 }
+                ItemCategory::Weapon => {
+                    // Equip weapon: swap with currently equipped
+                    if let Some(new_weapon_stats) = get_weapon_stats(slot.item_id, &mut meshes, &mut materials) {
+                        let old_weapon_id = equipped.0;
+
+                        // Update weapon entity stats
+                        if let Ok(mut weapon) = weapon_query.single_mut() {
+                            *weapon = new_weapon_stats;
+                        }
+
+                        // Update equipped weapon id
+                        equipped.0 = slot.item_id;
+
+                        // Put old weapon in inventory slot
+                        inventory.slots[slot_index] = Some(InventorySlot {
+                            item_id: old_weapon_id,
+                            quantity: 1,
+                        });
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -250,9 +284,13 @@ pub fn handle_inventory_right_click(
 
 pub fn use_hotbar_keys(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut inventory_query: Query<(&mut Inventory, &mut Health), With<Player>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    registry: Res<ItemRegistry>,
+    mut player_query: Query<(&mut Inventory, &mut Health, &mut EquippedWeaponId), With<Player>>,
+    mut weapon_query: Query<&mut Weapon, With<PlayerWeapon>>,
 ) {
-    let Ok((mut inventory, mut health)) = inventory_query.single_mut() else { return };
+    let Ok((mut inventory, mut health, mut equipped)) = player_query.single_mut() else { return };
 
     let keys = [
         KeyCode::Digit1,
@@ -265,27 +303,49 @@ pub fn use_hotbar_keys(
     for (slot_index, key) in keys.iter().enumerate() {
         if keyboard.just_pressed(*key) {
             if let Some(slot) = inventory.get(slot_index) {
-                let data = get_item_data(slot.item_id);
-                if data.category == ItemCategory::Consumable {
-                    if use_consumable(slot.item_id, &mut health) {
-                        inventory.remove(slot_index, 1);
+                let Some(item) = registry.items.get(&slot.item_id) else { continue };
+                match item.category {
+                    ItemCategory::Consumable => {
+                        if use_consumable(&registry, slot.item_id, &mut health) {
+                            inventory.remove(slot_index, 1);
+                        }
                     }
+                    ItemCategory::Weapon => {
+                        // Equip weapon: swap with currently equipped
+                        if let Some(new_weapon_stats) = get_weapon_stats(slot.item_id, &mut meshes, &mut materials) {
+                            let old_weapon_id = equipped.0;
+
+                            if let Ok(mut weapon) = weapon_query.single_mut() {
+                                *weapon = new_weapon_stats;
+                            }
+
+                            equipped.0 = slot.item_id;
+
+                            inventory.slots[slot_index] = Some(InventorySlot {
+                                item_id: old_weapon_id,
+                                quantity: 1,
+                            });
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
     }
 }
 
-fn use_consumable(item_id: ItemId, health: &mut Health) -> bool {
-    match item_id {
-        ItemId::HealthPotion => {
+fn use_consumable(registry: &ItemRegistry, item_id: ItemId, health: &mut Health) -> bool {
+    let Some(item) = registry.items.get(&item_id) else { return false };
+
+    match &item.consumable_effect {
+        Some(ConsumableEffect::Heal(amount)) => {
             if health.0 >= 10 {
                 return false; // Already at full HP
             }
-            health.0 = (health.0 + 5).min(10);
+            health.0 = (health.0 + *amount).min(10);
             true
         }
-        _ => false,
+        None => false,
     }
 }
 
@@ -293,6 +353,7 @@ pub fn start_inventory_drag(
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
     ui_state: Res<InventoryUIState>,
+    registry: Res<ItemRegistry>,
     mut drag_state: ResMut<DragState>,
     inventory_query: Query<&Inventory, With<Player>>,
     slot_query: Query<(&Interaction, &InventorySlotUI)>,
@@ -318,7 +379,7 @@ pub fn start_inventory_drag(
                 drag_state.dragging_from = Some(slot_index);
 
                 // Spawn drag visual
-                let color = get_item_color(slot.item_id);
+                let color = get_item_color(&registry, slot.item_id);
                 let visual = commands.spawn((
                     DraggedItemVisual,
                     Node {

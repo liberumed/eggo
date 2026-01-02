@@ -11,6 +11,7 @@ use constants::*;
 use plugins::*;
 use resources::{GameState, Stats};
 use spawners::CharacterAssets;
+use components::build_item_registry;
 
 fn main() {
     App::new()
@@ -52,18 +53,23 @@ fn setup(
     // Load all character assets
     let assets = CharacterAssets::load(&mut meshes, &mut materials);
 
+    // Build item registry
+    let registry = build_item_registry(&mut meshes, &mut materials);
+
     // Spawn game entities
-    spawners::spawn_player(&mut commands, &assets);
+    spawners::spawn_player(&mut commands, &assets, &mut meshes, &mut materials);
     spawners::spawn_target_outline(&mut commands, &assets);
-    spawners::spawn_creatures(&mut commands, &assets);
+    spawners::spawn_creatures(&mut commands, &assets, &mut meshes, &mut materials);
     spawners::spawn_background_grid(&mut commands, &mut meshes, &mut materials);
 
     // Spawn test items
-    spawners::spawn_ground_item(&mut commands, &assets, ItemId::HealthPotion, 1, Vec2::new(30.0, 20.0));
-    spawners::spawn_ground_item(&mut commands, &assets, ItemId::HealthPotion, 3, Vec2::new(-40.0, 30.0));
+    spawners::spawn_ground_item(&mut commands, &assets, &registry, ItemId::HealthPotion, 1, Vec2::new(30.0, 20.0));
+    spawners::spawn_ground_item(&mut commands, &assets, &registry, ItemId::HealthPotion, 3, Vec2::new(-40.0, 30.0));
+    spawners::spawn_ground_item(&mut commands, &assets, &registry, ItemId::RustyKnife, 1, Vec2::new(50.0, -10.0));
 
-    // Insert assets as resource for later use
+    // Insert resources for later use
     commands.insert_resource(assets);
+    commands.insert_resource(registry);
 }
 
 fn setup_ui(mut commands: Commands) {

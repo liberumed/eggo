@@ -42,6 +42,8 @@ pub const SCREEN_SHAKE_DURATION: f32 = 0.15;
 
 // Combat
 pub const COLLISION_RADIUS: f32 = 14.0;
+pub const PUSH_RADIUS: f32 = COLLISION_RADIUS * 2.2;  // Larger than all collision checks (1.5 player, 1.8 creature)
+pub const PUSH_STRENGTH: f32 = 100.0;                  // Push force multiplier
 pub const HOSTILE_SIGHT_RANGE: f32 = 100.0;
 pub const BLOCK_KNOCKBACK: f32 = 120.0;
 pub const FIST_RANGE: f32 = COLLISION_RADIUS * 1.8;

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::resources::GameState;
-use crate::systems::{animate_creatures, animate_death, hostile_ai, hostile_attack, hostile_fist_aim};
+use crate::systems::{animate_creatures, animate_death, apply_collision_push, hostile_ai, hostile_attack, hostile_fist_aim};
 
 pub struct CreaturePlugin;
 
@@ -13,6 +13,7 @@ impl Plugin for CreaturePlugin {
                 hostile_ai,
                 hostile_fist_aim,
                 hostile_attack,
+                apply_collision_push,
                 animate_creatures,
                 animate_death,
             )

@@ -280,3 +280,61 @@ pub fn apply_knockback(
         }
     }
 }
+
+/// Push creatures away from player and each other
+pub fn apply_collision_push(
+    time: Res<Time>,
+    player_query: Query<&Transform, (With<Player>, Without<Dead>, Without<Creature>)>,
+    mut creatures_query: Query<(Entity, &mut Transform), (With<Creature>, Without<Dead>, Without<Player>)>,
+) {
+    let dt = time.delta_secs();
+
+    // Collect creature positions for creature-creature push
+    let creature_positions: Vec<(Entity, Vec2)> = creatures_query
+        .iter()
+        .map(|(e, t)| (e, Vec2::new(t.translation.x, t.translation.y)))
+        .collect();
+
+    // Get player position
+    let player_pos = player_query
+        .single()
+        .map(|t| Vec2::new(t.translation.x, t.translation.y))
+        .ok();
+
+    for (entity, mut transform) in &mut creatures_query {
+        let creature_pos = Vec2::new(transform.translation.x, transform.translation.y);
+        let mut push = Vec2::ZERO;
+
+        // 1. Player pushes creatures
+        if let Some(player_pos) = player_pos {
+            let diff = creature_pos - player_pos;
+            let dist = diff.length();
+
+            if dist < PUSH_RADIUS && dist > 0.1 {
+                let push_dir = diff.normalize();
+                let overlap = (PUSH_RADIUS - dist) / PUSH_RADIUS; // 0..1
+                push += push_dir * overlap * PUSH_STRENGTH * dt;
+            }
+        }
+
+        // 2. Creatures push each other
+        for (other_entity, other_pos) in &creature_positions {
+            if *other_entity == entity {
+                continue;
+            }
+
+            let diff = creature_pos - *other_pos;
+            let dist = diff.length();
+
+            if dist < PUSH_RADIUS && dist > 0.1 {
+                let push_dir = diff.normalize();
+                let overlap = (PUSH_RADIUS - dist) / PUSH_RADIUS;
+                push += push_dir * overlap * PUSH_STRENGTH * 0.5 * dt; // Half strength for creature-creature
+            }
+        }
+
+        // Apply push
+        transform.translation.x += push.x;
+        transform.translation.y += push.y;
+    }
+}

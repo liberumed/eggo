@@ -77,14 +77,31 @@ pub fn move_player(
         if input_dir != Vec2::ZERO {
             let target_velocity = input_dir.normalize() * speed;
             let diff = target_velocity - anim.velocity;
-            let accel = diff.normalize_or_zero() * PLAYER_ACCELERATION * dt;
+            let current_speed = anim.velocity.length();
+
+            // Use lower deceleration when slowing from sprint (momentum)
+            let is_decelerating = current_speed > speed;
+            let accel_amount = if is_decelerating && current_speed > PLAYER_SPEED * 1.1 {
+                SPRINT_MOMENTUM_FRICTION
+            } else {
+                PLAYER_ACCELERATION
+            };
+
+            let accel = diff.normalize_or_zero() * accel_amount * dt;
             if accel.length() > diff.length() {
                 anim.velocity = target_velocity;
             } else {
                 anim.velocity += accel;
             }
         } else if anim.velocity != Vec2::ZERO {
-            let friction = anim.velocity.normalize() * PLAYER_FRICTION * dt;
+            // Use lower friction when decelerating from sprint (momentum)
+            let current_speed = anim.velocity.length();
+            let friction_amount = if current_speed > PLAYER_SPEED * 1.1 {
+                SPRINT_MOMENTUM_FRICTION
+            } else {
+                PLAYER_FRICTION
+            };
+            let friction = anim.velocity.normalize() * friction_amount * dt;
             if friction.length() >= anim.velocity.length() {
                 anim.velocity = Vec2::ZERO;
             } else {

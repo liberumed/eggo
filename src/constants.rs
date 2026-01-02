@@ -33,6 +33,7 @@ pub const DASH_COOLDOWN: f32 = 0.5;
 pub const SPRINT_MIN_MULTIPLIER: f32 = 1.3;   // Starting sprint speed
 pub const SPRINT_MAX_MULTIPLIER: f32 = 2.0;   // Max sprint speed after ramp
 pub const SPRINT_RAMP_TIME: f32 = 0.8;        // Time to reach max speed
+pub const SPRINT_MOMENTUM_FRICTION: f32 = 300.0; // Lower friction when slowing from sprint
 
 // Game Feel
 pub const HITSTOP_DURATION: f32 = 0.06;       // 60ms freeze on hit

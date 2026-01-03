@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::components::{Creature, Fist, HitCollider, Player, PlayerWeapon, StaticCollider, WalkCollider, Weapon};
+use crate::components::{Creature, Dead, Fist, HitCollider, Player, PlayerWeapon, StaticCollider, WalkCollider, Weapon};
 use crate::resources::DebugConfig;
 
 /// Marker for debug collision circle (walk collision)
@@ -36,11 +36,24 @@ pub struct CreatureDebugCircle(pub Entity);
 
 /// Toggle collision debug visibility with F3
 pub fn toggle_collision_debug(
+    mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut debug_config: ResMut<DebugConfig>,
+    debug_markers: Query<Entity, With<HasDebugCircle>>,
+    debug_circles: Query<Entity, Or<(With<CollisionDebugCircle>, With<HitDebugCircle>)>>,
 ) {
     if keyboard.just_pressed(KeyCode::F3) {
         debug_config.show_collisions = !debug_config.show_collisions;
+
+        // When toggling off, clear markers so circles are recreated fresh when toggled on
+        if !debug_config.show_collisions {
+            for entity in &debug_markers {
+                commands.entity(entity).remove::<HasDebugCircle>();
+            }
+            for entity in &debug_circles {
+                commands.entity(entity).despawn();
+            }
+        }
     }
 }
 
@@ -64,9 +77,8 @@ pub fn spawn_debug_circles(
     // Walk collision colors (yellow for all)
     let walk_color = materials.add(Color::srgba(1.0, 1.0, 0.0, 0.3));
 
-    // Hit collision colors (brighter outline-like)
-    let player_hit_color = materials.add(Color::srgba(0.0, 1.0, 0.5, 0.4));
-    let creature_hit_color = materials.add(Color::srgba(1.0, 0.5, 0.0, 0.4));
+    // Hit collision colors (same green for both)
+    let hit_color = materials.add(Color::srgba(0.0, 1.0, 0.5, 0.4));
 
     // Player debug ellipses
     for (entity, walk_collider, hit_collider) in &player_query {
@@ -82,14 +94,14 @@ pub fn spawn_debug_circles(
                 MeshMaterial2d(walk_color.clone()),
                 Transform::from_xyz(0.0, offset_y, 10.0),
             ));
-            // Hit collision (outer, cyan ellipse)
+            // Hit collision (outer ellipse) - higher Z to be visible above walk
             if let Some(hit) = hit_collider {
                 let hit_mesh = meshes.add(Ellipse::new(hit.radius_x, hit.radius_y));
                 parent.spawn((
                     HitDebugCircle,
                     Mesh2d(hit_mesh),
-                    MeshMaterial2d(player_hit_color.clone()),
-                    Transform::from_xyz(0.0, hit.offset_y, 9.9),
+                    MeshMaterial2d(hit_color.clone()),
+                    Transform::from_xyz(0.0, hit.offset_y, 10.1),
                 ));
             }
         });
@@ -109,14 +121,14 @@ pub fn spawn_debug_circles(
                 MeshMaterial2d(walk_color.clone()),
                 Transform::from_xyz(0.0, offset_y, 10.0),
             ));
-            // Hit collision (outer, orange ellipse)
+            // Hit collision (outer ellipse) - slightly larger for visibility
             if let Some(hit) = hit_collider {
-                let hit_mesh = meshes.add(Ellipse::new(hit.radius_x, hit.radius_y));
+                let hit_mesh = meshes.add(Ellipse::new(hit.radius_x + 2.0, hit.radius_y + 2.0));
                 parent.spawn((
                     HitDebugCircle,
                     Mesh2d(hit_mesh),
-                    MeshMaterial2d(creature_hit_color.clone()),
-                    Transform::from_xyz(0.0, hit.offset_y, 9.9),
+                    MeshMaterial2d(hit_color.clone()),
+                    Transform::from_xyz(0.0, hit.offset_y, 10.1),
                 ));
             }
         });
@@ -144,9 +156,9 @@ pub fn spawn_weapon_debug_cones(
     debug_config: Res<DebugConfig>,
     // Player (to spawn cone on player, not weapon)
     player_query: Query<(Entity, Option<&WeaponConeStats>), With<Player>>,
-    player_weapon_query: Query<&Weapon, With<PlayerWeapon>>,
-    // Existing cones to despawn if weapon changed
-    cone_query: Query<Entity, With<WeaponReachCone>>,
+    player_weapon_query: Query<(&Weapon, &Transform), With<PlayerWeapon>>,
+    // Existing player cones to despawn if weapon changed (exclude creature circles)
+    cone_query: Query<Entity, (With<WeaponReachCone>, Without<CreatureDebugCircle>)>,
     // Creatures with fists (spawn circle on creature, not fist)
     creature_query: Query<(Entity, &Children), (With<Creature>, Without<HasDebugCone>)>,
     fist_query: Query<&Weapon, With<Fist>>,
@@ -157,9 +169,9 @@ pub fn spawn_weapon_debug_cones(
 
     let cone_color = materials.add(Color::srgba(1.0, 0.2, 0.2, 0.25));
 
-    // Player weapon cone - spawn on player entity (combat uses player pos as origin)
+    // Player weapon cone - spawn on player entity, positioned at weapon origin
     if let Ok((player_entity, existing_stats)) = player_query.single() {
-        if let Ok(weapon) = player_weapon_query.single() {
+        if let Ok((weapon, weapon_transform)) = player_weapon_query.single() {
             let cone_angle = weapon.cone_angle();  // Full angle, not half
             let range = weapon.range();
 
@@ -175,8 +187,10 @@ pub fn spawn_weapon_debug_cones(
                     commands.entity(cone_entity).despawn();
                 }
 
-                // CircularSector::new takes full angle, not half
-                let cone_mesh = meshes.add(CircularSector::new(range, cone_angle));
+                // CircularSector::new takes half angle, so divide by 2
+                let cone_mesh = meshes.add(CircularSector::new(range, cone_angle / 2.0));
+                // Use weapon's local offset so cone matches actual attack origin
+                let weapon_offset = weapon_transform.translation;
                 commands.entity(player_entity)
                     .insert(WeaponConeStats { range, half_angle: cone_angle })
                     .with_children(|parent| {
@@ -184,7 +198,7 @@ pub fn spawn_weapon_debug_cones(
                             WeaponReachCone,
                             Mesh2d(cone_mesh),
                             MeshMaterial2d(cone_color.clone()),
-                            Transform::from_xyz(0.0, 0.0, 9.8),
+                            Transform::from_xyz(weapon_offset.x, weapon_offset.y, 9.8),
                         ));
                     });
             }
@@ -236,15 +250,19 @@ pub fn update_player_debug_cone(
     }
 }
 
-/// Sync creature debug circles with creature positions
+/// Sync creature debug circles with creature positions and despawn when creature dies
 pub fn update_creature_debug_circles(
-    creature_query: Query<&Transform, With<Creature>>,
-    mut circle_query: Query<(&CreatureDebugCircle, &mut Transform), Without<Creature>>,
+    mut commands: Commands,
+    creature_query: Query<&Transform, (With<Creature>, Without<Dead>)>,
+    mut circle_query: Query<(Entity, &CreatureDebugCircle, &mut Transform), Without<Creature>>,
 ) {
-    for (link, mut circle_transform) in &mut circle_query {
+    for (circle_entity, link, mut circle_transform) in &mut circle_query {
         if let Ok(creature_transform) = creature_query.get(link.0) {
             circle_transform.translation.x = creature_transform.translation.x;
             circle_transform.translation.y = creature_transform.translation.y;
+        } else {
+            // Creature is dead or despawned, remove debug circle
+            commands.entity(circle_entity).despawn();
         }
     }
 }

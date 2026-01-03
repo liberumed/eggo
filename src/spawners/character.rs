@@ -190,7 +190,7 @@ pub fn spawn_player(
         Player,
         YSorted { base_offset: -24.0 },  // Feet position for 64x64 sprite
         WalkCollider { radius_x: 8.0, radius_y: 4.0, offset_y: -4.0 },  // At feet
-        HitCollider { radius_x: 10.0, radius_y: 14.0, offset_y: 6.0 },
+        HitCollider { radius_x: 10.0, radius_y: 14.0, offset_y: 5.0 },  // Centered on body
         PlayerAnimation::default(),
         SpriteAnimation::new("idle", initial_anim.frame_duration_ms),
         Health(10),
@@ -241,11 +241,12 @@ pub fn spawn_player(
             Transform::from_xyz(2.0, 35.0, Z_UI_WORLD).with_scale(Vec3::splat(0.25)),
         ));
         // Default weapon with visual (hidden until attack)
+        // Y offset matches body center (slightly above sprite center)
         parent.spawn((
             Fist,
             PlayerWeapon,
             weapon,
-            Transform::from_xyz(12.0, 0.0, Z_WEAPON),
+            Transform::from_xyz(12.0, 5.0, Z_WEAPON),
             Visibility::Hidden,
             InheritedVisibility::HIDDEN,
         )).with_children(|weapon_parent| {

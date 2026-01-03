@@ -5,6 +5,7 @@ mod plugins;
 mod resources;
 mod spawners;
 mod systems;
+mod utils;
 
 use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use components::*;

@@ -5,6 +5,7 @@ use crate::components::*;
 use crate::constants::*;
 use crate::resources::{GameAction, Hitstop, InputBindings, ScreenShake};
 use crate::spawners::CharacterAssets;
+use crate::utils::{HitCone, angle_to_direction};
 
 pub fn toggle_weapon(
     mut commands: Commands,
@@ -109,35 +110,40 @@ pub fn apply_player_delayed_hits(
     swing.hit_applied = true;
 
     let Ok((player_entity, player_transform)) = player_query.single() else { return };
-    let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
 
-    // Use base_angle (stored at attack start) for consistent hit direction
-    // For weapons without base_angle (fist), use current weapon rotation
+    // Attack origin: weapon position (same as debug cone)
+    let weapon_offset = weapon_transform.translation;
+    let attack_origin = Vec2::new(
+        player_transform.translation.x + weapon_offset.x,
+        player_transform.translation.y + weapon_offset.y,
+    );
+
+    // Attack direction from stored angle or current weapon rotation
     let attack_dir = if let Some(base_angle) = swing.base_angle {
-        Vec2::new(base_angle.cos(), base_angle.sin())
+        angle_to_direction(base_angle)
     } else {
         let (_, angle) = weapon_transform.rotation.to_axis_angle();
         let current_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
-        Vec2::new(current_angle.cos(), current_angle.sin())
+        angle_to_direction(current_angle)
     };
 
-    let cone_threshold = (weapon.cone_angle() / 2.0).cos();
+    // Create hit cone (precomputes trig once)
+    let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), weapon.cone_angle());
+
     let mut rng = rand::rng();
     let mut hit_any = false;
 
     for (entity, creature_transform, mut health, hostile, hit_collider) in &mut creatures_query {
-        let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
-        let to_creature = creature_pos - player_pos;
-        let distance = to_creature.length();
-
+        let creature_pos = creature_transform.translation.truncate();
         let hit_radius = hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
-        let in_range = distance < weapon.range() + hit_radius;
-        let in_cone = distance > 0.0 && to_creature.normalize().dot(attack_dir) > cone_threshold;
 
-        if in_range && in_cone {
+        if hit_cone.hits(creature_pos, hit_radius) {
             hit_any = true;
             health.0 -= weapon.damage;
-            weapon.apply_on_hit(&mut commands, entity, to_creature.normalize());
+
+            // Knockback direction: from attack origin toward creature
+            let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
+            weapon.apply_on_hit(&mut commands, entity, knockback_dir);
 
             // Add hit highlight (red flash)
             commands.entity(entity).insert(HitHighlight {
@@ -429,10 +435,13 @@ pub fn apply_creature_delayed_hits(
                         let (_, angle) = weapon_transform.rotation.to_axis_angle();
                         let visual_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
                         let facing_angle = visual_angle - 0.4;
-                        let facing_dir = Vec2::new(facing_angle.cos(), facing_angle.sin());
-                        let to_attacker = (creature_pos - player_pos).normalize();
+                        let facing_dir = angle_to_direction(facing_angle);
+
+                        // Optimized: avoid normalize by comparing dot > threshold * length
+                        let to_attacker = creature_pos - player_pos;
+                        let to_attacker_len = to_attacker.length();
                         let block_threshold = 0.5;
-                        if facing_dir.dot(to_attacker) > block_threshold {
+                        if to_attacker_len > 0.001 && facing_dir.dot(to_attacker) > block_threshold * to_attacker_len {
                             (1.0 - player_weapon.block_damage_reduction(), 1.0 - player_weapon.block_knockback_reduction(), true)
                         } else {
                             (1.0, 1.0, false)

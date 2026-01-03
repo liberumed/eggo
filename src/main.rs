@@ -13,7 +13,7 @@ use plugins::*;
 use resources::{DebugConfig, GameState, Hitstop, InputBindings, NewGameRequested, PlayerSpriteSheet, ScreenShake, Stats, WorldConfig, load_player_sprite_sheet};
 use data::{Prop, PropRegistry, build_prop_registry};
 use spawners::CharacterAssets;
-use systems::{animate_sprites, auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_debug_circles, spawn_key_bindings_panel, spawn_weapon_debug_cones, toggle_collision_debug, toggle_pause_menu, update_debug_visibility, update_player_sprite_animation, update_player_weapon_cone};
+use systems::{animate_sprites, auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_debug_circles, spawn_key_bindings_panel, spawn_weapon_debug_cones, toggle_collision_debug, toggle_pause_menu, update_creature_debug_circles, update_debug_visibility, update_player_debug_cone, update_player_sprite_animation};
 use components::build_item_registry;
 
 fn main() {
@@ -41,7 +41,7 @@ fn main() {
         .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
         .add_systems(Startup, (setup, setup_ui, spawn_key_bindings_panel))
-        .add_systems(Update, (toggle_pause_menu, toggle_collision_debug, spawn_debug_circles, spawn_weapon_debug_cones, update_player_weapon_cone, update_debug_visibility, update_player_sprite_animation, animate_sprites))
+        .add_systems(Update, (toggle_pause_menu, toggle_collision_debug, spawn_debug_circles, spawn_weapon_debug_cones, update_player_debug_cone, update_creature_debug_circles, update_debug_visibility, update_player_sprite_animation, animate_sprites))
         .add_systems(OnEnter(GameState::Playing), spawn_world)
         .add_systems(OnEnter(GameState::Paused), show_pause_menu)
         .add_systems(OnExit(GameState::Paused), hide_pause_menu)

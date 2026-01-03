@@ -8,6 +8,7 @@ pub struct SpriteAnimation {
     pub timer: Timer,
     pub flip_x: bool,
     pub speed: f32,  // 1.0 = normal, 0.5 = half speed, 2.0 = double speed
+    pub animation_changed: bool,  // Flag to trigger texture swap
 }
 
 impl SpriteAnimation {
@@ -18,6 +19,7 @@ impl SpriteAnimation {
             timer: Timer::from_seconds(frame_duration_ms as f32 / 1000.0, TimerMode::Repeating),
             flip_x: false,
             speed: 1.0,
+            animation_changed: false,
         }
     }
 
@@ -26,6 +28,7 @@ impl SpriteAnimation {
             self.current_animation = animation.to_string();
             self.frame_index = 0;
             self.timer.reset();
+            self.animation_changed = true;
         }
     }
 }

@@ -30,6 +30,10 @@ pub struct WeaponConeStats {
     pub half_angle: f32,
 }
 
+/// Links a debug circle to its owner creature
+#[derive(Component)]
+pub struct CreatureDebugCircle(pub Entity);
+
 /// Toggle collision debug visibility with F3
 pub fn toggle_collision_debug(
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -143,8 +147,9 @@ pub fn spawn_weapon_debug_cones(
     player_weapon_query: Query<&Weapon, With<PlayerWeapon>>,
     // Existing cones to despawn if weapon changed
     cone_query: Query<Entity, With<WeaponReachCone>>,
-    // Creature fists
-    fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<HasDebugCone>)>,
+    // Creatures with fists (spawn circle on creature, not fist)
+    creature_query: Query<(Entity, &Children), (With<Creature>, Without<HasDebugCone>)>,
+    fist_query: Query<&Weapon, With<Fist>>,
 ) {
     if !debug_config.show_collisions {
         return;
@@ -186,25 +191,32 @@ pub fn spawn_weapon_debug_cones(
         }
     }
 
-    // Creature fist circles (no cone check in combat, full circle range)
-    for (entity, weapon) in &fist_query {
-        let circle_mesh = meshes.add(Circle::new(weapon.range()));
-        commands.entity(entity).insert(HasDebugCone).with_children(|parent| {
-            parent.spawn((
-                WeaponReachCone,
-                Mesh2d(circle_mesh),
-                MeshMaterial2d(cone_color.clone()),
-                Transform::from_xyz(0.0, 0.0, 9.8),
-            ));
-        });
+    // Creature fist circles - spawn as independent entities (not children) to avoid scale issues
+    for (creature_entity, children) in &creature_query {
+        // Find fist weapon in children
+        for child in children.iter() {
+            if let Ok(weapon) = fist_query.get(child) {
+                let circle_mesh = meshes.add(Circle::new(weapon.range()));
+                commands.entity(creature_entity).insert(HasDebugCone);
+                // Spawn as independent entity, will follow creature position
+                commands.spawn((
+                    WeaponReachCone,
+                    CreatureDebugCircle(creature_entity),
+                    Mesh2d(circle_mesh),
+                    MeshMaterial2d(cone_color.clone()),
+                    Transform::from_xyz(0.0, 0.0, 9.8),
+                ));
+                break;
+            }
+        }
     }
 }
 
-/// Sync player's debug cone rotation with weapon rotation
-pub fn update_player_weapon_cone(
+/// Sync player debug cone rotation with weapon
+pub fn update_player_debug_cone(
     weapon_query: Query<&Transform, With<PlayerWeapon>>,
-    player_query: Query<(&Transform, &Children), With<Player>>,
-    mut cone_query: Query<&mut Transform, (With<WeaponReachCone>, Without<PlayerWeapon>, Without<Player>)>,
+    player_query: Query<(&Transform, &Children), (With<Player>, Without<PlayerWeapon>)>,
+    mut cone_query: Query<&mut Transform, (With<WeaponReachCone>, Without<CreatureDebugCircle>, Without<Player>, Without<PlayerWeapon>)>,
 ) {
     let Ok(weapon_transform) = weapon_query.single() else { return };
     let Ok((player_transform, children)) = player_query.single() else { return };
@@ -220,6 +232,19 @@ pub fn update_player_weapon_cone(
                 1.0 / player_transform.scale.y,
                 1.0,
             );
+        }
+    }
+}
+
+/// Sync creature debug circles with creature positions
+pub fn update_creature_debug_circles(
+    creature_query: Query<&Transform, With<Creature>>,
+    mut circle_query: Query<(&CreatureDebugCircle, &mut Transform), Without<Creature>>,
+) {
+    for (link, mut circle_transform) in &mut circle_query {
+        if let Ok(creature_transform) = creature_query.get(link.0) {
+            circle_transform.translation.x = creature_transform.translation.x;
+            circle_transform.translation.y = creature_transform.translation.y;
         }
     }
 }

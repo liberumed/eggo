@@ -173,8 +173,13 @@ pub fn spawn_player(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) {
-    let weapon = weapon_catalog::wooden_stick(meshes, materials);
+    // Player starts with fist, stick in inventory
+    let weapon = weapon_catalog::fist(meshes, materials);
     let weapon_visual = weapon.visual.clone();
+
+    // Create inventory with stick
+    let mut inventory = Inventory::default();
+    inventory.try_add(ItemId::WoodenStick, 1);
 
     // Get initial animation data
     let initial_anim = sprite_sheet.animations.get("idle").unwrap_or_else(|| {
@@ -190,12 +195,12 @@ pub fn spawn_player(
         SpriteAnimation::new("idle", initial_anim.frame_duration_ms),
         Health(10),
         Equipment::default(),
-        Inventory::default(),
-        EquippedWeaponId(ItemId::WoodenStick),
+        inventory,
+        EquippedWeaponId(ItemId::Fist),
         Sprite::from_atlas_image(
-            sprite_sheet.texture.clone(),
+            initial_anim.texture.clone(),
             TextureAtlas {
-                layout: sprite_sheet.atlas_layout.clone(),
+                layout: initial_anim.atlas_layout.clone(),
                 index: initial_anim.start_index,
             },
         ),
@@ -237,7 +242,7 @@ pub fn spawn_player(
         ));
         // Default weapon with visual (hidden until attack)
         parent.spawn((
-            Stick,
+            Fist,
             PlayerWeapon,
             weapon,
             Transform::from_xyz(12.0, 0.0, Z_WEAPON),

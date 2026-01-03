@@ -61,16 +61,20 @@ jobs:
         if: runner.os != 'Windows'
         run: mv target/${{ matrix.target }}/release/${{ matrix.binary }} ${{ matrix.artifact }}
 
-      - name: Rename binary (Windows)
+      - name: Package release (Windows)
         if: runner.os == 'Windows'
-        run: mv target/${{ matrix.target }}/release/${{ matrix.binary }} ${{ matrix.artifact }}
         shell: bash
+        run: |
+          mkdir -p eggo-windows
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} eggo-windows/
+          cp -r assets eggo-windows/
+          7z a eggo-windows-x86_64.zip eggo-windows/*
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          name: eggo-windows-x86_64.zip
+          path: eggo-windows-x86_64.zip
 
   release:
     needs: build
@@ -89,5 +93,5 @@ jobs:
           # eggo-darwin-x86_64/eggo-darwin-x86_64
           # eggo-darwin-arm64/eggo-darwin-arm64
           # eggo-linux-x86_64/eggo-linux-x86_64
-          files: eggo-windows-x86_64.exe/eggo-windows-x86_64.exe
+          files: eggo-windows-x86_64.zip/eggo-windows-x86_64.zip
           generate_release_notes: true

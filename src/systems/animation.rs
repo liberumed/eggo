@@ -257,7 +257,7 @@ pub fn update_player_sprite_animation(
         } else if velocity > 0.1 {
             ("walk", 1.0)
         } else {
-            ("idle", 0.3)  // Slow idle animation
+            ("idle", 0.2)  // Slow idle animation
         };
 
         sprite_anim.set_animation(new_animation);
@@ -265,7 +265,7 @@ pub fn update_player_sprite_animation(
 
         // Flip sprite based on movement direction
         if player_anim.velocity.x.abs() > 0.1 {
-            sprite_anim.flip_x = player_anim.velocity.x < 0.0;
+            sprite_anim.flip_x = player_anim.velocity.x > 0.0;
         }
     }
 }
@@ -279,6 +279,19 @@ pub fn animate_sprites(
     let Some(sprite_sheet) = sprite_sheet else { return };
 
     for (mut anim, mut sprite) in &mut query {
+        // Handle animation change - swap texture and atlas
+        if anim.animation_changed {
+            if let Some(data) = sprite_sheet.animations.get(&anim.current_animation) {
+                sprite.image = data.texture.clone();
+                if let Some(atlas) = &mut sprite.texture_atlas {
+                    atlas.layout = data.atlas_layout.clone();
+                    atlas.index = data.start_index;
+                }
+                anim.timer.set_duration(std::time::Duration::from_millis(data.frame_duration_ms as u64));
+            }
+            anim.animation_changed = false;
+        }
+
         // Scale delta time by animation speed
         let scaled_delta = time.delta().mul_f32(anim.speed);
         anim.timer.tick(scaled_delta);

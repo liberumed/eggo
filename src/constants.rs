@@ -1,17 +1,22 @@
 #![allow(dead_code)]
 
 // Z-Layers (rendering order)
+// Fixed layers (not Y-sorted)
 pub const Z_BACKGROUND: f32 = -10.0;
-pub const Z_SHADOW: f32 = -5.0;
-pub const Z_DEAD: f32 = -2.0;
-pub const Z_CREATURE: f32 = 0.0;
-pub const Z_PLAYER: f32 = 1.0;
-pub const Z_CHARACTER_DETAIL: f32 = 0.1;
-pub const Z_WEAPON: f32 = 0.2;
-pub const Z_PARTICLE: f32 = 0.3;
-pub const Z_UI_WORLD: f32 = 5.0;
+pub const Z_DEAD: f32 = -8.0;
+pub const Z_TARGET_OUTLINE: f32 = -3.0;
+
+// Y-sorted entities use Z range: -1.0 to 1.0 (calculated dynamically)
+
+// Child relative offsets (relative to parent Z)
+pub const Z_SHADOW_OFFSET: f32 = -2.0;
+pub const Z_CHARACTER_DETAIL: f32 = 0.05;
+pub const Z_WEAPON: f32 = 0.1;
+pub const Z_PARTICLE: f32 = 0.15;
+
+// Fixed layers above Y-sorted
 pub const Z_BLOOD: f32 = 3.0;
-pub const Z_TARGET_OUTLINE: f32 = -0.5;
+pub const Z_UI_WORLD: f32 = 5.0;
 
 // Display
 pub const PIXEL_SCALE: f32 = 4.0;

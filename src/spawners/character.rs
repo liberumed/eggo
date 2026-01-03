@@ -179,6 +179,7 @@ pub fn spawn_player(
 
     commands.spawn((
         Player,
+        YSorted { base_offset: -14.0 },
         PlayerAnimation::default(),
         Health(10),
         Equipment::default(),
@@ -186,14 +187,14 @@ pub fn spawn_player(
         EquippedWeaponId(ItemId::WoodenStick),
         Mesh2d(assets.character_mesh.clone()),
         MeshMaterial2d(assets.player_material.clone()),
-        Transform::from_xyz(0.0, 0.0, Z_PLAYER),
+        Transform::from_xyz(0.0, 0.0, 0.0),
     )).with_children(|parent| {
         // Shadow
         parent.spawn((
             Shadow,
             Mesh2d(assets.shadow_mesh.clone()),
             MeshMaterial2d(assets.shadow_material.clone()),
-            Transform::from_xyz(1.0, -11.0, Z_SHADOW - Z_PLAYER),
+            Transform::from_xyz(1.0, -11.0, Z_SHADOW_OFFSET),
         ));
         // Shade
         parent.spawn((
@@ -361,12 +362,13 @@ fn spawn_creature(
 
     let mut entity_commands = commands.spawn((
         Creature,
+        YSorted { base_offset: -14.0 },
         anim,
         Health(definition.health),
         loot,
         Mesh2d(assets.character_mesh.clone()),
         MeshMaterial2d(material),
-        Transform::from_xyz(x, y, Z_CREATURE),
+        Transform::from_xyz(x, y, 0.0),
     ));
 
     if is_hostile {
@@ -393,7 +395,7 @@ fn spawn_creature_children(
         Shadow,
         Mesh2d(assets.shadow_mesh.clone()),
         MeshMaterial2d(assets.shadow_material.clone()),
-        Transform::from_xyz(1.0, -11.0, Z_SHADOW - Z_CREATURE),
+        Transform::from_xyz(1.0, -11.0, Z_SHADOW_OFFSET),
     ));
     // Shade
     parent.spawn((

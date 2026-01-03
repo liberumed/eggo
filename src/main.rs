@@ -1,5 +1,6 @@
 mod components;
 mod constants;
+mod data;
 mod plugins;
 mod resources;
 mod spawners;
@@ -10,7 +11,8 @@ use components::*;
 use constants::*;
 use plugins::*;
 use resources::{GameState, Hitstop, InputBindings, NewGameRequested, ScreenShake, Stats, WorldConfig};
-use spawners::CharacterAssets;
+use data::Prop;
+use spawners::{CharacterAssets, WorldAssets};
 use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_key_bindings_panel, toggle_pause_menu};
 use components::build_item_registry;
 
@@ -47,6 +49,7 @@ fn main() {
             UiPlugin,
             StatusPlugin,
             InventoryPlugin,
+            DepthPlugin,
         ))
         .run();
 }
@@ -63,8 +66,9 @@ fn setup(
         Transform::default().with_scale(Vec3::splat(1.0 / PIXEL_SCALE)),
     ));
 
-    // Load all character assets
-    let assets = CharacterAssets::load(&mut meshes, &mut materials);
+    // Load assets
+    let character_assets = CharacterAssets::load(&mut meshes, &mut materials);
+    let world_assets = WorldAssets::load(&mut meshes, &mut materials);
 
     // Build item registry
     let registry = build_item_registry(&mut meshes, &mut materials);
@@ -73,7 +77,8 @@ fn setup(
     spawners::spawn_background_grid(&mut commands, &mut meshes, &mut materials);
 
     // Insert resources for later use
-    commands.insert_resource(assets);
+    commands.insert_resource(character_assets);
+    commands.insert_resource(world_assets);
     commands.insert_resource(registry);
 
     // Transition to Playing state (triggers spawn_world)
@@ -82,7 +87,8 @@ fn setup(
 
 fn spawn_world(
     mut commands: Commands,
-    assets: Res<CharacterAssets>,
+    character_assets: Res<CharacterAssets>,
+    world_assets: Res<WorldAssets>,
     registry: Res<ItemRegistry>,
     config: Res<WorldConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -94,18 +100,19 @@ fn spawn_world(
         return;
     }
 
-    spawners::spawn_player(&mut commands, &assets, &mut meshes, &mut materials);
-    spawners::spawn_target_outline(&mut commands, &assets);
-    spawners::spawn_creatures(&mut commands, &assets, &mut meshes, &mut materials);
+    spawners::spawn_player(&mut commands, &character_assets, &mut meshes, &mut materials);
+    spawners::spawn_target_outline(&mut commands, &character_assets);
+    spawners::spawn_creatures(&mut commands, &character_assets, &mut meshes, &mut materials);
+    spawners::spawn_world_props(&mut commands, &world_assets);
 
     for (item_id, quantity, pos) in &config.starting_items {
-        spawners::spawn_ground_item(&mut commands, &assets, &registry, *item_id, *quantity, *pos);
+        spawners::spawn_ground_item(&mut commands, &character_assets, &registry, *item_id, *quantity, *pos);
     }
 }
 
 fn cleanup_world(
     mut commands: Commands,
-    query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>, With<GroundItem>)>>,
+    query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>, With<GroundItem>, With<Prop>)>>,
     mut stats: ResMut<Stats>,
 ) {
     for entity in &query {

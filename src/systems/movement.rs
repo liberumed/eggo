@@ -13,6 +13,7 @@ pub fn move_player(
     time: Res<Time>,
     mut player_query: Query<(Entity, &mut Transform, &mut PlayerAnimation, Option<&mut Sprinting>, Option<&PhaseThrough>), (With<Player>, Without<Dead>, Without<DeathAnimation>, Without<Dashing>)>,
     creatures_query: Query<(&Transform, Option<&Dead>), (With<Creature>, Without<Player>)>,
+    colliders_query: Query<(&Transform, &StaticCollider), Without<Player>>,
     blocking_query: Query<&Blocking>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
 ) {
@@ -114,7 +115,7 @@ pub fn move_player(
         }
 
         let movement = anim.velocity * dt;
-        let new_pos = Vec2::new(
+        let mut new_pos = Vec2::new(
             transform.translation.x + movement.x,
             transform.translation.y + movement.y,
         );
@@ -122,7 +123,7 @@ pub fn move_player(
         let mut blocked_x = false;
         let mut blocked_y = false;
 
-        // Skip collision when phasing through (after dash)
+        // Skip creature collision when phasing through (after dash)
         if !is_phasing {
             for (creature_transform, dead) in &creatures_query {
                 if dead.is_some() {
@@ -141,6 +142,32 @@ pub fn move_player(
                     blocked_y = true;
                 }
             }
+        }
+
+        // Static colliders - push-based collision
+        let mut static_push = Vec2::ZERO;
+        for (collider_transform, collider) in &colliders_query {
+            let collider_pos = Vec2::new(
+                collider_transform.translation.x,
+                collider_transform.translation.y + collider.offset_y,
+            );
+            let collision_dist = collider.radius + COLLISION_RADIUS * 0.5;
+
+            let player_pos = Vec2::new(new_pos.x, new_pos.y);
+            let diff = player_pos - collider_pos;
+            let dist = diff.length();
+
+            if dist < collision_dist && dist > 0.01 {
+                // Push player out of collision
+                let push_dir = diff.normalize();
+                let overlap = collision_dist - dist;
+                static_push += push_dir * overlap;
+            }
+        }
+
+        // Apply static collision push
+        if static_push != Vec2::ZERO {
+            new_pos += static_push;
         }
 
         if !blocked_x {

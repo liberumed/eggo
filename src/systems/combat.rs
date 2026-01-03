@@ -226,10 +226,11 @@ pub fn aim_weapon(
 
 pub fn hostile_ai(
     time: Res<Time>,
-    player_query: Query<&Transform, (With<Player>, Without<Creature>)>,
+    player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<StaticCollider>)>,
+    collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
     mut creature_queries: ParamSet<(
-        Query<(Entity, &Transform), (With<Creature>, Without<Dead>)>,
-        Query<(Entity, &mut Transform, &Hostile), (Without<Dead>, Without<Player>, Without<Stunned>)>,
+        Query<(Entity, &Transform), (With<Creature>, Without<Dead>, Without<StaticCollider>)>,
+        Query<(Entity, &mut Transform, &Hostile), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
     )>,
 ) {
     let Ok(player_transform) = player_query.single() else { return };
@@ -239,6 +240,11 @@ pub fn hostile_ai(
         .p0()
         .iter()
         .map(|(e, t)| (e, Vec2::new(t.translation.x, t.translation.y)))
+        .collect();
+
+    let collider_data: Vec<(Vec2, f32)> = collider_query
+        .iter()
+        .map(|(t, c)| (Vec2::new(t.translation.x, t.translation.y + c.offset_y), c.radius))
         .collect();
 
     let creature_collision_dist = COLLISION_RADIUS * 1.8;
@@ -251,7 +257,7 @@ pub fn hostile_ai(
         if distance < HOSTILE_SIGHT_RANGE && distance > player_collision_dist {
             let dir = (player_pos - creature_pos).normalize();
             let movement = dir * hostile.speed * time.delta_secs();
-            let new_pos = creature_pos + movement;
+            let mut new_pos = creature_pos + movement;
 
             // Check collision with other creatures
             let blocked_by_creature = creature_positions.iter().any(|(other_entity, other_pos)| {
@@ -260,6 +266,19 @@ pub fn hostile_ai(
 
             // Check collision with player - don't move if new position is too close
             let blocked_by_player = new_pos.distance(player_pos) < player_collision_dist;
+
+            // Push-based collision with static colliders
+            for (collider_pos, radius) in &collider_data {
+                let collision_dist = *radius + COLLISION_RADIUS;
+                let diff = new_pos - *collider_pos;
+                let dist = diff.length();
+
+                if dist < collision_dist && dist > 0.01 {
+                    let push_dir = diff.normalize();
+                    let overlap = collision_dist - dist;
+                    new_pos += push_dir * overlap;
+                }
+            }
 
             if !blocked_by_creature && !blocked_by_player {
                 transform.translation.x = new_pos.x;

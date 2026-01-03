@@ -37,3 +37,14 @@ pub struct Loot {
     pub nature_study: bool,
     pub wisdom: bool,
 }
+
+#[derive(Component)]
+pub struct StaticCollider {
+    pub radius: f32,
+    pub offset_y: f32,
+}
+
+#[derive(Component)]
+pub struct YSorted {
+    pub base_offset: f32,
+}

@@ -180,6 +180,8 @@ pub fn spawn_player(
     commands.spawn((
         Player,
         YSorted { base_offset: -14.0 },
+        WalkCollider { radius_x: 8.0, radius_y: 5.0, offset_y: -11.0 },
+        HitCollider { radius: 12.0 },
         PlayerAnimation::default(),
         Health(10),
         Equipment::default(),
@@ -363,6 +365,8 @@ fn spawn_creature(
     let mut entity_commands = commands.spawn((
         Creature,
         YSorted { base_offset: -14.0 },
+        WalkCollider { radius_x: 8.0, radius_y: 5.0, offset_y: -11.0 },
+        HitCollider { radius: 12.0 },
         anim,
         Health(definition.health),
         loot,

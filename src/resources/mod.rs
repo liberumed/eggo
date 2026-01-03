@@ -1,8 +1,10 @@
+mod debug;
 mod game_feel;
 mod input;
 mod state;
 mod stats;
 
+pub use debug::*;
 pub use game_feel::*;
 pub use input::*;
 pub use state::*;

@@ -11,8 +11,8 @@ pub fn move_player(
     bindings: Res<InputBindings>,
     hitstop: Res<Hitstop>,
     time: Res<Time>,
-    mut player_query: Query<(Entity, &mut Transform, &mut PlayerAnimation, Option<&mut Sprinting>, Option<&PhaseThrough>), (With<Player>, Without<Dead>, Without<DeathAnimation>, Without<Dashing>)>,
-    creatures_query: Query<(&Transform, Option<&Dead>), (With<Creature>, Without<Player>)>,
+    mut player_query: Query<(Entity, &mut Transform, &mut PlayerAnimation, &WalkCollider, Option<&mut Sprinting>, Option<&PhaseThrough>), (With<Player>, Without<Dead>, Without<DeathAnimation>, Without<Dashing>)>,
+    creatures_query: Query<(&Transform, &WalkCollider, Option<&Dead>), (With<Creature>, Without<Player>)>,
     colliders_query: Query<(&Transform, &StaticCollider), Without<Player>>,
     blocking_query: Query<&Blocking>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
@@ -43,10 +43,11 @@ pub fn move_player(
         }
     }
 
-    let collision_distance = COLLISION_RADIUS * 1.5;
     let dt = time.delta_secs();
 
-    for (entity, mut transform, mut anim, sprinting, phase_through) in &mut player_query {
+    for (entity, mut transform, mut anim, walk_collider, sprinting, phase_through) in &mut player_query {
+        let player_radius = Vec2::new(walk_collider.radius_x, walk_collider.radius_y);
+        let player_offset_y = walk_collider.offset_y;
         let is_blocking = blocking_query.get(entity).is_ok();
         let is_sprinting = bindings.pressed(GameAction::Sprint, &keyboard, &mouse) && input_dir != Vec2::ZERO;
         let is_phasing = phase_through.is_some();
@@ -125,44 +126,43 @@ pub fn move_player(
 
         // Skip creature collision when phasing through (after dash)
         if !is_phasing {
-            for (creature_transform, dead) in &creatures_query {
+            for (creature_transform, creature_walk, dead) in &creatures_query {
                 if dead.is_some() {
                     continue;
                 }
 
-                let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
+                let creature_pos = Vec2::new(
+                    creature_transform.translation.x,
+                    creature_transform.translation.y + creature_walk.offset_y,
+                );
+                let creature_radius = Vec2::new(creature_walk.radius_x, creature_walk.radius_y);
 
-                let test_x = Vec2::new(new_pos.x, transform.translation.y);
-                if test_x.distance(creature_pos) < collision_distance {
+                // Ellipse collision - check X movement (at feet level)
+                let test_x = Vec2::new(new_pos.x, transform.translation.y + player_offset_y);
+                if ellipses_overlap(test_x, player_radius, creature_pos, creature_radius) {
                     blocked_x = true;
                 }
 
-                let test_y = Vec2::new(transform.translation.x, new_pos.y);
-                if test_y.distance(creature_pos) < collision_distance {
+                // Ellipse collision - check Y movement (at feet level)
+                let test_y = Vec2::new(transform.translation.x, new_pos.y + player_offset_y);
+                if ellipses_overlap(test_y, player_radius, creature_pos, creature_radius) {
                     blocked_y = true;
                 }
             }
         }
 
-        // Static colliders - push-based collision
+        // Static colliders - push-based ellipse collision (at feet level)
         let mut static_push = Vec2::ZERO;
         for (collider_transform, collider) in &colliders_query {
             let collider_pos = Vec2::new(
                 collider_transform.translation.x,
                 collider_transform.translation.y + collider.offset_y,
             );
-            let collision_dist = collider.radius + COLLISION_RADIUS * 0.5;
+            let collider_radius = Vec2::new(collider.radius_x, collider.radius_y);
 
-            let player_pos = Vec2::new(new_pos.x, new_pos.y);
-            let diff = player_pos - collider_pos;
-            let dist = diff.length();
-
-            if dist < collision_dist && dist > 0.01 {
-                // Push player out of collision
-                let push_dir = diff.normalize();
-                let overlap = collision_dist - dist;
-                static_push += push_dir * overlap;
-            }
+            let player_pos = Vec2::new(new_pos.x, new_pos.y + player_offset_y);
+            let push = ellipse_push(player_pos, player_radius, collider_pos, collider_radius);
+            static_push += push;
         }
 
         // Apply static collision push
@@ -339,7 +339,7 @@ pub fn apply_collision_push(
 
             if dist < PUSH_RADIUS && dist > 0.1 {
                 let push_dir = diff.normalize();
-                let overlap = (PUSH_RADIUS - dist) / PUSH_RADIUS; // 0..1
+                let overlap = (PUSH_RADIUS - dist) / PUSH_RADIUS;
                 push += push_dir * overlap * PUSH_STRENGTH * dt;
             }
         }
@@ -356,7 +356,7 @@ pub fn apply_collision_push(
             if dist < PUSH_RADIUS && dist > 0.1 {
                 let push_dir = diff.normalize();
                 let overlap = (PUSH_RADIUS - dist) / PUSH_RADIUS;
-                push += push_dir * overlap * PUSH_STRENGTH * 0.5 * dt; // Half strength for creature-creature
+                push += push_dir * overlap * PUSH_STRENGTH * 0.5 * dt;
             }
         }
 

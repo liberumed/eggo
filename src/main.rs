@@ -10,10 +10,10 @@ use bevy::prelude::*;
 use components::*;
 use constants::*;
 use plugins::*;
-use resources::{GameState, Hitstop, InputBindings, NewGameRequested, ScreenShake, Stats, WorldConfig};
-use data::Prop;
-use spawners::{CharacterAssets, WorldAssets};
-use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_key_bindings_panel, toggle_pause_menu};
+use resources::{DebugConfig, GameState, Hitstop, InputBindings, NewGameRequested, ScreenShake, Stats, WorldConfig};
+use data::{Prop, PropRegistry, build_prop_registry};
+use spawners::CharacterAssets;
+use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_debug_circles, spawn_key_bindings_panel, toggle_collision_debug, toggle_pause_menu, update_debug_visibility};
 use components::build_item_registry;
 
 fn main() {
@@ -33,10 +33,11 @@ fn main() {
         .init_resource::<InputBindings>()
         .init_resource::<Hitstop>()
         .init_resource::<ScreenShake>()
+        .init_resource::<DebugConfig>()
         .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
         .add_systems(Startup, (setup, setup_ui, spawn_key_bindings_panel))
-        .add_systems(Update, toggle_pause_menu)
+        .add_systems(Update, (toggle_pause_menu, toggle_collision_debug, spawn_debug_circles, update_debug_visibility))
         .add_systems(OnEnter(GameState::Playing), spawn_world)
         .add_systems(OnEnter(GameState::Paused), show_pause_menu)
         .add_systems(OnExit(GameState::Paused), hide_pause_menu)
@@ -68,18 +69,18 @@ fn setup(
 
     // Load assets
     let character_assets = CharacterAssets::load(&mut meshes, &mut materials);
-    let world_assets = WorldAssets::load(&mut meshes, &mut materials);
 
-    // Build item registry
-    let registry = build_item_registry(&mut meshes, &mut materials);
+    // Build registries
+    let item_registry = build_item_registry(&mut meshes, &mut materials);
+    let prop_registry = build_prop_registry(&mut meshes, &mut materials);
 
     // Spawn background (static, doesn't need reset)
     spawners::spawn_background_grid(&mut commands, &mut meshes, &mut materials);
 
     // Insert resources for later use
     commands.insert_resource(character_assets);
-    commands.insert_resource(world_assets);
-    commands.insert_resource(registry);
+    commands.insert_resource(item_registry);
+    commands.insert_resource(prop_registry);
 
     // Transition to Playing state (triggers spawn_world)
     next_state.set(GameState::Playing);
@@ -88,8 +89,8 @@ fn setup(
 fn spawn_world(
     mut commands: Commands,
     character_assets: Res<CharacterAssets>,
-    world_assets: Res<WorldAssets>,
-    registry: Res<ItemRegistry>,
+    item_registry: Res<ItemRegistry>,
+    prop_registry: Res<PropRegistry>,
     config: Res<WorldConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -103,10 +104,10 @@ fn spawn_world(
     spawners::spawn_player(&mut commands, &character_assets, &mut meshes, &mut materials);
     spawners::spawn_target_outline(&mut commands, &character_assets);
     spawners::spawn_creatures(&mut commands, &character_assets, &mut meshes, &mut materials);
-    spawners::spawn_world_props(&mut commands, &world_assets);
+    spawners::spawn_world_props(&mut commands, &prop_registry);
 
     for (item_id, quantity, pos) in &config.starting_items {
-        spawners::spawn_ground_item(&mut commands, &character_assets, &registry, *item_id, *quantity, *pos);
+        spawners::spawn_ground_item(&mut commands, &character_assets, &item_registry, *item_id, *quantity, *pos);
     }
 }
 

@@ -58,7 +58,7 @@ pub fn player_attack(
     player_query: Query<(Entity, &Transform), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     weapon_query: Query<(Entity, &Transform, &Weapon, Option<&Drawn>), With<PlayerWeapon>>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
-    mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     assets: Res<CharacterAssets>,
 ) {
     if !bindings.just_pressed(GameAction::Attack, &keyboard, &mouse) {
@@ -97,12 +97,13 @@ pub fn player_attack(
     let mut rng = rand::rng();
     let mut hit_any = false;
 
-    for (entity, creature_transform, mut health, hostile) in &mut creatures_query {
+    for (entity, creature_transform, mut health, hostile, hit_collider) in &mut creatures_query {
         let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
         let to_creature = creature_pos - player_pos;
         let distance = to_creature.length();
 
-        let in_range = distance < weapon.range();
+        let hit_radius = hit_collider.map(|h| h.radius).unwrap_or(0.0);
+        let in_range = distance < weapon.range() + hit_radius;
         let in_cone = distance > 0.0 && to_creature.normalize().dot(attack_dir) > cone_threshold;
 
         if in_range && in_cone {
@@ -242,9 +243,9 @@ pub fn hostile_ai(
         .map(|(e, t)| (e, Vec2::new(t.translation.x, t.translation.y)))
         .collect();
 
-    let collider_data: Vec<(Vec2, f32)> = collider_query
+    let collider_data: Vec<(Vec2, Vec2)> = collider_query
         .iter()
-        .map(|(t, c)| (Vec2::new(t.translation.x, t.translation.y + c.offset_y), c.radius))
+        .map(|(t, c)| (Vec2::new(t.translation.x, t.translation.y + c.offset_y), Vec2::new(c.radius_x, c.radius_y)))
         .collect();
 
     let creature_collision_dist = COLLISION_RADIUS * 1.8;
@@ -267,17 +268,13 @@ pub fn hostile_ai(
             // Check collision with player - don't move if new position is too close
             let blocked_by_player = new_pos.distance(player_pos) < player_collision_dist;
 
-            // Push-based collision with static colliders
-            for (collider_pos, radius) in &collider_data {
-                let collision_dist = *radius + COLLISION_RADIUS;
-                let diff = new_pos - *collider_pos;
-                let dist = diff.length();
-
-                if dist < collision_dist && dist > 0.01 {
-                    let push_dir = diff.normalize();
-                    let overlap = collision_dist - dist;
-                    new_pos += push_dir * overlap;
-                }
+            // Push-based ellipse collision with static colliders (at feet level)
+            let creature_radius = Vec2::new(8.0, 5.0);
+            let creature_offset_y = -11.0;  // Match shadow (ground footprint)
+            for (collider_pos, collider_radius) in &collider_data {
+                let creature_feet = Vec2::new(new_pos.x, new_pos.y + creature_offset_y);
+                let push = ellipse_push(creature_feet, creature_radius, *collider_pos, *collider_radius);
+                new_pos += push;
             }
 
             if !blocked_by_creature && !blocked_by_player {
@@ -311,7 +308,7 @@ pub fn hostile_fist_aim(
 
 pub fn hostile_attack(
     mut commands: Commands,
-    mut player_query: Query<(Entity, &Transform, &mut Health), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    mut player_query: Query<(Entity, &Transform, &mut Health, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     hostile_query: Query<(Entity, &Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<WeaponSwing>)>,
     knockback_query: Query<&Knockback>,
@@ -319,8 +316,9 @@ pub fn hostile_attack(
     blocking_query: Query<&Blocking>,
     player_weapon_query: Query<(&Weapon, &Transform), With<PlayerWeapon>>,
 ) {
-    let Ok((player_entity, player_transform, mut player_health)) = player_query.single_mut() else { return };
+    let Ok((player_entity, player_transform, mut player_health, player_hit_collider)) = player_query.single_mut() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
+    let player_hit_radius = player_hit_collider.map(|h| h.radius).unwrap_or(0.0);
 
     // Invincible during dash (i-frames)
     if dashing_query.get(player_entity).is_ok() {
@@ -339,7 +337,7 @@ pub fn hostile_attack(
 
         for child in children.iter() {
             if let Ok((fist_entity, weapon)) = fist_query.get(child) {
-                if distance < weapon.range() {
+                if distance < weapon.range() + player_hit_radius {
                     commands.entity(fist_entity).insert(WeaponSwing {
                         timer: 0.0,
                         duration: weapon.swing_duration(),

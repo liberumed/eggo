@@ -1,6 +1,7 @@
 mod animation;
 mod camera;
 mod combat;
+mod debug;
 mod depth;
 mod effects;
 mod inventory;
@@ -11,6 +12,7 @@ mod ui;
 pub use animation::*;
 pub use camera::*;
 pub use combat::*;
+pub use debug::*;
 pub use depth::*;
 pub use effects::*;
 pub use inventory::*;

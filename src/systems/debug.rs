@@ -63,14 +63,14 @@ pub fn spawn_debug_circles(
                 MeshMaterial2d(walk_color.clone()),
                 Transform::from_xyz(0.0, offset_y, 10.0),
             ));
-            // Hit collision (outer, cyan circle at center)
+            // Hit collision (outer, cyan ellipse)
             if let Some(hit) = hit_collider {
-                let hit_mesh = meshes.add(Circle::new(hit.radius));
+                let hit_mesh = meshes.add(Ellipse::new(hit.radius_x, hit.radius_y));
                 parent.spawn((
                     HitDebugCircle,
                     Mesh2d(hit_mesh),
                     MeshMaterial2d(player_hit_color.clone()),
-                    Transform::from_xyz(0.0, 0.0, 9.9),
+                    Transform::from_xyz(0.0, hit.offset_y, 9.9),
                 ));
             }
         });
@@ -90,14 +90,14 @@ pub fn spawn_debug_circles(
                 MeshMaterial2d(walk_color.clone()),
                 Transform::from_xyz(0.0, offset_y, 10.0),
             ));
-            // Hit collision (outer, orange circle at center)
+            // Hit collision (outer, orange ellipse)
             if let Some(hit) = hit_collider {
-                let hit_mesh = meshes.add(Circle::new(hit.radius));
+                let hit_mesh = meshes.add(Ellipse::new(hit.radius_x, hit.radius_y));
                 parent.spawn((
                     HitDebugCircle,
                     Mesh2d(hit_mesh),
                     MeshMaterial2d(creature_hit_color.clone()),
-                    Transform::from_xyz(0.0, 0.0, 9.9),
+                    Transform::from_xyz(0.0, hit.offset_y, 9.9),
                 ));
             }
         });

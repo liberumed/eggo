@@ -6,27 +6,31 @@ mod resources;
 mod spawners;
 mod systems;
 
-use bevy::prelude::*;
+use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use components::*;
 use constants::*;
 use plugins::*;
-use resources::{DebugConfig, GameState, Hitstop, InputBindings, NewGameRequested, ScreenShake, Stats, WorldConfig};
+use resources::{DebugConfig, GameState, Hitstop, InputBindings, NewGameRequested, PlayerSpriteSheet, ScreenShake, Stats, WorldConfig, load_player_sprite_sheet};
 use data::{Prop, PropRegistry, build_prop_registry};
 use spawners::CharacterAssets;
-use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_debug_circles, spawn_key_bindings_panel, toggle_collision_debug, toggle_pause_menu, update_debug_visibility};
+use systems::{animate_sprites, auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_debug_circles, spawn_key_bindings_panel, toggle_collision_debug, toggle_pause_menu, update_debug_visibility, update_player_sprite_animation};
 use components::build_item_registry;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Eggo".to_string(),
-                resolution: ((320.0 * PIXEL_SCALE) as u32, (240.0 * PIXEL_SCALE) as u32).into(),
-                resizable: false,
+        .add_plugins(DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Eggo".to_string(),
+                    resolution: ((320.0 * PIXEL_SCALE) as u32, (240.0 * PIXEL_SCALE) as u32).into(),
+                    resizable: false,
+                    ..default()
+                }),
                 ..default()
-            }),
-            ..default()
-        }))
+            })
+            .set(ImagePlugin {
+                default_sampler: ImageSamplerDescriptor::nearest(),
+            }))
         .init_resource::<Stats>()
         .init_resource::<WorldConfig>()
         .init_resource::<NewGameRequested>()
@@ -37,7 +41,7 @@ fn main() {
         .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
         .add_systems(Startup, (setup, setup_ui, spawn_key_bindings_panel))
-        .add_systems(Update, (toggle_pause_menu, toggle_collision_debug, spawn_debug_circles, update_debug_visibility))
+        .add_systems(Update, (toggle_pause_menu, toggle_collision_debug, spawn_debug_circles, update_debug_visibility, update_player_sprite_animation, animate_sprites))
         .add_systems(OnEnter(GameState::Playing), spawn_world)
         .add_systems(OnEnter(GameState::Paused), show_pause_menu)
         .add_systems(OnExit(GameState::Paused), hide_pause_menu)
@@ -57,8 +61,10 @@ fn main() {
 
 fn setup(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
     // Camera
@@ -69,6 +75,10 @@ fn setup(
 
     // Load assets
     let character_assets = CharacterAssets::load(&mut meshes, &mut materials);
+
+    // Load player sprite sheet
+    let player_sprite_sheet = load_player_sprite_sheet(&asset_server, &mut texture_atlas_layouts);
+    commands.insert_resource(player_sprite_sheet);
 
     // Build registries
     let item_registry = build_item_registry(&mut meshes, &mut materials);
@@ -89,6 +99,7 @@ fn setup(
 fn spawn_world(
     mut commands: Commands,
     character_assets: Res<CharacterAssets>,
+    player_sprite_sheet: Res<PlayerSpriteSheet>,
     item_registry: Res<ItemRegistry>,
     prop_registry: Res<PropRegistry>,
     config: Res<WorldConfig>,
@@ -101,7 +112,7 @@ fn spawn_world(
         return;
     }
 
-    spawners::spawn_player(&mut commands, &character_assets, &mut meshes, &mut materials);
+    spawners::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials);
     spawners::spawn_target_outline(&mut commands, &character_assets);
     spawners::spawn_creatures(&mut commands, &character_assets, &mut meshes, &mut materials);
     spawners::spawn_world_props(&mut commands, &prop_registry);

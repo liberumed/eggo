@@ -23,7 +23,15 @@ pub struct DespawnTimer(pub f32);
 
 /// Shadow component for characters
 #[derive(Component)]
-pub struct Shadow;
+pub struct Shadow {
+    pub base_scale: Vec2,
+}
+
+impl Default for Shadow {
+    fn default() -> Self {
+        Self { base_scale: Vec2::ONE }
+    }
+}
 
 #[derive(Component)]
 pub struct DeathAnimation {
@@ -54,10 +62,12 @@ pub struct WalkCollider {
     pub offset_y: f32,
 }
 
-/// Hit collision (hurtbox) - used for taking damage (circle)
+/// Hit collision (hurtbox) - used for taking damage (ellipse)
 #[derive(Component)]
 pub struct HitCollider {
-    pub radius: f32,
+    pub radius_x: f32,
+    pub radius_y: f32,
+    pub offset_y: f32,
 }
 
 /// Check if two ellipses overlap (simplified axis-aligned)

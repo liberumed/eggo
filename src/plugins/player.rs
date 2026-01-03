@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::resources::GameState;
 use crate::systems::{
-    aim_weapon, animate_player, animate_player_death, animate_weapon_swing, apply_dash,
+    aim_weapon, animate_player_death, animate_weapon_swing, apply_dash,
     apply_knockback, cursor_not_over_ui, handle_block, handle_dash_input, move_player,
     player_attack, tick_dash_cooldown, tick_phase_through, toggle_weapon, update_weapon_visual,
 };
@@ -20,7 +20,6 @@ impl Plugin for PlayerPlugin {
                 tick_dash_cooldown,
                 tick_phase_through,
                 apply_knockback,
-                animate_player,
                 animate_player_death,
                 toggle_weapon,
                 aim_weapon,

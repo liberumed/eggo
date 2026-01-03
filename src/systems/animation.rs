@@ -2,45 +2,8 @@ use bevy::prelude::*;
 
 use crate::components::*;
 use crate::constants::*;
-use crate::resources::Stats;
+use crate::resources::{PlayerSpriteSheet, Stats};
 use crate::spawners::CharacterAssets;
-
-pub fn animate_player(
-    time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut PlayerAnimation), With<Player>>,
-) {
-    for (mut transform, mut anim) in &mut query {
-        anim.time += time.delta_secs();
-        let t = anim.time;
-
-        let is_moving = anim.velocity.length() > 0.1;
-
-        if is_moving {
-            let speed_factor = (anim.velocity.length() / (PLAYER_SPEED * time.delta_secs())).min(1.0);
-            let bounce = (t * 20.0).sin() * 0.12 * speed_factor;
-            let funk = (t * 7.0).cos() * 0.04 * speed_factor;
-            let squash_x = 1.0 + bounce + funk;
-            let squash_y = 1.0 - bounce * 0.7 - funk * 0.5;
-
-            transform.scale = Vec3::new(squash_x, squash_y, 1.0);
-
-            let tilt = anim.velocity.x * 0.002;
-            let dance_tilt = (t * 15.0).sin() * 0.03 * speed_factor;
-            transform.rotation = Quat::from_rotation_z(-tilt + dance_tilt);
-        } else {
-            let swing = (t * 3.5).sin();
-            let swing_snap = swing.signum() * swing.abs().powf(0.6) * 0.12;
-
-            let groove = ((t * 4.0).sin() * 0.5 + 0.5).powf(1.5) * 0.08;
-            let funk = (t * 1.2).cos() * 0.05;
-            let jazz = ((t * 5.0).sin() * (t * 1.5).cos()) * 0.03;
-
-            transform.scale.x = 1.0 + groove - funk * 0.5 + jazz;
-            transform.scale.y = 1.0 - groove * 0.7 + funk * 0.3 - jazz * 0.5;
-            transform.rotation = Quat::from_rotation_z(swing_snap + jazz * 1.5);
-        }
-    }
-}
 
 pub fn animate_creatures(
     time: Res<Time>,
@@ -279,5 +242,62 @@ pub fn animate_player_death(
             }
             _ => {}
         }
+    }
+}
+
+/// Update player sprite animation state based on movement
+pub fn update_player_sprite_animation(
+    mut query: Query<(&PlayerAnimation, &mut SpriteAnimation), With<Player>>,
+) {
+    for (player_anim, mut sprite_anim) in &mut query {
+        let velocity = player_anim.velocity.length();
+
+        let (new_animation, anim_speed) = if velocity > PLAYER_SPEED * 1.2 {
+            ("run", 1.0)
+        } else if velocity > 0.1 {
+            ("walk", 1.0)
+        } else {
+            ("idle", 0.3)  // Slow idle animation
+        };
+
+        sprite_anim.set_animation(new_animation);
+        sprite_anim.speed = anim_speed;
+
+        // Flip sprite based on movement direction
+        if player_anim.velocity.x.abs() > 0.1 {
+            sprite_anim.flip_x = player_anim.velocity.x < 0.0;
+        }
+    }
+}
+
+/// Advance sprite animation frames
+pub fn animate_sprites(
+    time: Res<Time>,
+    sprite_sheet: Option<Res<PlayerSpriteSheet>>,
+    mut query: Query<(&mut SpriteAnimation, &mut Sprite)>,
+) {
+    let Some(sprite_sheet) = sprite_sheet else { return };
+
+    for (mut anim, mut sprite) in &mut query {
+        // Scale delta time by animation speed
+        let scaled_delta = time.delta().mul_f32(anim.speed);
+        anim.timer.tick(scaled_delta);
+
+        if anim.timer.just_finished() {
+            if let Some(data) = sprite_sheet.animations.get(&anim.current_animation) {
+                if data.looping {
+                    anim.frame_index = (anim.frame_index + 1) % data.frame_count;
+                } else if anim.frame_index < data.frame_count - 1 {
+                    anim.frame_index += 1;
+                }
+
+                if let Some(atlas) = &mut sprite.texture_atlas {
+                    atlas.index = data.start_index + anim.frame_index;
+                }
+            }
+        }
+
+        // Apply horizontal flip
+        sprite.flip_x = anim.flip_x;
     }
 }

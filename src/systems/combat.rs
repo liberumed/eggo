@@ -102,7 +102,7 @@ pub fn player_attack(
         let to_creature = creature_pos - player_pos;
         let distance = to_creature.length();
 
-        let hit_radius = hit_collider.map(|h| h.radius).unwrap_or(0.0);
+        let hit_radius = hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
         let in_range = distance < weapon.range() + hit_radius;
         let in_cone = distance > 0.0 && to_creature.normalize().dot(attack_dir) > cone_threshold;
 
@@ -211,17 +211,20 @@ pub fn aim_weapon(
     let dir = world_pos - player_pos;
     let angle = dir.y.atan2(dir.x);
 
+    // Weapon offset from player center (at hand level for sprite)
+    let weapon_offset = Vec2::new(-4.0, 6.5);
+
     let is_blocking = blocking_query.get(player_entity).is_ok();
     if is_blocking {
         // Blocking stance: pull weapon closer and tilt defensively
         let pull_back = -3.0;
         weapon_transform.rotation = Quat::from_rotation_z(angle + 0.4); // ~23° tilt
-        weapon_transform.translation.x = pull_back * angle.cos();
-        weapon_transform.translation.y = pull_back * angle.sin();
+        weapon_transform.translation.x = weapon_offset.x + pull_back * angle.cos();
+        weapon_transform.translation.y = weapon_offset.y + pull_back * angle.sin();
     } else {
         weapon_transform.rotation = Quat::from_rotation_z(angle);
-        weapon_transform.translation.x = 0.0;
-        weapon_transform.translation.y = 0.0;
+        weapon_transform.translation.x = weapon_offset.x;
+        weapon_transform.translation.y = weapon_offset.y;
     }
 }
 
@@ -318,7 +321,7 @@ pub fn hostile_attack(
 ) {
     let Ok((player_entity, player_transform, mut player_health, player_hit_collider)) = player_query.single_mut() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
-    let player_hit_radius = player_hit_collider.map(|h| h.radius).unwrap_or(0.0);
+    let player_hit_radius = player_hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
 
     // Invincible during dash (i-frames)
     if dashing_query.get(player_entity).is_ok() {

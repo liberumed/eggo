@@ -59,19 +59,19 @@ pub fn stabilize_text_rotation(
 
 pub fn stabilize_shadow(
     parent_query: Query<(&Transform, &Children), Or<(With<Player>, With<Creature>)>>,
-    mut shadow_query: Query<&mut Transform, (With<Shadow>, Without<Player>, Without<Creature>)>,
+    mut shadow_query: Query<(&Shadow, &mut Transform), (Without<Player>, Without<Creature>)>,
 ) {
     for (parent_transform, children) in &parent_query {
         let inverse_rotation = parent_transform.rotation.inverse();
-        let inverse_scale = Vec3::new(
-            1.0 / parent_transform.scale.x,
-            1.0 / parent_transform.scale.y,
-            1.0,
-        );
         for child in children.iter() {
-            if let Ok(mut shadow_transform) = shadow_query.get_mut(child) {
+            if let Ok((shadow, mut shadow_transform)) = shadow_query.get_mut(child) {
                 shadow_transform.rotation = inverse_rotation;
-                shadow_transform.scale = inverse_scale;
+                // Apply inverse scale multiplied by base_scale
+                shadow_transform.scale = Vec3::new(
+                    shadow.base_scale.x / parent_transform.scale.x,
+                    shadow.base_scale.y / parent_transform.scale.y,
+                    1.0,
+                );
             }
         }
     }

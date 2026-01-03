@@ -3,6 +3,7 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::*;
+use crate::resources::PlayerSpriteSheet;
 
 #[derive(Resource)]
 pub struct CharacterAssets {
@@ -10,7 +11,6 @@ pub struct CharacterAssets {
     pub character_mesh: Handle<Mesh>,
 
     // Character materials
-    pub player_material: Handle<ColorMaterial>,
     pub neutral_material: Handle<ColorMaterial>,
     pub hostile_material: Handle<ColorMaterial>,
     pub glowing_material: Handle<ColorMaterial>,
@@ -57,7 +57,6 @@ impl CharacterAssets {
     ) -> Self {
         let character_mesh = meshes.add(Ellipse::new(10.0, 14.0));
 
-        let player_material = materials.add(Color::srgb(1.0, 0.85, 0.6));
         let neutral_material = materials.add(Color::srgb(0.9, 0.8, 0.5));
         let hostile_material = materials.add(Color::srgb(0.85, 0.25, 0.25));
         let glowing_material = materials.add(Color::srgb(1.0, 0.9, 0.3));
@@ -98,7 +97,6 @@ impl CharacterAssets {
 
         Self {
             character_mesh,
-            player_material,
             neutral_material,
             hostile_material,
             glowing_material,
@@ -171,63 +169,63 @@ pub fn spawn_ground_item(
 pub fn spawn_player(
     commands: &mut Commands,
     assets: &CharacterAssets,
+    sprite_sheet: &PlayerSpriteSheet,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) {
     let weapon = weapon_catalog::wooden_stick(meshes, materials);
     let weapon_visual = weapon.visual.clone();
 
+    // Get initial animation data
+    let initial_anim = sprite_sheet.animations.get("idle").unwrap_or_else(|| {
+        sprite_sheet.animations.values().next().expect("No animations in sprite sheet")
+    });
+
     commands.spawn((
         Player,
-        YSorted { base_offset: -14.0 },
-        WalkCollider { radius_x: 8.0, radius_y: 5.0, offset_y: -11.0 },
-        HitCollider { radius: 12.0 },
+        YSorted { base_offset: -24.0 },  // Feet position for 64x64 sprite
+        WalkCollider { radius_x: 8.0, radius_y: 4.0, offset_y: -4.0 },  // At feet
+        HitCollider { radius_x: 10.0, radius_y: 14.0, offset_y: 6.0 },
         PlayerAnimation::default(),
+        SpriteAnimation::new("idle", initial_anim.frame_duration_ms),
         Health(10),
         Equipment::default(),
         Inventory::default(),
         EquippedWeaponId(ItemId::WoodenStick),
-        Mesh2d(assets.character_mesh.clone()),
-        MeshMaterial2d(assets.player_material.clone()),
+        Sprite::from_atlas_image(
+            sprite_sheet.texture.clone(),
+            TextureAtlas {
+                layout: sprite_sheet.atlas_layout.clone(),
+                index: initial_anim.start_index,
+            },
+        ),
         Transform::from_xyz(0.0, 0.0, 0.0),
     )).with_children(|parent| {
-        // Shadow
+        // Shadow - right under feet
         parent.spawn((
-            Shadow,
+            Shadow { base_scale: Vec2::new(0.6, 0.5) },  // Shadow for sprite
             Mesh2d(assets.shadow_mesh.clone()),
             MeshMaterial2d(assets.shadow_material.clone()),
-            Transform::from_xyz(1.0, -11.0, Z_SHADOW_OFFSET),
-        ));
-        // Shade
-        parent.spawn((
-            Mesh2d(assets.shade_mesh.clone()),
-            MeshMaterial2d(assets.shade_material.clone()),
-            Transform::from_xyz(-3.0, -4.0, Z_CHARACTER_DETAIL),
-        ));
-        // Shine
-        parent.spawn((
-            Mesh2d(assets.shine_mesh.clone()),
-            MeshMaterial2d(assets.shine_material.clone()),
-            Transform::from_xyz(3.0, 6.0, Z_CHARACTER_DETAIL),
+            Transform::from_xyz(0.0, -3.0, Z_SHADOW_OFFSET),
         ));
         // Heart sprites
         parent.spawn((
             HeartSprite,
             Mesh2d(assets.heart_mesh.clone()),
             MeshMaterial2d(assets.heart_material.clone()),
-            Transform::from_xyz(-6.0, 19.0, Z_UI_WORLD),
+            Transform::from_xyz(-6.0, 36.0, Z_UI_WORLD),
         ));
         parent.spawn((
             HeartSprite,
             Mesh2d(assets.heart_top_mesh.clone()),
             MeshMaterial2d(assets.heart_material.clone()),
-            Transform::from_xyz(-7.5, 20.0, Z_UI_WORLD),
+            Transform::from_xyz(-7.5, 37.0, Z_UI_WORLD),
         ));
         parent.spawn((
             HeartSprite,
             Mesh2d(assets.heart_top_mesh.clone()),
             MeshMaterial2d(assets.heart_material.clone()),
-            Transform::from_xyz(-4.5, 20.0, Z_UI_WORLD),
+            Transform::from_xyz(-4.5, 37.0, Z_UI_WORLD),
         ));
         // HP text
         parent.spawn((
@@ -235,15 +233,16 @@ pub fn spawn_player(
             Text2d::new("2"),
             TextFont { font_size: 32.0, ..default() },
             TextColor(Color::srgb(1.0, 1.0, 1.0)),
-            Transform::from_xyz(2.0, 18.0, Z_UI_WORLD).with_scale(Vec3::splat(0.25)),
+            Transform::from_xyz(2.0, 35.0, Z_UI_WORLD).with_scale(Vec3::splat(0.25)),
         ));
-        // Default weapon with visual
+        // Default weapon with visual (hidden until attack)
         parent.spawn((
             Stick,
             PlayerWeapon,
             weapon,
-            Transform::from_xyz(0.0, 0.0, Z_WEAPON),
+            Transform::from_xyz(12.0, 0.0, Z_WEAPON),
             Visibility::Hidden,
+            InheritedVisibility::HIDDEN,
         )).with_children(|weapon_parent| {
             weapon_parent.spawn((
                 WeaponVisualMesh,
@@ -366,7 +365,7 @@ fn spawn_creature(
         Creature,
         YSorted { base_offset: -14.0 },
         WalkCollider { radius_x: 8.0, radius_y: 5.0, offset_y: -11.0 },
-        HitCollider { radius: 12.0 },
+        HitCollider { radius_x: 10.0, radius_y: 14.0, offset_y: 0.0 },
         anim,
         Health(definition.health),
         loot,
@@ -396,7 +395,7 @@ fn spawn_creature_children(
 ) {
     // Shadow
     parent.spawn((
-        Shadow,
+        Shadow::default(),
         Mesh2d(assets.shadow_mesh.clone()),
         MeshMaterial2d(assets.shadow_material.clone()),
         Transform::from_xyz(1.0, -11.0, Z_SHADOW_OFFSET),

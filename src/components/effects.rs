@@ -23,3 +23,11 @@ pub struct TargetOutline;
 pub struct DustParticle {
     pub lifetime: f32,
 }
+
+/// Red flash highlight when enemy is hit
+#[derive(Component)]
+pub struct HitHighlight {
+    pub timer: f32,
+    pub duration: f32,
+    pub original_material: Option<Handle<ColorMaterial>>,
+}

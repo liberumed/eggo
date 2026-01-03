@@ -7,8 +7,14 @@ use crate::spawners::CharacterAssets;
 
 pub fn animate_creatures(
     time: Res<Time>,
+    hitstop: Res<crate::resources::Hitstop>,
     mut query: Query<(&mut Transform, &CreatureAnimation), (With<Creature>, Without<Dead>)>,
 ) {
+    // Freeze during hitstop (anime-style impact pause)
+    if hitstop.is_active() {
+        return;
+    }
+
     let t = time.elapsed_secs();
 
     for (mut transform, anim) in &mut query {
@@ -34,8 +40,14 @@ pub fn animate_creatures(
 pub fn animate_weapon_swing(
     mut commands: Commands,
     time: Res<Time>,
+    hitstop: Res<crate::resources::Hitstop>,
     mut query: Query<(Entity, &mut Transform, &mut WeaponSwing)>,
 ) {
+    // Freeze animation during hitstop (anime-style impact pause)
+    if hitstop.is_active() {
+        return;
+    }
+
     for (entity, mut transform, mut swing) in &mut query {
         swing.timer += time.delta_secs();
         let t = swing.timer;

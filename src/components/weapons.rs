@@ -37,6 +37,8 @@ pub struct WeaponSwing {
     pub duration: f32,
     pub base_angle: Option<f32>,
     pub attack_type: AttackType,
+    pub hit_delay: f32,      // Time before hit connects (wind-up)
+    pub hit_applied: bool,   // Track if damage was already applied
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

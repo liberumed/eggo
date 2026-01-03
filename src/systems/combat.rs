@@ -46,51 +46,79 @@ pub fn handle_block(
     }
 }
 
+/// Starts weapon swing animation on attack input (damage applied later by apply_player_delayed_hits)
 pub fn player_attack(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     bindings: Res<InputBindings>,
-    mut hitstop: ResMut<Hitstop>,
-    mut screen_shake: ResMut<ScreenShake>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    player_query: Query<(Entity, &Transform), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     weapon_query: Query<(Entity, &Transform, &Weapon, Option<&Drawn>), With<PlayerWeapon>>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
-    mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    assets: Res<CharacterAssets>,
 ) {
     if !bindings.just_pressed(GameAction::Attack, &keyboard, &mouse) {
         return;
     }
 
+    // Already swinging
     if swing_query.iter().next().is_some() {
         return;
     }
 
-    let Ok((weapon_entity, _, weapon, drawn)) = weapon_query.single() else { return };
+    let Ok((weapon_entity, weapon_transform, weapon, drawn)) = weapon_query.single() else { return };
+
+    // First click draws weapon
     if drawn.is_none() {
         commands.entity(weapon_entity).insert(Drawn);
         commands.entity(weapon_entity).insert(Visibility::Inherited);
         return;
     }
 
+    // Start swing animation - hit will be applied later when hit_delay is reached
+    let (_, angle) = weapon_transform.rotation.to_axis_angle();
+    let base_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
+    let duration = weapon.swing_duration();
+
+    commands.entity(weapon_entity).insert(WeaponSwing {
+        timer: 0.0,
+        duration,
+        base_angle: Some(base_angle),
+        attack_type: weapon.attack_type,
+        hit_delay: duration * ATTACK_HIT_DELAY_PERCENT,
+        hit_applied: false,
+    });
+}
+
+/// Applies damage when weapon swing reaches hit_delay (allows aiming during wind-up)
+pub fn apply_player_delayed_hits(
+    mut commands: Commands,
+    mut hitstop: ResMut<Hitstop>,
+    mut screen_shake: ResMut<ScreenShake>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    player_query: Query<(Entity, &Transform), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
+    mut weapon_query: Query<(&Transform, &Weapon, &mut WeaponSwing), With<PlayerWeapon>>,
+    mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    assets: Res<CharacterAssets>,
+) {
+    let Ok((weapon_transform, weapon, mut swing)) = weapon_query.single_mut() else { return };
+
+    // Check if we've reached hit_delay and haven't applied hit yet
+    if swing.timer < swing.hit_delay || swing.hit_applied {
+        return;
+    }
+    swing.hit_applied = true;
+
     let Ok((player_entity, player_transform)) = player_query.single() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
 
-    let attack_dir = if let Ok((weapon_entity, weapon_transform, _weapon, _)) = weapon_query.single() {
-        let (_, angle) = weapon_transform.rotation.to_axis_angle();
-        let base_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
-        commands.entity(weapon_entity).insert(WeaponSwing {
-            timer: 0.0,
-            duration: weapon.swing_duration(),
-            base_angle: Some(base_angle),
-            attack_type: weapon.attack_type,
-        });
+    // Use base_angle (stored at attack start) for consistent hit direction
+    // For weapons without base_angle (fist), use current weapon rotation
+    let attack_dir = if let Some(base_angle) = swing.base_angle {
         Vec2::new(base_angle.cos(), base_angle.sin())
     } else {
-        Vec2::X
+        let (_, angle) = weapon_transform.rotation.to_axis_angle();
+        let current_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
+        Vec2::new(current_angle.cos(), current_angle.sin())
     };
 
     let cone_threshold = (weapon.cone_angle() / 2.0).cos();
@@ -110,6 +138,13 @@ pub fn player_attack(
             hit_any = true;
             health.0 -= weapon.damage;
             weapon.apply_on_hit(&mut commands, entity, to_creature.normalize());
+
+            // Add hit highlight (red flash)
+            commands.entity(entity).insert(HitHighlight {
+                timer: 0.0,
+                duration: HIT_HIGHLIGHT_DURATION,
+                original_material: None,
+            });
 
             let particle_count = if health.0 <= 0 { 25 } else { 12 };
             for i in 0..particle_count {
@@ -309,11 +344,48 @@ pub fn hostile_fist_aim(
     }
 }
 
+/// Starts creature swing animation when in range (damage applied later by apply_creature_delayed_hits)
 pub fn hostile_attack(
     mut commands: Commands,
+    player_query: Query<(&Transform, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    hostile_query: Query<(&Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<WeaponSwing>)>,
+) {
+    let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
+    let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
+    let player_hit_radius = player_hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
+
+    for (creature_transform, children) in &hostile_query {
+        let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
+        let distance = player_pos.distance(creature_pos);
+
+        for child in children.iter() {
+            if let Ok((fist_entity, weapon)) = fist_query.get(child) {
+                if distance < weapon.range() + player_hit_radius {
+                    // Start swing animation - hit applied later when hit_delay reached
+                    let duration = weapon.swing_duration();
+                    commands.entity(fist_entity).insert(WeaponSwing {
+                        timer: 0.0,
+                        duration,
+                        base_angle: None,
+                        attack_type: weapon.attack_type,
+                        hit_delay: duration * ATTACK_HIT_DELAY_PERCENT,
+                        hit_applied: false,
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Applies creature damage when swing reaches hit_delay
+pub fn apply_creature_delayed_hits(
+    mut commands: Commands,
+    mut hitstop: ResMut<Hitstop>,
+    mut screen_shake: ResMut<ScreenShake>,
     mut player_query: Query<(Entity, &Transform, &mut Health, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     hostile_query: Query<(Entity, &Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
-    fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<WeaponSwing>)>,
+    mut fist_query: Query<(&Weapon, &mut WeaponSwing), With<Fist>>,
     knockback_query: Query<&Knockback>,
     dashing_query: Query<&Dashing>,
     blocking_query: Query<&Blocking>,
@@ -339,60 +411,67 @@ pub fn hostile_attack(
         let distance = player_pos.distance(creature_pos);
 
         for child in children.iter() {
-            if let Ok((fist_entity, weapon)) = fist_query.get(child) {
-                if distance < weapon.range() + player_hit_radius {
-                    commands.entity(fist_entity).insert(WeaponSwing {
-                        timer: 0.0,
-                        duration: weapon.swing_duration(),
-                        base_angle: None,
-                        attack_type: weapon.attack_type,
-                    });
+            if let Ok((weapon, mut swing)) = fist_query.get_mut(child) {
+                // Check if we've reached hit_delay and haven't applied hit yet
+                if swing.timer < swing.hit_delay || swing.hit_applied {
+                    continue;
+                }
+                swing.hit_applied = true;
 
-                    // Check if block is effective (facing the attacker)
-                    let (damage_mult, kb_mult, blocked) = if is_blocking {
-                        if let Ok((player_weapon, weapon_transform)) = player_weapon_query.single() {
-                            // Get weapon facing direction from rotation
-                            // Note: weapon is tilted 0.4 rad during block animation, so subtract that offset
-                            let (_, angle) = weapon_transform.rotation.to_axis_angle();
-                            let visual_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
-                            let facing_angle = visual_angle - 0.4;
-                            let facing_dir = Vec2::new(facing_angle.cos(), facing_angle.sin());
+                // Check if still in range when hit connects
+                if distance >= weapon.range() + player_hit_radius {
+                    continue;
+                }
 
-                            // Direction from player to attacker
-                            let to_attacker = (creature_pos - player_pos).normalize();
-
-                            // Block works if facing toward the attacker (within ~120 degree arc)
-                            let block_threshold = 0.5; // cos(60°) - blocks attacks within 60° of facing
-                            if facing_dir.dot(to_attacker) > block_threshold {
-                                (1.0 - player_weapon.block_damage_reduction(), 1.0 - player_weapon.block_knockback_reduction(), true)
-                            } else {
-                                (1.0, 1.0, false) // Attack from behind - no block
-                            }
+                // Check if block is effective (facing the attacker)
+                let (damage_mult, kb_mult, blocked) = if is_blocking {
+                    if let Ok((player_weapon, weapon_transform)) = player_weapon_query.single() {
+                        let (_, angle) = weapon_transform.rotation.to_axis_angle();
+                        let visual_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
+                        let facing_angle = visual_angle - 0.4;
+                        let facing_dir = Vec2::new(facing_angle.cos(), facing_angle.sin());
+                        let to_attacker = (creature_pos - player_pos).normalize();
+                        let block_threshold = 0.5;
+                        if facing_dir.dot(to_attacker) > block_threshold {
+                            (1.0 - player_weapon.block_damage_reduction(), 1.0 - player_weapon.block_knockback_reduction(), true)
                         } else {
                             (1.0, 1.0, false)
                         }
                     } else {
                         (1.0, 1.0, false)
-                    };
+                    }
+                } else {
+                    (1.0, 1.0, false)
+                };
 
-                    let final_damage = ((weapon.damage as f32) * damage_mult).floor() as i32;
-                    player_health.0 -= final_damage.max(0);
+                let final_damage = ((weapon.damage as f32) * damage_mult).floor() as i32;
+                player_health.0 -= final_damage.max(0);
 
-                    let knockback_dir = (player_pos - creature_pos).normalize();
-                    commands.entity(player_entity).insert(Knockback {
-                        velocity: knockback_dir * weapon.knockback_force() * kb_mult,
+                let knockback_dir = (player_pos - creature_pos).normalize();
+                commands.entity(player_entity).insert(Knockback {
+                    velocity: knockback_dir * weapon.knockback_force() * kb_mult,
+                    timer: 0.0,
+                });
+
+                // Knock back attacker when blocked
+                if blocked {
+                    commands.entity(creature_entity).insert(Knockback {
+                        velocity: -knockback_dir * BLOCK_KNOCKBACK,
                         timer: 0.0,
                     });
-
-                    // Knock back attacker when blocked
-                    if blocked {
-                        commands.entity(creature_entity).insert(Knockback {
-                            velocity: -knockback_dir * BLOCK_KNOCKBACK,
-                            timer: 0.0,
-                        });
-                    }
-                    return;
                 }
+
+                // Trigger hitstop and screen shake (anime-style impact)
+                hitstop.trigger(HITSTOP_DURATION);
+                screen_shake.trigger(SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_DURATION);
+
+                // Add hit highlight to player (red flash)
+                commands.entity(player_entity).insert(HitHighlight {
+                    timer: 0.0,
+                    duration: HIT_HIGHLIGHT_DURATION,
+                    original_material: None,
+                });
+                return;
             }
         }
     }

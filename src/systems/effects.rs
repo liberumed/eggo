@@ -135,6 +135,66 @@ pub fn animate_dust(
     }
 }
 
+/// Animate hit highlight (red flash on creatures with MeshMaterial2d)
+pub fn animate_hit_highlight(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut query: Query<(Entity, &mut HitHighlight, &mut MeshMaterial2d<ColorMaterial>)>,
+) {
+    for (entity, mut highlight, mut material_handle) in &mut query {
+        let dt = time.delta_secs();
+
+        // On first frame, store original material and swap to red
+        if highlight.original_material.is_none() {
+            highlight.original_material = Some(material_handle.0.clone());
+            // Create a bright red flash material
+            let flash_material = materials.add(Color::srgb(1.0, 0.3, 0.3));
+            material_handle.0 = flash_material;
+        }
+
+        highlight.timer += dt;
+
+        if highlight.timer >= highlight.duration {
+            // Restore original material and remove component
+            if let Some(original) = highlight.original_material.take() {
+                material_handle.0 = original;
+            }
+            commands.entity(entity).remove::<HitHighlight>();
+        } else {
+            // Pulse the red intensity during flash
+            let progress = highlight.timer / highlight.duration;
+            let intensity = 1.0 - progress; // Fade from bright to normal
+            let flash_color = Color::srgb(1.0, 0.3 + intensity * 0.3, 0.3 + intensity * 0.3);
+            material_handle.0 = materials.add(flash_color);
+        }
+    }
+}
+
+/// Animate hit highlight for sprites (red flash on player)
+pub fn animate_sprite_hit_highlight(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut HitHighlight, &mut Sprite), Without<MeshMaterial2d<ColorMaterial>>>,
+) {
+    for (entity, mut highlight, mut sprite) in &mut query {
+        let dt = time.delta_secs();
+
+        highlight.timer += dt;
+
+        if highlight.timer >= highlight.duration {
+            // Restore to white and remove component
+            sprite.color = Color::WHITE;
+            commands.entity(entity).remove::<HitHighlight>();
+        } else {
+            // Flash red, fading back to normal
+            let progress = highlight.timer / highlight.duration;
+            let intensity = 1.0 - progress;
+            sprite.color = Color::srgb(1.0, 0.3 + intensity * 0.4, 0.3 + intensity * 0.4);
+        }
+    }
+}
+
 /// Spawn dust particles behind sprinting player
 pub fn spawn_sprint_dust(
     mut commands: Commands,

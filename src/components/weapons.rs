@@ -98,7 +98,7 @@ pub struct Weapon {
     pub damage: i32,
     /// Attack speed tier: 1=slow, 5=fast → attack_speed() = 1.0 + speed * 0.5
     pub speed: i32,
-    /// Range tier: 1=short, 5=long → range() = 25 + reach * 12
+    /// Range tier: 1=short, 5=long → range() = 20 + reach * 10
     pub reach: i32,
     /// Attack cone tier: 1=narrow, 5=wide → cone_angle() = 0.35 + arc * 0.25 rad
     pub arc: i32,
@@ -128,7 +128,7 @@ impl Weapon {
     }
 
     pub fn range(&self) -> f32 {
-        30.0 + self.reach as f32 * 10.0
+        20.0 + self.reach as f32 * 10.0
     }
 
     pub fn cone_angle(&self) -> f32 {

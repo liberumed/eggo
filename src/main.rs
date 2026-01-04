@@ -7,6 +7,17 @@ mod spawners;
 mod systems;
 mod utils;
 
+// New domain-based modules (Phase 1 of migration)
+mod core;
+mod combat;
+mod creatures;
+mod debug;
+mod effects;
+mod inventory;
+mod player;
+mod props;
+mod ui;
+
 use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use components::*;
 use constants::*;

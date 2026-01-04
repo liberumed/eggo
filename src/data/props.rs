@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
+use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PropType {
@@ -10,6 +11,63 @@ pub enum PropType {
     Barrel,
     Crate,
     StoneWall,
+}
+
+/// Resource holding crate sprite textures
+#[derive(Resource)]
+pub struct CrateSprites {
+    pub texture: Handle<Image>,
+    pub atlas_layout: Handle<TextureAtlasLayout>,
+}
+
+/// Component for crate sprite state
+#[derive(Component)]
+pub struct CrateSprite {
+    pub damaged: bool,
+}
+
+// Aseprite JSON array format structures
+#[derive(Deserialize)]
+struct AsepriteArrayJson {
+    frames: Vec<AsepriteArrayFrame>,
+}
+
+#[derive(Deserialize)]
+struct AsepriteArrayFrame {
+    frame: AsepriteRect,
+}
+
+#[derive(Deserialize)]
+struct AsepriteRect {
+    w: u32,
+    h: u32,
+}
+
+/// Load crate sprites from Aseprite export
+pub fn load_crate_sprites(
+    asset_server: &AssetServer,
+    texture_atlas_layouts: &mut Assets<TextureAtlasLayout>,
+) -> CrateSprites {
+    let texture: Handle<Image> = asset_server.load("sprites/props/crate.png");
+
+    let json_str = std::fs::read_to_string("assets/sprites/props/crate.json")
+        .expect("Failed to read crate JSON");
+    let aseprite: AsepriteArrayJson = serde_json::from_str(&json_str)
+        .expect("Failed to parse crate JSON");
+
+    let frame_width = aseprite.frames.first().map(|f| f.frame.w).unwrap_or(64);
+    let frame_height = aseprite.frames.first().map(|f| f.frame.h).unwrap_or(64);
+
+    let layout = TextureAtlasLayout::from_grid(
+        UVec2::new(frame_width, frame_height),
+        aseprite.frames.len() as u32,
+        1,
+        None,
+        None,
+    );
+    let atlas_layout = texture_atlas_layouts.add(layout);
+
+    CrateSprites { texture, atlas_layout }
 }
 
 /// A single visual layer (mesh + material + transform offset)

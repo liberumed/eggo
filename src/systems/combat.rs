@@ -3,6 +3,7 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::*;
+use crate::data::{CrateSprite, Destructible, Prop, PropType};
 use crate::resources::{GameAction, Hitstop, InputBindings, ScreenShake};
 use crate::spawners::{CharacterAssets, spawn_creature_range_indicator};
 use crate::utils::{HitCone, angle_to_direction, create_weapon_arc};
@@ -288,6 +289,7 @@ pub fn update_player_attack_state(
     mut player_query: Query<(Entity, &Transform, &mut PlayerAttackState), With<Player>>,
     weapon_query: Query<(Entity, &Weapon), With<PlayerWeapon>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    mut props_query: Query<(Entity, &Transform, &Prop, &mut Destructible, Option<&mut CrateSprite>, Option<&mut Sprite>), Without<Creature>>,
     assets: Res<CharacterAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -408,6 +410,32 @@ pub fn update_player_attack_state(
                         assets.range_indicator_material.clone(),
                         creature_transform.translation,
                     );
+                }
+            }
+        }
+
+        // Check destructible props (crates)
+        for (entity, prop_transform, prop, mut destructible, crate_sprite, sprite) in &mut props_query {
+            let prop_pos = prop_transform.translation.truncate();
+            let hit_radius = 16.0;  // Approximate crate size
+
+            if hit_cone.hits(prop_pos, hit_radius) {
+                hit_any = true;
+                destructible.health -= weapon.damage;
+
+                if destructible.health <= 0 {
+                    // Destroy the crate
+                    commands.entity(entity).despawn();
+                } else if prop.prop_type == PropType::Crate {
+                    // Show damaged sprite for crate
+                    if let (Some(mut crate_state), Some(mut sprite)) = (crate_sprite, sprite) {
+                        if !crate_state.damaged {
+                            crate_state.damaged = true;
+                            if let Some(atlas) = &mut sprite.texture_atlas {
+                                atlas.index = 1;  // Damaged frame
+                            }
+                        }
+                    }
                 }
             }
         }

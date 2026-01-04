@@ -12,7 +12,7 @@ use components::*;
 use constants::*;
 use plugins::*;
 use resources::{DebugConfig, GameState, Hitstop, InputBindings, NewGameRequested, PlayerSpriteSheet, ScreenShake, Stats, WorldConfig, load_player_sprite_sheet};
-use data::{Prop, PropRegistry, build_prop_registry};
+use data::{CrateSprites, Prop, PropRegistry, build_prop_registry, load_crate_sprites};
 use spawners::CharacterAssets;
 use systems::{animate_sprites, auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_debug_circles, spawn_key_bindings_panel, spawn_weapon_debug_cones, toggle_collision_debug, toggle_pause_menu, update_creature_debug_circles, update_debug_visibility, update_player_debug_cone, update_player_sprite_animation};
 use components::build_item_registry;
@@ -84,6 +84,7 @@ fn setup(
     // Build registries
     let item_registry = build_item_registry(&mut meshes, &mut materials);
     let prop_registry = build_prop_registry(&mut meshes, &mut materials);
+    let crate_sprites = load_crate_sprites(&asset_server, &mut texture_atlas_layouts);
 
     // Load item icons (UI icons and ground sprites)
     let mut item_icons = components::ItemIcons::default();
@@ -101,6 +102,7 @@ fn setup(
     commands.insert_resource(character_assets);
     commands.insert_resource(item_registry);
     commands.insert_resource(prop_registry);
+    commands.insert_resource(crate_sprites);
     commands.insert_resource(item_icons);
 
     // Transition to Playing state (triggers spawn_world)
@@ -114,6 +116,7 @@ fn spawn_world(
     item_registry: Res<ItemRegistry>,
     item_icons: Res<ItemIcons>,
     prop_registry: Res<PropRegistry>,
+    crate_sprites: Res<CrateSprites>,
     config: Res<WorldConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -127,7 +130,7 @@ fn spawn_world(
     spawners::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials);
     spawners::spawn_target_outline(&mut commands, &character_assets);
     spawners::spawn_creatures(&mut commands, &character_assets, &mut meshes, &mut materials);
-    spawners::spawn_world_props(&mut commands, &prop_registry);
+    spawners::spawn_world_props(&mut commands, &prop_registry, &crate_sprites);
 
     for (item_id, quantity, pos) in &config.starting_items {
         spawners::spawn_ground_item(&mut commands, &character_assets, &item_registry, &item_icons, *item_id, *quantity, *pos);

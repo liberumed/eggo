@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::components::{StaticCollider, YSorted};
 use crate::constants::{COLLISION_RADIUS, GRID_SPACING, WORLD_SIZE, Z_SHADOW_OFFSET};
-use crate::data::{Destructible, Prop, PropDefinition, PropRegistry, PropType};
+use crate::data::{CrateSprite, CrateSprites, Destructible, Prop, PropDefinition, PropRegistry, PropType};
 
 /// Spawns a prop from a definition (from registry)
 pub fn spawn_prop(
@@ -60,7 +60,42 @@ pub fn spawn_prop(
     });
 }
 
-pub fn spawn_world_props(commands: &mut Commands, registry: &PropRegistry) {
+/// Spawns a sprite-based crate
+pub fn spawn_crate(
+    commands: &mut Commands,
+    crate_sprites: &CrateSprites,
+    registry: &PropRegistry,
+    position: Vec2,
+) {
+    let Some(definition) = registry.get(PropType::Crate) else { return };
+
+    commands.spawn((
+        Prop { prop_type: PropType::Crate },
+        CrateSprite { damaged: false },
+        Destructible { health: 2 },
+        YSorted { base_offset: definition.base_offset },
+        StaticCollider {
+            radius_x: definition.collision_radius_x,
+            radius_y: definition.collision_radius_y,
+            offset_y: definition.collision_offset_y,
+        },
+        Sprite {
+            image: crate_sprites.texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: crate_sprites.atlas_layout.clone(),
+                index: 0,  // Closed crate
+            }),
+            ..default()
+        },
+        Transform::from_xyz(position.x, position.y, 0.0),
+    ));
+}
+
+pub fn spawn_world_props(
+    commands: &mut Commands,
+    registry: &PropRegistry,
+    crate_sprites: &CrateSprites,
+) {
     let mut rng = rand::rng();
     let world_size = WORLD_SIZE as f32 * GRID_SPACING;
     let min_distance = COLLISION_RADIUS * 4.0;
@@ -96,8 +131,15 @@ pub fn spawn_world_props(commands: &mut Commands, registry: &PropRegistry) {
             _ => PropType::Pillar,
         };
 
-        if let Some(definition) = registry.get(prop_type) {
-            spawn_prop(commands, definition, pos);
+        match prop_type {
+            PropType::Crate => {
+                spawn_crate(commands, crate_sprites, registry, pos);
+            }
+            _ => {
+                if let Some(definition) = registry.get(prop_type) {
+                    spawn_prop(commands, definition, pos);
+                }
+            }
         }
     }
 }

@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 
-use crate::components::{Creature, Dead, Fist, HitCollider, Player, PlayerWeapon, StaticCollider, WalkCollider, Weapon, WeaponSwing};
+use crate::components::{Creature, Dead, Fist, HitCollider, Player, PlayerAttackState, PlayerWeapon, StaticCollider, WalkCollider, Weapon, WeaponSwing};
 use crate::constants::WEAPON_OFFSET;
+use crate::data::{Prop, PropRegistry};
 use crate::resources::DebugConfig;
 
 /// Marker for debug collision circle (walk collision)
@@ -64,12 +65,13 @@ pub fn spawn_debug_circles(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     debug_config: Res<DebugConfig>,
+    prop_registry: Res<PropRegistry>,
     // Player
     player_query: Query<(Entity, Option<&WalkCollider>, Option<&HitCollider>), (With<Player>, Without<HasDebugCircle>)>,
     // Creatures
     creature_query: Query<(Entity, Option<&WalkCollider>, Option<&HitCollider>), (With<Creature>, Without<HasDebugCircle>)>,
     // Static colliders (props)
-    collider_query: Query<(Entity, &StaticCollider), Without<HasDebugCircle>>,
+    collider_query: Query<(Entity, &StaticCollider, Option<&Prop>), Without<HasDebugCircle>>,
 ) {
     if !debug_config.show_collisions {
         return;
@@ -135,16 +137,30 @@ pub fn spawn_debug_circles(
         });
     }
 
-    // Static collider debug ellipses (props - only walk collision)
-    for (entity, collider) in &collider_query {
+    // Static collider debug ellipses (props - walk collision + hit radius)
+    for (entity, collider, prop) in &collider_query {
         let ellipse_mesh = meshes.add(Ellipse::new(collider.radius_x, collider.radius_y));
         commands.entity(entity).insert(HasDebugCircle).with_children(|parent| {
             parent.spawn((
                 CollisionDebugCircle,
                 Mesh2d(ellipse_mesh),
                 MeshMaterial2d(walk_color.clone()),
-                Transform::from_xyz(0.0, collider.offset_y, 10.0),
+                Transform::from_xyz(collider.offset_x, collider.offset_y, 10.0),
             ));
+            // Show hit radius from prop registry if defined
+            if let Some(prop) = prop {
+                if let Some(definition) = prop_registry.get(prop.prop_type) {
+                    if let Some(hit_radius) = definition.hit_radius {
+                        let hit_mesh = meshes.add(Circle::new(hit_radius));
+                        parent.spawn((
+                            HitDebugCircle,
+                            Mesh2d(hit_mesh),
+                            MeshMaterial2d(hit_color.clone()),
+                            Transform::from_xyz(collider.offset_x, 0.0, 10.1),
+                        ));
+                    }
+                }
+            }
         });
     }
 }
@@ -233,19 +249,23 @@ pub fn update_player_debug_cone(
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     weapon_query: Query<Option<&WeaponSwing>, With<PlayerWeapon>>,
-    player_query: Query<(&Transform, &Children), (With<Player>, Without<PlayerWeapon>)>,
+    player_query: Query<(&Transform, &Children, Option<&PlayerAttackState>), (With<Player>, Without<PlayerWeapon>)>,
     mut cone_query: Query<&mut Transform, (With<WeaponReachCone>, Without<CreatureDebugCircle>, Without<Player>, Without<PlayerWeapon>)>,
 ) {
     let Ok(swing) = weapon_query.single() else { return };
-    let Ok((player_transform, children)) = player_query.single() else { return };
+    let Ok((player_transform, children, attack_state)) = player_query.single() else { return };
 
     // CircularSector points +Y by default, weapon points +X, so offset by -90°
     let cone_offset = -std::f32::consts::FRAC_PI_2;
 
     for child in children.iter() {
         if let Ok(mut cone_transform) = cone_query.get_mut(child) {
-            // If swinging, use base_angle (locked aim direction)
-            let aim_angle = if let Some(swing) = swing {
+            // Check for sprite-based attack (Smash weapons)
+            let aim_angle = if let Some(attack) = attack_state {
+                // Smash attack: locked to left or right
+                if attack.facing_right { 0.0 } else { std::f32::consts::PI }
+            } else if let Some(swing) = swing {
+                // Slash/Stab weapon swing: use base_angle
                 if let Some(base_angle) = swing.base_angle {
                     base_angle
                 } else {

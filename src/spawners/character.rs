@@ -417,15 +417,23 @@ fn spawn_creature(
 
     let mut entity_commands = commands.spawn((
         Creature,
-        YSorted { base_offset: -14.0 },
-        WalkCollider { radius_x: 8.0, radius_y: 5.0, offset_y: -11.0 },
-        HitCollider { radius_x: 10.0, radius_y: 14.0, offset_y: 0.0 },
+        YSorted { base_offset: definition.base_offset },
+        WalkCollider {
+            radius_x: definition.walk_collider.radius_x,
+            radius_y: definition.walk_collider.radius_y,
+            offset_y: definition.walk_collider.offset_y,
+        },
+        HitCollider {
+            radius_x: definition.hit_collider.radius_x,
+            radius_y: definition.hit_collider.radius_y,
+            offset_y: definition.hit_collider.offset_y,
+        },
         anim,
         Health(definition.health),
         loot,
         Mesh2d(assets.character_mesh.clone()),
         MeshMaterial2d(material),
-        Transform::from_xyz(x, y, 0.0),
+        Transform::from_xyz(x, y, 0.0).with_scale(Vec3::splat(definition.scale)),
     ));
 
     if is_hostile {

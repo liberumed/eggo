@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::*;
-use crate::data::{CrateSprite, Destructible, Prop, PropType};
+use crate::data::{CrateSprite, Destructible, Prop, PropRegistry, PropType};
 use crate::resources::{GameAction, Hitstop, InputBindings, ScreenShake};
 use crate::spawners::{CharacterAssets, spawn_creature_range_indicator};
 use crate::utils::{HitCone, angle_to_direction, create_weapon_arc};
@@ -286,6 +286,7 @@ pub fn update_player_attack_state(
     time: Res<Time>,
     mut hitstop: ResMut<Hitstop>,
     mut screen_shake: ResMut<ScreenShake>,
+    prop_registry: Res<PropRegistry>,
     mut player_query: Query<(Entity, &Transform, &mut PlayerAttackState), With<Player>>,
     weapon_query: Query<(Entity, &Weapon), With<PlayerWeapon>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
@@ -414,10 +415,13 @@ pub fn update_player_attack_state(
             }
         }
 
-        // Check destructible props (crates)
+        // Check destructible props (crates, barrels)
         for (entity, prop_transform, prop, mut destructible, crate_sprite, sprite) in &mut props_query {
             let prop_pos = prop_transform.translation.truncate();
-            let hit_radius = 16.0;  // Approximate crate size
+
+            // Get hit_radius from prop registry
+            let Some(definition) = prop_registry.get(prop.prop_type) else { continue };
+            let Some(hit_radius) = definition.hit_radius else { continue };
 
             if hit_cone.hits(prop_pos, hit_radius) {
                 hit_any = true;

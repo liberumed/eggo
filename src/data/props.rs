@@ -96,11 +96,13 @@ pub struct PropDefinition {
     pub prop_type: PropType,
     pub collision_radius_x: f32,
     pub collision_radius_y: f32,
+    pub collision_offset_x: f32,
     pub collision_offset_y: f32,
     pub base_offset: f32,
     pub visual_offset_y: f32,
     pub destructible: bool,
     pub health: Option<i32>,
+    pub hit_radius: Option<f32>,  // Hit detection radius for combat
     pub visual: PropVisual,
 }
 
@@ -144,11 +146,13 @@ pub fn build_prop_registry(
         prop_type: PropType::Pillar,
         collision_radius_x: 10.0,
         collision_radius_y: 6.0,
+        collision_offset_x: 0.0,
         collision_offset_y: -53.0,  // Match shadow (ground footprint)
         base_offset: -56.0,
         visual_offset_y: 28.0,
         destructible: false,
         health: None,
+        hit_radius: None,
         visual: PropVisual {
             body: PropMeshLayer {
                 mesh: meshes.add(Rectangle::new(20.0, 112.0)),
@@ -184,11 +188,13 @@ pub fn build_prop_registry(
         prop_type: PropType::Barrel,
         collision_radius_x: 10.0,
         collision_radius_y: 6.0,
+        collision_offset_x: 0.0,
         collision_offset_y: -11.0,  // Match shadow (ground footprint)
         base_offset: -14.0,
         visual_offset_y: 0.0,
         destructible: true,
         health: Some(1),
+        hit_radius: Some(12.0),
         visual: PropVisual {
             body: PropMeshLayer {
                 mesh: meshes.add(Ellipse::new(10.0, 14.0)),
@@ -230,13 +236,15 @@ pub fn build_prop_registry(
     let crate_cross_material = materials.add(Color::srgb(0.45, 0.32, 0.18));
     props.insert(PropType::Crate, PropDefinition {
         prop_type: PropType::Crate,
-        collision_radius_x: 9.0,
-        collision_radius_y: 5.0,
-        collision_offset_y: -10.0,  // Match shadow (ground footprint)
+        collision_radius_x: 5.0,
+        collision_radius_y: 3.0,
+        collision_offset_x: 1.0,   // Compensate for off-center sprite (1px * 2x scale)
+        collision_offset_y: -5.0,  // Match shadow (ground footprint)
         base_offset: -9.0,
         visual_offset_y: 0.0,
         destructible: true,
         health: Some(2),
+        hit_radius: Some(10.0),
         visual: PropVisual {
             body: PropMeshLayer {
                 mesh: meshes.add(Rectangle::new(18.0, 18.0)),
@@ -272,11 +280,13 @@ pub fn build_prop_registry(
         prop_type: PropType::StoneWall,
         collision_radius_x: 16.0,
         collision_radius_y: 8.0,
+        collision_offset_x: 0.0,
         collision_offset_y: -21.0,  // Match shadow (ground footprint)
         base_offset: -24.0,
         visual_offset_y: 10.0,
         destructible: false,
         health: None,
+        hit_radius: None,
         visual: PropVisual {
             body: PropMeshLayer {
                 mesh: meshes.add(Rectangle::new(32.0, 48.0)),

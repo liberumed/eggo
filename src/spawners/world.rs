@@ -19,6 +19,7 @@ pub fn spawn_prop(
         StaticCollider {
             radius_x: definition.collision_radius_x,
             radius_y: definition.collision_radius_y,
+            offset_x: definition.collision_offset_x,
             offset_y: definition.collision_offset_y,
         },
         Mesh2d(visual.body.mesh.clone()),
@@ -77,6 +78,7 @@ pub fn spawn_crate(
         StaticCollider {
             radius_x: definition.collision_radius_x,
             radius_y: definition.collision_radius_y,
+            offset_x: definition.collision_offset_x,
             offset_y: definition.collision_offset_y,
         },
         Sprite {

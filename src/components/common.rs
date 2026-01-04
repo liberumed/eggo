@@ -51,6 +51,7 @@ pub struct Loot {
 pub struct StaticCollider {
     pub radius_x: f32,
     pub radius_y: f32,
+    pub offset_x: f32,
     pub offset_y: f32,
 }
 

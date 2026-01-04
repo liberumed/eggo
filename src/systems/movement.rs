@@ -157,7 +157,7 @@ pub fn move_player(
         let mut static_push = Vec2::ZERO;
         for (collider_transform, collider) in &colliders_query {
             let collider_pos = Vec2::new(
-                collider_transform.translation.x,
+                collider_transform.translation.x + collider.offset_x,
                 collider_transform.translation.y + collider.offset_y,
             );
             let collider_radius = Vec2::new(collider.radius_x, collider.radius_y);

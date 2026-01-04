@@ -73,6 +73,7 @@ fn load_animation(
     json_path: &str,
     asset_server: &AssetServer,
     texture_atlas_layouts: &mut Assets<TextureAtlasLayout>,
+    looping: bool,
 ) -> AnimationData {
     let texture: Handle<Image> = asset_server.load(png_path);
 
@@ -104,7 +105,7 @@ fn load_animation(
         start_index: 0,
         frame_count: frames.len(),
         frame_duration_ms: duration,
-        looping: true,
+        looping,
     }
 }
 
@@ -122,6 +123,7 @@ pub fn load_player_sprite_sheet(
         "sprites/player/player_idle.json",
         asset_server,
         texture_atlas_layouts,
+        true,
     ));
 
     // Load walk animation
@@ -131,6 +133,7 @@ pub fn load_player_sprite_sheet(
         "sprites/player/player_walk.json",
         asset_server,
         texture_atlas_layouts,
+        true,
     ));
 
     // Load walk_up animation
@@ -140,6 +143,7 @@ pub fn load_player_sprite_sheet(
         "sprites/player/player_walk_up.json",
         asset_server,
         texture_atlas_layouts,
+        true,
     ));
 
     // Load walk_down animation
@@ -149,6 +153,27 @@ pub fn load_player_sprite_sheet(
         "sprites/player/player_walk_down.json",
         asset_server,
         texture_atlas_layouts,
+        true,
+    ));
+
+    // Load attack animation (non-looping)
+    animations.insert("attack".to_string(), load_animation(
+        "attack",
+        "sprites/player/player_attack.png",
+        "sprites/player/player_attack.json",
+        asset_server,
+        texture_atlas_layouts,
+        false,
+    ));
+
+    // Load idle with stick animation
+    animations.insert("idle_stick".to_string(), load_animation(
+        "idle_stick",
+        "sprites/player/player_idle_stick.png",
+        "sprites/player/player_idle_stick.json",
+        asset_server,
+        texture_atlas_layouts,
+        true,
     ));
 
     PlayerSpriteSheet { animations }

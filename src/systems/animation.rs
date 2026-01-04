@@ -257,11 +257,28 @@ pub fn animate_player_death(
     }
 }
 
-/// Update player sprite animation state based on movement
+/// Update player sprite animation state based on movement or attack
 pub fn update_player_sprite_animation(
-    mut query: Query<(&PlayerAnimation, &mut SpriteAnimation), With<Player>>,
+    mut query: Query<(&PlayerAnimation, &mut SpriteAnimation, Option<&PlayerAttackState>), With<Player>>,
+    weapon_query: Query<(&Weapon, Option<&Drawn>), With<PlayerWeapon>>,
 ) {
-    for (player_anim, mut sprite_anim) in &mut query {
+    // Check if player has a drawn Smash weapon
+    let has_smash_weapon = weapon_query
+        .iter()
+        .next()
+        .map(|(w, drawn)| w.attack_type == AttackType::Smash && drawn.is_some())
+        .unwrap_or(false);
+
+    for (player_anim, mut sprite_anim, attack_state) in &mut query {
+        // Attack animation takes priority
+        if let Some(attack) = attack_state {
+            sprite_anim.set_animation("attack");
+            sprite_anim.speed = 1.0;
+            // Flip sprite based on locked facing direction (right = not flipped)
+            sprite_anim.flip_x = !attack.facing_right;
+            continue;
+        }
+
         let velocity = player_anim.velocity.length();
 
         let (new_animation, anim_speed) = if velocity > PLAYER_SPEED * 1.2 {
@@ -277,6 +294,8 @@ pub fn update_player_sprite_animation(
             } else {
                 ("walk", 1.0)
             }
+        } else if has_smash_weapon {
+            ("idle_stick", 1.0)  // Idle with stick
         } else {
             ("idle", 0.2)  // Slow idle animation
         };

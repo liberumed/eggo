@@ -16,19 +16,21 @@ pub fn move_player(
     colliders_query: Query<(&Transform, &StaticCollider), Without<Player>>,
     blocking_query: Query<&Blocking>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
+    attack_state_query: Query<&PlayerAttackState, With<Player>>,
 ) {
     // Freeze during hitstop
     if hitstop.is_active() {
         return;
     }
 
-    // Attack commitment: no movement during swing
+    // Attack commitment: no movement during swing or sprite attack
     let is_swinging = swing_query.iter().next().is_some();
+    let is_attacking = attack_state_query.iter().next().is_some();
 
     let mut input_dir = Vec2::ZERO;
 
-    // Only read input if not swinging (attack commitment)
-    if !is_swinging {
+    // Only read input if not attacking (attack commitment)
+    if !is_swinging && !is_attacking {
         if bindings.pressed(GameAction::MoveUp, &keyboard, &mouse) {
             input_dir.y += 1.0;
         }

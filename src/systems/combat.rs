@@ -12,16 +12,19 @@ pub fn toggle_weapon(
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     bindings: Res<InputBindings>,
-    weapon_query: Query<(Entity, &Visibility, Option<&Drawn>), With<PlayerWeapon>>,
+    weapon_query: Query<(Entity, &Weapon, Option<&Drawn>), With<PlayerWeapon>>,
 ) {
     if bindings.just_pressed(GameAction::ToggleWeapon, &keyboard, &mouse) {
-        for (entity, _, drawn) in &weapon_query {
+        for (entity, weapon, drawn) in &weapon_query {
             if drawn.is_some() {
                 commands.entity(entity).remove::<Drawn>();
                 commands.entity(entity).insert(Visibility::Hidden);
             } else {
                 commands.entity(entity).insert(Drawn);
-                commands.entity(entity).insert(Visibility::Inherited);
+                // Smash weapons don't show mesh (use sprite animation)
+                if weapon.attack_type != AttackType::Smash {
+                    commands.entity(entity).insert(Visibility::Inherited);
+                }
             }
         }
     }
@@ -53,15 +56,19 @@ pub fn player_attack(
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     bindings: Res<InputBindings>,
+    windows: Query<&Window>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    player_query: Query<(Entity, &Transform), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     weapon_query: Query<(Entity, &Transform, &Weapon, Option<&Drawn>), With<PlayerWeapon>>,
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
+    attack_state_query: Query<&PlayerAttackState, With<Player>>,
 ) {
     if !bindings.just_pressed(GameAction::Attack, &keyboard, &mouse) {
         return;
     }
 
-    // Already swinging
-    if swing_query.iter().next().is_some() {
+    // Already swinging (mesh animation) or attacking (sprite animation)
+    if swing_query.iter().next().is_some() || attack_state_query.iter().next().is_some() {
         return;
     }
 
@@ -70,23 +77,58 @@ pub fn player_attack(
     // First click draws weapon
     if drawn.is_none() {
         commands.entity(weapon_entity).insert(Drawn);
-        commands.entity(weapon_entity).insert(Visibility::Inherited);
+        // Smash weapons don't show mesh (use sprite animation)
+        if weapon.attack_type != AttackType::Smash {
+            commands.entity(weapon_entity).insert(Visibility::Inherited);
+        }
         return;
     }
 
-    // Start swing animation - hit will be applied later when hit_delay is reached
-    let (_, angle) = weapon_transform.rotation.to_axis_angle();
-    let base_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
     let duration = weapon.swing_duration();
 
-    commands.entity(weapon_entity).insert(WeaponSwing {
-        timer: 0.0,
-        duration,
-        base_angle: Some(base_angle),
-        attack_type: weapon.attack_type,
-        hit_delay: duration * ATTACK_HIT_DELAY_PERCENT,
-        hit_applied: false,
-    });
+    // Smash weapons: use sprite animation
+    if weapon.attack_type == AttackType::Smash {
+        let Ok((player_entity, player_transform)) = player_query.single() else { return };
+
+        // Determine direction from mouse position (left or right of player)
+        let facing_right = if let Some(world_pos) = get_cursor_world_pos(&windows, &camera_query) {
+            world_pos.x >= player_transform.translation.x
+        } else {
+            true // Default to right if no cursor
+        };
+
+        // Add attack state (locks direction for duration)
+        commands.entity(player_entity).insert(PlayerAttackState {
+            facing_right,
+            timer: 0.0,
+            duration,
+            hit_applied: false,
+        });
+    } else {
+        // Slash/Stab weapons: use mesh swing animation
+        let (_, angle) = weapon_transform.rotation.to_axis_angle();
+        let base_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
+
+        commands.entity(weapon_entity).insert(WeaponSwing {
+            timer: 0.0,
+            duration,
+            base_angle: Some(base_angle),
+            attack_type: weapon.attack_type,
+            hit_delay: duration * ATTACK_HIT_DELAY_PERCENT,
+            hit_applied: false,
+        });
+    }
+}
+
+/// Helper to get cursor world position
+fn get_cursor_world_pos(
+    windows: &Query<&Window>,
+    camera_query: &Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+) -> Option<Vec2> {
+    let window = windows.single().ok()?;
+    let (camera, camera_transform) = camera_query.single().ok()?;
+    let cursor_pos = window.cursor_position()?;
+    camera.viewport_to_world_2d(camera_transform, cursor_pos).ok()
 }
 
 /// Applies damage when weapon swing reaches hit_delay (allows aiming during wind-up)
@@ -237,18 +279,182 @@ pub fn apply_player_delayed_hits(
     }
 }
 
+/// Updates sprite-based attack state, applies hit at 50% of duration
+pub fn update_player_attack_state(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut hitstop: ResMut<Hitstop>,
+    mut screen_shake: ResMut<ScreenShake>,
+    mut player_query: Query<(Entity, &Transform, &mut PlayerAttackState), With<Player>>,
+    weapon_query: Query<(Entity, &Weapon), With<PlayerWeapon>>,
+    mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    assets: Res<CharacterAssets>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let Ok((player_entity, player_transform, mut attack_state)) = player_query.single_mut() else { return };
+
+    // Freeze during hitstop
+    if !hitstop.is_active() {
+        attack_state.timer += time.delta_secs();
+    }
+
+    // Apply hit at 50% of animation
+    let hit_time = attack_state.duration * ATTACK_HIT_DELAY_PERCENT;
+    if attack_state.timer >= hit_time && !attack_state.hit_applied {
+        attack_state.hit_applied = true;
+
+        let Ok((_, weapon)) = weapon_query.single() else { return };
+
+        // Attack direction based on locked facing
+        let attack_dir = if attack_state.facing_right {
+            Vec2::X
+        } else {
+            Vec2::NEG_X
+        };
+
+        // Attack origin: player position
+        let attack_origin = player_transform.translation.truncate();
+
+        // Create hit cone
+        let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), weapon.cone_angle());
+
+        let mut rng = rand::rng();
+        let mut hit_any = false;
+
+        for (entity, creature_transform, mut health, hostile, hit_collider) in &mut creatures_query {
+            let creature_pos = creature_transform.translation.truncate();
+            let hit_radius = hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
+
+            if hit_cone.hits(creature_pos, hit_radius) {
+                hit_any = true;
+                health.0 -= weapon.damage;
+
+                // Knockback direction: from attack origin toward creature
+                let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
+                weapon.apply_on_hit(&mut commands, entity, knockback_dir);
+
+                // Add hit highlight (red flash)
+                commands.entity(entity).insert(HitHighlight {
+                    timer: 0.0,
+                    duration: HIT_HIGHLIGHT_DURATION,
+                    original_material: None,
+                });
+
+                let particle_count = if health.0 <= 0 { 25 } else { 12 };
+                for i in 0..particle_count {
+                    let spread = rng.random_range(-0.8..0.8);
+                    let speed = rng.random_range(80.0..200.0);
+                    let angle = attack_dir.y.atan2(attack_dir.x) + spread;
+                    let vel = Vec2::new(angle.cos() * speed, angle.sin() * speed);
+
+                    let is_splat = i % 3 == 0;
+                    let (mesh, material) = if is_splat {
+                        (assets.blood_splat_mesh.clone(), assets.blood_splat_material.clone())
+                    } else {
+                        (assets.blood_droplet_mesh.clone(), assets.blood_droplet_material.clone())
+                    };
+
+                    let offset = Vec2::new(
+                        rng.random_range(-5.0..5.0),
+                        rng.random_range(-5.0..5.0),
+                    );
+
+                    commands.spawn((
+                        BloodParticle {
+                            velocity: vel,
+                            lifetime: rng.random_range(0.4..1.2),
+                        },
+                        Mesh2d(mesh),
+                        MeshMaterial2d(material),
+                        Transform::from_xyz(creature_pos.x + offset.x, creature_pos.y + offset.y, Z_BLOOD)
+                            .with_rotation(Quat::from_rotation_z(rng.random_range(0.0..std::f32::consts::TAU))),
+                    ));
+                }
+
+                if health.0 <= 0 {
+                    commands.entity(entity).insert(DeathAnimation {
+                        timer: 0.0,
+                        stage: 0,
+                    });
+                } else if hostile.is_none() {
+                    // Make non-hostile creature become hostile when hit
+                    commands.entity(entity).insert(Hostile { speed: PROVOKED_SPEED });
+
+                    // Spawn a fist for the newly hostile creature
+                    let fist_weapon = weapon_catalog::fist(&mut meshes, &mut materials);
+                    let fist_visual = fist_weapon.visual.clone();
+                    let arc_mesh = create_weapon_arc(&mut meshes, &fist_weapon);
+                    let fist_entity = commands.spawn((
+                        Fist,
+                        fist_weapon,
+                        Transform::from_xyz(0.0, 0.0, Z_WEAPON),
+                        Visibility::default(),
+                    )).with_children(|fist_holder| {
+                        fist_holder.spawn((
+                            WeaponVisualMesh,
+                            Mesh2d(fist_visual.mesh),
+                            MeshMaterial2d(fist_visual.material),
+                            Transform::from_xyz(fist_visual.offset, 0.0, 0.0),
+                        ));
+                    }).id();
+                    commands.entity(entity).add_child(fist_entity);
+
+                    // Range indicator as independent entity
+                    spawn_creature_range_indicator(
+                        &mut commands,
+                        entity,
+                        arc_mesh,
+                        assets.range_indicator_material.clone(),
+                        creature_transform.translation,
+                    );
+                }
+            }
+        }
+
+        // Apply recoil and game feel effects when hitting
+        if hit_any {
+            let recoil_force = weapon.knockback_force() * 0.15;
+            commands.entity(player_entity).insert(Knockback {
+                velocity: -attack_dir * recoil_force,
+                timer: 0.0,
+            });
+
+            // Trigger hitstop and screen shake
+            hitstop.trigger(HITSTOP_DURATION);
+            screen_shake.trigger(SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_DURATION);
+        }
+    }
+
+    // End attack when duration complete
+    if attack_state.timer >= attack_state.duration {
+        commands.entity(player_entity).remove::<PlayerAttackState>();
+    }
+}
+
 pub fn aim_weapon(
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     player_query: Query<(Entity, &Transform), With<Player>>,
-    mut weapon_query: Query<&mut Transform, (With<PlayerWeapon>, Without<Player>, Without<WeaponSwing>, Without<TargetOutline>)>,
+    mut weapon_query: Query<(&mut Transform, &Weapon), (With<PlayerWeapon>, Without<Player>, Without<WeaponSwing>, Without<TargetOutline>)>,
     mut outline_query: Query<&mut Visibility, With<TargetOutline>>,
     blocking_query: Query<&Blocking>,
+    attack_state_query: Query<&PlayerAttackState, With<Player>>,
 ) {
+    // Don't aim weapon during sprite attack
+    if attack_state_query.iter().next().is_some() {
+        return;
+    }
+
     let Ok(window) = windows.single() else { return };
     let Ok((camera, camera_transform)) = camera_query.single() else { return };
     let Ok((player_entity, player_transform)) = player_query.single() else { return };
-    let Ok(mut weapon_transform) = weapon_query.single_mut() else { return };
+    let Ok((mut weapon_transform, weapon)) = weapon_query.single_mut() else { return };
+
+    // Smash weapons don't show/aim mesh
+    if weapon.attack_type == AttackType::Smash {
+        return;
+    }
 
     if let Ok(mut outline_visibility) = outline_query.single_mut() {
         *outline_visibility = Visibility::Hidden;

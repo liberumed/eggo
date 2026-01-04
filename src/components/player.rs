@@ -33,3 +33,12 @@ pub struct Sprinting {
 pub struct PhaseThrough {
     pub timer: f32,
 }
+
+/// Active attack state for sprite-based attacks (Smash weapons)
+#[derive(Component)]
+pub struct PlayerAttackState {
+    pub facing_right: bool,  // Locked at attack start
+    pub timer: f32,
+    pub duration: f32,
+    pub hit_applied: bool,
+}

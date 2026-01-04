@@ -1,9 +1,13 @@
 use bevy::prelude::*;
 
-use crate::components::*;
 use crate::constants::*;
-use crate::resources::{GameAction, InputBindings};
+use crate::core::{Blocking, Dead, DeathAnimation, WalkCollider, StaticCollider, ellipses_overlap, ellipse_push, Health, Knockback};
 use crate::effects::Hitstop;
+use crate::resources::{GameAction, InputBindings};
+use crate::spawners::CharacterAssets;
+use super::{Player, PlayerAnimation, Dashing, DashCooldown, Sprinting, PhaseThrough, PlayerAttackState, SpriteAnimation, PlayerSpriteSheet};
+use crate::combat::{Weapon, PlayerWeapon, Drawn, AttackType, WeaponSwing};
+use crate::creatures::Creature;
 
 pub fn move_player(
     mut commands: Commands,
@@ -19,18 +23,15 @@ pub fn move_player(
     swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
     attack_state_query: Query<&PlayerAttackState, With<Player>>,
 ) {
-    // Freeze during hitstop
     if hitstop.is_active() {
         return;
     }
 
-    // Attack commitment: no movement during swing or sprite attack
     let is_swinging = swing_query.iter().next().is_some();
     let is_attacking = attack_state_query.iter().next().is_some();
 
     let mut input_dir = Vec2::ZERO;
 
-    // Only read input if not attacking (attack commitment)
     if !is_swinging && !is_attacking {
         if bindings.pressed(GameAction::MoveUp, &keyboard, &mouse) {
             input_dir.y += 1.0;
@@ -55,7 +56,6 @@ pub fn move_player(
         let is_sprinting = bindings.pressed(GameAction::Sprint, &keyboard, &mouse) && input_dir != Vec2::ZERO;
         let is_phasing = phase_through.is_some();
 
-        // Handle sprint state and ramp-up
         let sprint_multiplier = if is_sprinting {
             let sprint_duration = if let Some(mut sprint) = sprinting {
                 sprint.duration += dt;
@@ -64,11 +64,9 @@ pub fn move_player(
                 commands.entity(entity).insert(Sprinting { duration: 0.0 });
                 0.0
             };
-            // Lerp from min to max multiplier over ramp time
             let t = (sprint_duration / SPRINT_RAMP_TIME).min(1.0);
             SPRINT_MIN_MULTIPLIER + t * (SPRINT_MAX_MULTIPLIER - SPRINT_MIN_MULTIPLIER)
         } else {
-            // Remove sprinting component when not sprinting
             commands.entity(entity).remove::<Sprinting>();
             1.0
         };
@@ -84,7 +82,6 @@ pub fn move_player(
             let diff = target_velocity - anim.velocity;
             let current_speed = anim.velocity.length();
 
-            // Use lower deceleration when slowing from sprint (momentum)
             let is_decelerating = current_speed > speed;
             let accel_amount = if is_decelerating && current_speed > PLAYER_SPEED * 1.1 {
                 SPRINT_MOMENTUM_FRICTION
@@ -99,7 +96,6 @@ pub fn move_player(
                 anim.velocity += accel;
             }
         } else if anim.velocity != Vec2::ZERO {
-            // Use lower friction when decelerating from sprint (momentum)
             let current_speed = anim.velocity.length();
             let friction_amount = if current_speed > PLAYER_SPEED * 1.1 {
                 SPRINT_MOMENTUM_FRICTION
@@ -127,7 +123,6 @@ pub fn move_player(
         let mut blocked_x = false;
         let mut blocked_y = false;
 
-        // Skip creature collision when phasing through (after dash)
         if !is_phasing {
             for (creature_transform, creature_walk, dead) in &creatures_query {
                 if dead.is_some() {
@@ -140,13 +135,11 @@ pub fn move_player(
                 );
                 let creature_radius = Vec2::new(creature_walk.radius_x, creature_walk.radius_y);
 
-                // Ellipse collision - check X movement (at feet level)
                 let test_x = Vec2::new(new_pos.x, transform.translation.y + player_offset_y);
                 if ellipses_overlap(test_x, player_radius, creature_pos, creature_radius) {
                     blocked_x = true;
                 }
 
-                // Ellipse collision - check Y movement (at feet level)
                 let test_y = Vec2::new(transform.translation.x, new_pos.y + player_offset_y);
                 if ellipses_overlap(test_y, player_radius, creature_pos, creature_radius) {
                     blocked_y = true;
@@ -154,7 +147,6 @@ pub fn move_player(
             }
         }
 
-        // Static colliders - push-based ellipse collision (at feet level)
         let mut static_push = Vec2::ZERO;
         for (collider_transform, collider) in &colliders_query {
             let collider_pos = Vec2::new(
@@ -168,7 +160,6 @@ pub fn move_player(
             static_push += push;
         }
 
-        // Apply static collision push
         if static_push != Vec2::ZERO {
             new_pos += static_push;
         }
@@ -186,7 +177,6 @@ pub fn move_player(
     }
 }
 
-/// Handle dash input and initiation
 pub fn handle_dash_input(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -205,18 +195,16 @@ pub fn handle_dash_input(
 
     let Ok((entity, anim, cooldown)) = player_query.single() else { return };
 
-    // Check cooldown
     if let Some(cd) = cooldown {
         if cd.timer > 0.0 {
             return;
         }
     }
 
-    // Determine dash direction (use velocity if moving, else face right)
     let direction = if anim.velocity.length() > 0.1 {
         anim.velocity.normalize()
     } else {
-        Vec2::X // Default dash direction
+        Vec2::X
     };
 
     commands.entity(entity).insert(Dashing {
@@ -226,7 +214,6 @@ pub fn handle_dash_input(
     commands.entity(entity).insert(DashCooldown { timer: DASH_COOLDOWN });
 }
 
-/// Apply dash movement
 pub fn apply_dash(
     mut commands: Commands,
     time: Res<Time>,
@@ -242,23 +229,19 @@ pub fn apply_dash(
     for (entity, mut transform, mut dash, mut anim) in &mut query {
         dash.timer -= dt;
 
-        // Apply dash movement
         let movement = dash.direction * DASH_SPEED * dt;
         transform.translation.x += movement.x;
         transform.translation.y += movement.y;
 
-        // Set velocity to dash direction for smooth transition
         anim.velocity = dash.direction * PLAYER_SPEED;
 
         if dash.timer <= 0.0 {
             commands.entity(entity).remove::<Dashing>();
-            // Add brief phase-through to prevent getting stuck in creatures
             commands.entity(entity).insert(PhaseThrough { timer: 0.15 });
         }
     }
 }
 
-/// Tick phase-through timer
 pub fn tick_phase_through(
     mut commands: Commands,
     time: Res<Time>,
@@ -273,7 +256,6 @@ pub fn tick_phase_through(
     }
 }
 
-/// Tick dash cooldown
 pub fn tick_dash_cooldown(
     time: Res<Time>,
     mut query: Query<&mut DashCooldown>,
@@ -299,7 +281,6 @@ pub fn apply_knockback(
 
         if knockback.timer > 0.3 {
             commands.entity(entity).remove::<Knockback>();
-            // Only start death animation if not already dying and health is depleted
             if death_anim.is_none() {
                 if let Some(h) = health {
                     if h.0 <= 0 {
@@ -311,60 +292,216 @@ pub fn apply_knockback(
     }
 }
 
-/// Push creatures away from player and each other
-pub fn apply_collision_push(
+pub fn animate_weapon_swing(
+    mut commands: Commands,
     time: Res<Time>,
-    player_query: Query<&Transform, (With<Player>, Without<Dead>, Without<Creature>)>,
-    mut creatures_query: Query<(Entity, &mut Transform), (With<Creature>, Without<Dead>, Without<Player>)>,
+    hitstop: Res<Hitstop>,
+    mut query: Query<(Entity, &mut Transform, &mut WeaponSwing)>,
 ) {
-    let dt = time.delta_secs();
+    if hitstop.is_active() {
+        return;
+    }
 
-    // Collect creature positions for creature-creature push
-    let creature_positions: Vec<(Entity, Vec2)> = creatures_query
+    for (entity, mut transform, mut swing) in &mut query {
+        swing.timer += time.delta_secs();
+        let t = swing.timer;
+
+        if t < swing.duration {
+            let progress = t / swing.duration;
+
+            if let Some(base_angle) = swing.base_angle {
+                match swing.attack_type {
+                    AttackType::Smash => {
+                        let swing_arc = 1.5;
+                        let (scale, rotation_offset) = if progress < 0.15 {
+                            let p = progress / 0.15;
+                            (1.0, -swing_arc * 0.6 * p)
+                        } else if progress < 0.45 {
+                            let p = (progress - 0.15) / 0.3;
+                            (1.0 + p * 0.15, -swing_arc * 0.6 + swing_arc * 1.0 * p)
+                        } else {
+                            let p = (progress - 0.45) / 0.55;
+                            (1.15 - p * 0.15, swing_arc * 0.4 - swing_arc * 0.4 * p)
+                        };
+                        transform.scale = Vec3::new(scale, 1.0, 1.0);
+                        transform.rotation = Quat::from_rotation_z(base_angle + rotation_offset);
+                    }
+                    AttackType::Slash | AttackType::Stab => {
+                        let (thrust_scale, rotation_offset) = if progress < 0.15 {
+                            let p = progress / 0.15;
+                            (1.0 - p * 0.2, p * 0.15)
+                        } else if progress < 0.4 {
+                            let p = (progress - 0.15) / 0.25;
+                            (0.8 + p * 0.8, 0.15 - p * 0.15)
+                        } else if progress < 0.6 {
+                            let p = (progress - 0.4) / 0.2;
+                            (1.6 - p * 0.1, -p * 0.1)
+                        } else {
+                            let p = (progress - 0.6) / 0.4;
+                            (1.5 - p * 0.5, -0.1 + p * 0.1)
+                        };
+                        transform.scale = Vec3::new(thrust_scale, 1.0, 1.0);
+                        transform.rotation = Quat::from_rotation_z(base_angle + rotation_offset);
+                    }
+                }
+            } else {
+                let punch_scale = if progress < 0.3 {
+                    1.0 + (progress / 0.3) * 0.5
+                } else {
+                    1.5 - 0.5 * ((progress - 0.3) / 0.7)
+                };
+                transform.scale = Vec3::splat(punch_scale);
+            }
+        } else {
+            transform.scale = Vec3::ONE;
+            if let Some(base_angle) = swing.base_angle {
+                transform.rotation = Quat::from_rotation_z(base_angle);
+            }
+            commands.entity(entity).remove::<WeaponSwing>();
+        }
+    }
+}
+
+pub fn animate_player_death(
+    mut commands: Commands,
+    time: Res<Time>,
+    assets: Res<CharacterAssets>,
+    mut query: Query<(Entity, &Transform, &mut DeathAnimation), With<Player>>,
+) {
+    for (entity, transform, mut death) in &mut query {
+        death.timer += time.delta_secs();
+        let t = death.timer;
+
+        match death.stage {
+            0 => {
+                let shake = (t * 60.0).sin() * 0.15 * (1.0 - t * 2.0).max(0.0);
+                let expand = 1.0 + t * 0.5;
+
+                commands.entity(entity).insert(Transform {
+                    translation: Vec3::new(transform.translation.x, transform.translation.y, Z_DEAD),
+                    rotation: Quat::from_rotation_z(shake),
+                    scale: Vec3::new(expand, expand * 0.9, 1.0),
+                });
+
+                if t > DEATH_EXPAND_DURATION {
+                    death.stage = 1;
+                    death.timer = 0.0;
+
+                    commands.entity(entity).insert((
+                        Dead,
+                        MeshMaterial2d(assets.dead_material.clone()),
+                    ));
+                }
+            }
+            1 => {
+                let squish = 1.2 - t * 0.8;
+                let squash_x = squish.max(0.6) * 1.3;
+                let squash_y = (2.0 - squish).min(1.4) * 0.5;
+
+                commands.entity(entity).insert(Transform {
+                    translation: Vec3::new(transform.translation.x, transform.translation.y, Z_DEAD),
+                    rotation: Quat::IDENTITY,
+                    scale: Vec3::new(squash_x, squash_y, 1.0),
+                });
+
+                if t > DEATH_COLLAPSE_DURATION {
+                    commands.entity(entity).remove::<DeathAnimation>();
+                    commands.entity(entity).insert(Transform {
+                        translation: Vec3::new(transform.translation.x, transform.translation.y, Z_DEAD),
+                        rotation: Quat::IDENTITY,
+                        scale: Vec3::new(1.0, 0.4, 1.0),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+pub fn update_player_sprite_animation(
+    mut query: Query<(&PlayerAnimation, &mut SpriteAnimation, Option<&PlayerAttackState>), With<Player>>,
+    weapon_query: Query<(&Weapon, Option<&Drawn>), With<PlayerWeapon>>,
+) {
+    let has_smash_weapon = weapon_query
         .iter()
-        .map(|(e, t)| (e, Vec2::new(t.translation.x, t.translation.y)))
-        .collect();
+        .next()
+        .map(|(w, drawn)| w.attack_type == AttackType::Smash && drawn.is_some())
+        .unwrap_or(false);
 
-    // Get player position
-    let player_pos = player_query
-        .single()
-        .map(|t| Vec2::new(t.translation.x, t.translation.y))
-        .ok();
+    for (player_anim, mut sprite_anim, attack_state) in &mut query {
+        if let Some(attack) = attack_state {
+            sprite_anim.set_animation("attack");
+            sprite_anim.speed = 1.0;
+            sprite_anim.flip_x = !attack.facing_right;
+            continue;
+        }
 
-    for (entity, mut transform) in &mut creatures_query {
-        let creature_pos = Vec2::new(transform.translation.x, transform.translation.y);
-        let mut push = Vec2::ZERO;
+        let velocity = player_anim.velocity.length();
 
-        // 1. Player pushes creatures
-        if let Some(player_pos) = player_pos {
-            let diff = creature_pos - player_pos;
-            let dist = diff.length();
+        let (new_animation, anim_speed) = if velocity > PLAYER_SPEED * 1.2 {
+            ("run", 1.0)
+        } else if velocity > 0.1 {
+            let vx = player_anim.velocity.x.abs();
+            let vy = player_anim.velocity.y;
+            if vy > vx {
+                ("walk_up", 1.0)
+            } else if vy < -vx {
+                ("walk_down", 1.0)
+            } else {
+                ("walk", 1.0)
+            }
+        } else if has_smash_weapon {
+            ("idle_stick", 1.0)
+        } else {
+            ("idle", 0.2)
+        };
 
-            if dist < PUSH_RADIUS && dist > 0.1 {
-                let push_dir = diff.normalize();
-                let overlap = (PUSH_RADIUS - dist) / PUSH_RADIUS;
-                push += push_dir * overlap * PUSH_STRENGTH * dt;
+        sprite_anim.set_animation(new_animation);
+        sprite_anim.speed = anim_speed;
+
+        if player_anim.velocity.x.abs() > 0.1 {
+            sprite_anim.flip_x = player_anim.velocity.x > 0.0;
+        }
+    }
+}
+
+pub fn animate_sprites(
+    time: Res<Time>,
+    sprite_sheet: Option<Res<PlayerSpriteSheet>>,
+    mut query: Query<(&mut SpriteAnimation, &mut Sprite)>,
+) {
+    let Some(sprite_sheet) = sprite_sheet else { return };
+
+    for (mut anim, mut sprite) in &mut query {
+        if anim.animation_changed {
+            if let Some(data) = sprite_sheet.animations.get(&anim.current_animation) {
+                sprite.image = data.texture.clone();
+                if let Some(atlas) = &mut sprite.texture_atlas {
+                    atlas.layout = data.atlas_layout.clone();
+                    atlas.index = data.start_index;
+                }
+                anim.timer.set_duration(std::time::Duration::from_millis(data.frame_duration_ms as u64));
+            }
+            anim.animation_changed = false;
+        }
+
+        let scaled_delta = time.delta().mul_f32(anim.speed);
+        anim.timer.tick(scaled_delta);
+
+        if anim.timer.just_finished() {
+            if let Some(data) = sprite_sheet.animations.get(&anim.current_animation) {
+                if data.looping {
+                    anim.frame_index = (anim.frame_index + 1) % data.frame_count;
+                } else if anim.frame_index < data.frame_count - 1 {
+                    anim.frame_index += 1;
+                }
+
+                if let Some(atlas) = &mut sprite.texture_atlas {
+                    atlas.index = data.start_index + anim.frame_index;
+                }
             }
         }
 
-        // 2. Creatures push each other
-        for (other_entity, other_pos) in &creature_positions {
-            if *other_entity == entity {
-                continue;
-            }
-
-            let diff = creature_pos - *other_pos;
-            let dist = diff.length();
-
-            if dist < PUSH_RADIUS && dist > 0.1 {
-                let push_dir = diff.normalize();
-                let overlap = (PUSH_RADIUS - dist) / PUSH_RADIUS;
-                push += push_dir * overlap * PUSH_STRENGTH * 0.5 * dt;
-            }
-        }
-
-        // Apply push
-        transform.translation.x += push.x;
-        transform.translation.y += push.y;
+        sprite.flip_x = anim.flip_x;
     }
 }

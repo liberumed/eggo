@@ -23,7 +23,8 @@ use effects::{Hitstop, ScreenShake, BloodParticle, TargetOutline};
 use resources::{GameState, InputBindings, NewGameRequested, PlayerSpriteSheet, Stats, WorldConfig, load_player_sprite_sheet};
 use data::{CrateSprites, Prop, PropRegistry, build_prop_registry, load_crate_sprites};
 use spawners::CharacterAssets;
-use systems::{animate_sprites, auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_key_bindings_panel, toggle_pause_menu, update_player_sprite_animation};
+use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_key_bindings_panel, toggle_pause_menu};
+use player::{animate_sprites, update_player_sprite_animation};
 use debug::{spawn_debug_circles, spawn_weapon_debug_cones, toggle_collision_debug, update_creature_debug_circles, update_debug_visibility, update_player_debug_cone};
 use components::build_item_registry;
 
@@ -59,13 +60,12 @@ fn main() {
         .add_systems(OnEnter(GameState::Dead), auto_start_new_game)
         .add_systems(OnExit(GameState::Dead), (hide_pause_menu, cleanup_world).chain())
         .add_plugins((
+            CorePlugin,
             PlayerPlugin,
             CreaturePlugin,
             EffectsPlugin,
             UiPlugin,
-            StatusPlugin,
             InventoryPlugin,
-            DepthPlugin,
         ))
         .run();
 }

@@ -1,14 +1,13 @@
 mod inventory;
-mod sprite;
 mod ui;
 
 pub use inventory::*;
-pub use sprite::*;
 pub use ui::*;
 
 // Re-export from player for backwards compatibility
 pub use crate::player::{
-    Player, PlayerAnimation, Dashing, DashCooldown, Sprinting, PhaseThrough, PlayerAttackState,
+    Player, PlayerAnimation, Dashing, Sprinting, PlayerAttackState,
+    SpriteAnimation,
 };
 
 // Re-export from creatures for backwards compatibility
@@ -21,7 +20,6 @@ pub use crate::creatures::{
 pub use crate::core::{
     Health, Dead, Stunned, Knockback, Blocking, DespawnTimer, Shadow, DeathAnimation, Loot,
     StaticCollider, WalkCollider, HitCollider, YSorted,
-    ellipses_overlap, ellipse_push,
 };
 
 // Re-export from combat for backwards compatibility

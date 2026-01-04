@@ -1,23 +1,21 @@
 pub mod components;
 pub mod sprites;
 pub mod stats;
+pub mod systems;
 
 pub use components::*;
 pub use sprites::*;
 pub use stats::*;
+pub use systems::*;
 
 use bevy::prelude::*;
 
-use crate::resources::GameState;
-use crate::systems::{
-    animate_player_death, animate_weapon_swing,
-    move_player, apply_knockback, cursor_not_over_ui,
-    handle_dash_input, apply_dash, tick_dash_cooldown, tick_phase_through,
-};
+use crate::core::GameState;
 use crate::combat::{
     aim_weapon, toggle_weapon, sync_range_indicator, update_weapon_visual,
     player_attack, handle_block, apply_player_delayed_hits, update_player_attack_state,
 };
+use crate::systems::cursor_not_over_ui;
 
 pub struct PlayerPlugin;
 

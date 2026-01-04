@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::components::*;
+use super::{Dead, DespawnTimer, Stunned};
 
 pub fn update_stun(
     mut commands: Commands,

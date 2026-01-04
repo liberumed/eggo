@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
-use crate::components::{Creature, Dead, Fist, HitCollider, Player, PlayerWeapon, StaticCollider, WalkCollider, Weapon};
+use crate::components::{Blocking, Creature, Dead, Fist, HitCollider, Player, PlayerWeapon, StaticCollider, WalkCollider, Weapon, WeaponSwing};
+use crate::constants::WEAPON_OFFSET;
 use crate::resources::DebugConfig;
 
 /// Marker for debug collision circle (walk collision)
@@ -156,7 +157,7 @@ pub fn spawn_weapon_debug_cones(
     debug_config: Res<DebugConfig>,
     // Player (to spawn cone on player, not weapon)
     player_query: Query<(Entity, Option<&WeaponConeStats>), With<Player>>,
-    player_weapon_query: Query<(&Weapon, &Transform), With<PlayerWeapon>>,
+    player_weapon_query: Query<&Weapon, With<PlayerWeapon>>,
     // Existing player cones to despawn if weapon changed (exclude creature circles)
     cone_query: Query<Entity, (With<WeaponReachCone>, Without<CreatureDebugCircle>)>,
     // Creatures with fists (spawn circle on creature, not fist)
@@ -171,7 +172,7 @@ pub fn spawn_weapon_debug_cones(
 
     // Player weapon cone - spawn on player entity, positioned at weapon origin
     if let Ok((player_entity, existing_stats)) = player_query.single() {
-        if let Ok((weapon, weapon_transform)) = player_weapon_query.single() {
+        if let Ok(weapon) = player_weapon_query.single() {
             let cone_angle = weapon.cone_angle();  // Full angle, not half
             let range = weapon.range();
 
@@ -189,8 +190,8 @@ pub fn spawn_weapon_debug_cones(
 
                 // CircularSector::new takes half angle, so divide by 2
                 let cone_mesh = meshes.add(CircularSector::new(range, cone_angle / 2.0));
-                // Use weapon's local offset so cone matches actual attack origin
-                let weapon_offset = weapon_transform.translation;
+                // Use fixed weapon offset (not affected by block pull-back)
+                let weapon_offset = Vec2::new(WEAPON_OFFSET.0, WEAPON_OFFSET.1);
                 commands.entity(player_entity)
                     .insert(WeaponConeStats { range, half_angle: cone_angle })
                     .with_children(|parent| {
@@ -205,18 +206,19 @@ pub fn spawn_weapon_debug_cones(
         }
     }
 
-    // Creature fist circles - spawn as independent entities (not children) to avoid scale issues
+    // Creature fist cones - spawn as independent entities (not children) to avoid scale issues
     for (creature_entity, children) in &creature_query {
         // Find fist weapon in children
         for child in children.iter() {
             if let Ok(weapon) = fist_query.get(child) {
-                let circle_mesh = meshes.add(Circle::new(weapon.range()));
+                // Use cone like player, not circle
+                let cone_mesh = meshes.add(CircularSector::new(weapon.range(), weapon.cone_angle() / 2.0));
                 commands.entity(creature_entity).insert(HasDebugCone);
-                // Spawn as independent entity, will follow creature position
+                // Spawn as independent entity, will follow creature position and rotation
                 commands.spawn((
                     WeaponReachCone,
                     CreatureDebugCircle(creature_entity),
-                    Mesh2d(circle_mesh),
+                    Mesh2d(cone_mesh),
                     MeshMaterial2d(cone_color.clone()),
                     Transform::from_xyz(0.0, 0.0, 9.8),
                 ));
@@ -226,20 +228,39 @@ pub fn spawn_weapon_debug_cones(
     }
 }
 
-/// Sync player debug cone rotation with weapon
+/// Sync player debug cone rotation with weapon (locked during swing, ignores block stance)
 pub fn update_player_debug_cone(
-    weapon_query: Query<&Transform, With<PlayerWeapon>>,
-    player_query: Query<(&Transform, &Children), (With<Player>, Without<PlayerWeapon>)>,
+    weapon_query: Query<(&Transform, Option<&WeaponSwing>), With<PlayerWeapon>>,
+    player_query: Query<(Entity, &Transform, &Children), (With<Player>, Without<PlayerWeapon>)>,
+    blocking_query: Query<&Blocking>,
     mut cone_query: Query<&mut Transform, (With<WeaponReachCone>, Without<CreatureDebugCircle>, Without<Player>, Without<PlayerWeapon>)>,
 ) {
-    let Ok(weapon_transform) = weapon_query.single() else { return };
-    let Ok((player_transform, children)) = player_query.single() else { return };
+    let Ok((weapon_transform, swing)) = weapon_query.single() else { return };
+    let Ok((player_entity, player_transform, children)) = player_query.single() else { return };
+
+    let is_blocking = blocking_query.get(player_entity).is_ok();
+
+    // CircularSector points +Y by default, weapon points +X, so offset by -90°
+    let cone_offset = -std::f32::consts::FRAC_PI_2;
 
     for child in children.iter() {
         if let Ok(mut cone_transform) = cone_query.get_mut(child) {
-            // CircularSector points +Y by default, weapon points +X, so offset by -90°
-            let offset = Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2);
-            cone_transform.rotation = weapon_transform.rotation * offset;
+            // If swinging, use base_angle (locked aim direction)
+            let rotation = if let Some(swing) = swing {
+                if let Some(base_angle) = swing.base_angle {
+                    Quat::from_rotation_z(base_angle + cone_offset)
+                } else {
+                    weapon_transform.rotation * Quat::from_rotation_z(cone_offset)
+                }
+            } else if is_blocking {
+                // Block adds 0.4 radians tilt, remove it to show true aim
+                let (axis, angle) = weapon_transform.rotation.to_axis_angle();
+                let true_angle = if axis.z >= 0.0 { angle } else { -angle };
+                Quat::from_rotation_z(true_angle - 0.4 + cone_offset)
+            } else {
+                weapon_transform.rotation * Quat::from_rotation_z(cone_offset)
+            };
+            cone_transform.rotation = rotation;
             // Counter any parent scale to keep cone at correct size
             cone_transform.scale = Vec3::new(
                 1.0 / player_transform.scale.x,
@@ -250,16 +271,26 @@ pub fn update_player_debug_cone(
     }
 }
 
-/// Sync creature debug circles with creature positions and despawn when creature dies
+/// Sync creature debug cones with creature positions/rotations and despawn when creature dies
 pub fn update_creature_debug_circles(
     mut commands: Commands,
-    creature_query: Query<&Transform, (With<Creature>, Without<Dead>)>,
-    mut circle_query: Query<(Entity, &CreatureDebugCircle, &mut Transform), Without<Creature>>,
+    player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<CreatureDebugCircle>)>,
+    creature_query: Query<&Transform, (With<Creature>, Without<Dead>, Without<Player>, Without<CreatureDebugCircle>)>,
+    mut circle_query: Query<(Entity, &CreatureDebugCircle, &mut Transform), (Without<Creature>, Without<Player>)>,
 ) {
+    let player_pos = player_query.single().map(|t| t.translation.truncate()).unwrap_or_default();
+
     for (circle_entity, link, mut circle_transform) in &mut circle_query {
         if let Ok(creature_transform) = creature_query.get(link.0) {
-            circle_transform.translation.x = creature_transform.translation.x;
-            circle_transform.translation.y = creature_transform.translation.y;
+            let creature_pos = creature_transform.translation.truncate();
+            circle_transform.translation.x = creature_pos.x;
+            circle_transform.translation.y = creature_pos.y;
+            // Rotate cone toward player (same direction as attack)
+            // CircularSector points +Y by default, so offset by -90° to align with attack direction
+            let dir = player_pos - creature_pos;
+            let angle = dir.y.atan2(dir.x);
+            let offset = -std::f32::consts::FRAC_PI_2;
+            circle_transform.rotation = Quat::from_rotation_z(angle + offset);
         } else {
             // Creature is dead or despawned, remove debug circle
             commands.entity(circle_entity).despawn();

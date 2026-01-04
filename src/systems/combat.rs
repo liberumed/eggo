@@ -4,8 +4,8 @@ use rand::Rng;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::{GameAction, Hitstop, InputBindings, ScreenShake};
-use crate::spawners::CharacterAssets;
-use crate::utils::{HitCone, angle_to_direction};
+use crate::spawners::{CharacterAssets, spawn_creature_range_indicator};
+use crate::utils::{HitCone, angle_to_direction, create_weapon_arc};
 
 pub fn toggle_weapon(
     mut commands: Commands,
@@ -195,6 +195,7 @@ pub fn apply_player_delayed_hits(
                 // Spawn a fist for the newly hostile creature
                 let fist_weapon = weapon_catalog::fist(&mut meshes, &mut materials);
                 let fist_visual = fist_weapon.visual.clone();
+                let arc_mesh = create_weapon_arc(&mut meshes, &fist_weapon);
                 let fist_entity = commands.spawn((
                     Fist,
                     fist_weapon,
@@ -208,8 +209,16 @@ pub fn apply_player_delayed_hits(
                         Transform::from_xyz(fist_visual.offset, 0.0, 0.0),
                     ));
                 }).id();
-
                 commands.entity(entity).add_child(fist_entity);
+
+                // Range indicator as independent entity
+                spawn_creature_range_indicator(
+                    &mut commands,
+                    entity,
+                    arc_mesh,
+                    assets.range_indicator_material.clone(),
+                    creature_transform.translation,
+                );
             }
         }
     }
@@ -253,7 +262,7 @@ pub fn aim_weapon(
     let angle = dir.y.atan2(dir.x);
 
     // Weapon offset from player center (at hand level for sprite)
-    let weapon_offset = Vec2::new(-4.0, 6.5);
+    let weapon_offset = Vec2::new(WEAPON_OFFSET.0, WEAPON_OFFSET.1);
 
     let is_blocking = blocking_query.get(player_entity).is_ok();
     if is_blocking {
@@ -413,8 +422,7 @@ pub fn apply_creature_delayed_hits(
     let is_blocking = blocking_query.get(player_entity).is_ok();
 
     for (creature_entity, creature_transform, children) in &hostile_query {
-        let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
-        let distance = player_pos.distance(creature_pos);
+        let creature_pos = creature_transform.translation.truncate();
 
         for child in children.iter() {
             if let Ok((weapon, mut swing)) = fist_query.get_mut(child) {
@@ -424,8 +432,11 @@ pub fn apply_creature_delayed_hits(
                 }
                 swing.hit_applied = true;
 
-                // Check if still in range when hit connects
-                if distance >= weapon.range() + player_hit_radius {
+                // Cone attack toward player (same as player attacks)
+                let attack_dir = (player_pos - creature_pos).normalize_or_zero();
+                let hit_cone = HitCone::new(creature_pos, attack_dir, weapon.range(), weapon.cone_angle());
+
+                if !hit_cone.hits(player_pos, player_hit_radius) {
                     continue;
                 }
 
@@ -486,17 +497,107 @@ pub fn apply_creature_delayed_hits(
     }
 }
 
-/// Updates weapon visual mesh when weapon stats change (reads visual from weapon data)
+/// Sync player range indicator position and rotation with weapon aim
+/// Shows actual attack direction, not defensive block stance
+pub fn sync_range_indicator(
+    player_query: Query<(Entity, &Children), With<Player>>,
+    weapon_query: Query<&Transform, (With<PlayerWeapon>, Without<WeaponRangeIndicator>)>,
+    swinging_weapon_query: Query<&WeaponSwing, With<PlayerWeapon>>,
+    blocking_query: Query<&Blocking>,
+    mut indicator_query: Query<&mut Transform, (With<WeaponRangeIndicator>, With<PlayerRangeIndicator>, Without<PlayerWeapon>)>,
+) {
+    let Ok((player_entity, player_children)) = player_query.single() else { return };
+
+    // Find indicator among player children
+    let mut indicator_entity = None;
+    for child in player_children.iter() {
+        if indicator_query.get(child).is_ok() {
+            indicator_entity = Some(child);
+            break;
+        }
+    }
+    let Some(indicator_entity) = indicator_entity else { return };
+    let Ok(mut indicator_transform) = indicator_query.get_mut(indicator_entity) else { return };
+    let Ok(weapon_transform) = weapon_query.single() else { return };
+
+    let is_blocking = blocking_query.get(player_entity).is_ok();
+
+    // Use base weapon offset (not affected by block pull-back)
+    let weapon_offset = Vec2::new(WEAPON_OFFSET.0, WEAPON_OFFSET.1);
+    indicator_transform.translation.x = weapon_offset.x;
+    indicator_transform.translation.y = weapon_offset.y;
+
+    // If weapon is swinging, use base_angle (stored aim direction)
+    if let Ok(swing) = swinging_weapon_query.single() {
+        if let Some(base_angle) = swing.base_angle {
+            indicator_transform.rotation = Quat::from_rotation_z(base_angle);
+            return;
+        }
+    }
+
+    // Get actual aim rotation (remove block tilt if blocking)
+    let rotation = if is_blocking {
+        // Block adds 0.4 radians tilt, remove it to show true aim
+        let (axis, angle) = weapon_transform.rotation.to_axis_angle();
+        let true_angle = if axis.z >= 0.0 { angle } else { -angle };
+        Quat::from_rotation_z(true_angle - 0.4)
+    } else {
+        weapon_transform.rotation
+    };
+    indicator_transform.rotation = rotation;
+}
+
+/// Sync creature range indicators position/rotation toward player (matches hit detection)
+pub fn sync_creature_range_indicators(
+    mut commands: Commands,
+    player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<CreatureRangeIndicator>)>,
+    creature_query: Query<&Transform, (With<Creature>, With<Hostile>, Without<Dead>, Without<CreatureRangeIndicator>)>,
+    mut indicator_query: Query<(Entity, &CreatureRangeIndicator, &mut Transform)>,
+) {
+    let Ok(player_transform) = player_query.single() else { return };
+    let player_pos = player_transform.translation.truncate();
+
+    for (indicator_entity, link, mut indicator_transform) in &mut indicator_query {
+        if let Ok(creature_transform) = creature_query.get(link.0) {
+            let creature_pos = creature_transform.translation.truncate();
+            // Sync position with creature
+            indicator_transform.translation.x = creature_pos.x;
+            indicator_transform.translation.y = creature_pos.y;
+            // Calculate direction toward player (same as hit detection in apply_creature_delayed_hits)
+            let dir = player_pos - creature_pos;
+            let angle = dir.y.atan2(dir.x);
+            indicator_transform.rotation = Quat::from_rotation_z(angle);
+        } else {
+            // Creature is dead or despawned, remove indicator
+            commands.entity(indicator_entity).despawn();
+        }
+    }
+}
+
+/// Updates weapon visual mesh and range indicator when weapon stats change
 pub fn update_weapon_visual(
     mut commands: Commands,
-    weapon_query: Query<(Entity, &Weapon, Option<&Children>), (With<PlayerWeapon>, Changed<Weapon>)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    weapon_query: Query<(Entity, &Weapon, &ChildOf, Option<&Children>), (With<PlayerWeapon>, Changed<Weapon>)>,
+    player_query: Query<&Children, With<Player>>,
     visual_mesh_query: Query<Entity, With<WeaponVisualMesh>>,
+    indicator_query: Query<Entity, (With<WeaponRangeIndicator>, With<PlayerRangeIndicator>)>,
+    assets: Res<CharacterAssets>,
 ) {
-    for (weapon_entity, weapon, children) in &weapon_query {
-        // Despawn old visual children
+    for (weapon_entity, weapon, parent, children) in &weapon_query {
+        // Despawn old weapon visual mesh
         if let Some(children) = children {
             for child in children.iter() {
                 if visual_mesh_query.get(child).is_ok() {
+                    commands.entity(child).despawn();
+                }
+            }
+        }
+
+        // Despawn old indicator (sibling, child of player)
+        if let Ok(player_children) = player_query.get(parent.0) {
+            for child in player_children.iter() {
+                if indicator_query.get(child).is_ok() {
                     commands.entity(child).despawn();
                 }
             }
@@ -512,7 +613,20 @@ pub fn update_weapon_visual(
                 Transform::from_xyz(visual.offset, 0.0, 0.0),
             ))
             .id();
-
         commands.entity(weapon_entity).add_child(visual_entity);
+
+        // Spawn new arc indicator as sibling (child of player)
+        let arc_mesh = create_weapon_arc(&mut meshes, weapon);
+        let weapon_offset = Vec2::new(WEAPON_OFFSET.0, WEAPON_OFFSET.1);
+        let indicator_entity = commands
+            .spawn((
+                WeaponRangeIndicator,
+                PlayerRangeIndicator,
+                Mesh2d(arc_mesh),
+                MeshMaterial2d(assets.range_indicator_material.clone()),
+                Transform::from_xyz(weapon_offset.x, weapon_offset.y, Z_WEAPON + 0.1),
+            ))
+            .id();
+        commands.entity(parent.0).add_child(indicator_entity);
     }
 }

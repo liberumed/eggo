@@ -4,6 +4,7 @@ use rand::Rng;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::PlayerSpriteSheet;
+use crate::utils::create_weapon_arc;
 
 #[derive(Resource)]
 pub struct CharacterAssets {
@@ -48,6 +49,9 @@ pub struct CharacterAssets {
     // Ground items
     pub item_glow_mesh: Handle<Mesh>,
     pub item_glow_material: Handle<ColorMaterial>,
+
+    // Weapon range indicator (mesh created dynamically per-weapon)
+    pub range_indicator_material: Handle<ColorMaterial>,
 }
 
 impl CharacterAssets {
@@ -95,6 +99,8 @@ impl CharacterAssets {
         let item_glow_mesh = meshes.add(Circle::new(12.0));
         let item_glow_material = materials.add(Color::srgba(1.0, 1.0, 0.8, 0.3));
 
+        let range_indicator_material = materials.add(Color::srgba(1.0, 0.2, 0.2, 0.8));
+
         Self {
             character_mesh,
             neutral_material,
@@ -122,6 +128,7 @@ impl CharacterAssets {
             blood_droplet_material,
             item_glow_mesh,
             item_glow_material,
+            range_indicator_material,
         }
     }
 }
@@ -242,11 +249,13 @@ pub fn spawn_player(
         ));
         // Default weapon with visual (hidden until attack)
         // Y offset matches body center (slightly above sprite center)
+        let arc_mesh = create_weapon_arc(meshes, &weapon);
+        let weapon_pos = Vec3::new(12.0, 5.0, Z_WEAPON);
         parent.spawn((
             Fist,
             PlayerWeapon,
             weapon,
-            Transform::from_xyz(12.0, 5.0, Z_WEAPON),
+            Transform::from_translation(weapon_pos),
             Visibility::Hidden,
             InheritedVisibility::HIDDEN,
         )).with_children(|weapon_parent| {
@@ -257,6 +266,14 @@ pub fn spawn_player(
                 Transform::from_xyz(weapon_visual.offset, 0.0, 0.0),
             ));
         });
+        // Range indicator as sibling (not affected by weapon swing animation)
+        parent.spawn((
+            WeaponRangeIndicator,
+            PlayerRangeIndicator,
+            Mesh2d(arc_mesh),
+            MeshMaterial2d(assets.range_indicator_material.clone()),
+            Transform::from_translation(weapon_pos + Vec3::new(0.0, 0.0, 0.1)),
+        ));
     });
 }
 
@@ -267,6 +284,24 @@ pub fn spawn_target_outline(commands: &mut Commands, assets: &CharacterAssets) {
         MeshMaterial2d(assets.outline_material.clone()),
         Transform::from_xyz(0.0, 0.0, Z_TARGET_OUTLINE),
         Visibility::Hidden,
+    ));
+}
+
+/// Spawn a creature's range indicator as an independent entity
+/// This ensures consistent behavior - indicator follows creature but isn't affected by animations
+pub fn spawn_creature_range_indicator(
+    commands: &mut Commands,
+    creature_entity: Entity,
+    arc_mesh: Handle<Mesh>,
+    indicator_material: Handle<ColorMaterial>,
+    position: Vec3,
+) {
+    commands.spawn((
+        WeaponRangeIndicator,
+        CreatureRangeIndicator(creature_entity),
+        Mesh2d(arc_mesh),
+        MeshMaterial2d(indicator_material),
+        Transform::from_xyz(position.x, position.y, Z_WEAPON + 0.1),
     ));
 }
 
@@ -362,10 +397,15 @@ fn spawn_creature(
     // Pre-create fist weapon if hostile (before entering closure)
     let fist_data = if is_hostile {
         let fist = weapon_catalog::fist(meshes, materials);
-        Some((fist.visual.clone(), fist))
+        let arc_mesh = create_weapon_arc(meshes, &fist);
+        Some((fist.visual.clone(), fist, arc_mesh))
     } else {
         None
     };
+
+    // Extract arc_mesh before moving fist_data into closure
+    let arc_mesh = fist_data.as_ref().map(|(_, _, mesh)| mesh.clone());
+    let fist_only = fist_data.map(|(visual, weapon, _)| (visual, weapon));
 
     let mut entity_commands = commands.spawn((
         Creature,
@@ -387,15 +427,28 @@ fn spawn_creature(
         entity_commands.insert(Glowing);
     }
 
+    let creature_entity = entity_commands.id();
+
     entity_commands.with_children(|parent| {
-        spawn_creature_children(parent, assets, rng, &loot, fist_data);
+        spawn_creature_children(parent, assets, rng, &loot, fist_only);
     });
+
+    // Spawn range indicator as independent entity
+    if let Some(arc_mesh) = arc_mesh {
+        spawn_creature_range_indicator(
+            commands,
+            creature_entity,
+            arc_mesh,
+            assets.range_indicator_material.clone(),
+            Vec3::new(x, y, 0.0),
+        );
+    }
 }
 
 fn spawn_creature_children(
     parent: &mut ChildSpawnerCommands,
     assets: &CharacterAssets,
-    rng: &mut rand::prelude::ThreadRng,
+    #[allow(unused)] rng: &mut rand::prelude::ThreadRng,
     loot: &Loot,
     fist_data: Option<(WeaponVisual, Weapon)>,
 ) {
@@ -489,6 +542,7 @@ fn spawn_creature_children(
                 Transform::from_xyz(fist_visual.offset, 0.0, 0.0),
             ));
         });
+        // Range indicator spawned as independent entity in spawn_creature()
     }
 }
 

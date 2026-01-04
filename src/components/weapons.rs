@@ -31,6 +31,18 @@ pub struct WeaponVisual {
 #[derive(Component)]
 pub struct WeaponVisualMesh;
 
+/// Marker for weapon range indicator (arc at attack range)
+#[derive(Component)]
+pub struct WeaponRangeIndicator;
+
+/// Marker for player's range indicator (to distinguish from creature indicators)
+#[derive(Component)]
+pub struct PlayerRangeIndicator;
+
+/// Links a creature's range indicator to its owner (for independent entity approach)
+#[derive(Component)]
+pub struct CreatureRangeIndicator(pub Entity);
+
 #[derive(Component)]
 pub struct WeaponSwing {
     pub timer: f32,

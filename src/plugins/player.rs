@@ -4,8 +4,8 @@ use crate::resources::GameState;
 use crate::systems::{
     aim_weapon, animate_player_death, animate_weapon_swing, apply_dash,
     apply_knockback, apply_player_delayed_hits, cursor_not_over_ui, handle_block,
-    handle_dash_input, move_player, player_attack, tick_dash_cooldown, tick_phase_through,
-    toggle_weapon, update_weapon_visual,
+    handle_dash_input, move_player, player_attack, sync_range_indicator, tick_dash_cooldown,
+    tick_phase_through, toggle_weapon, update_weapon_visual,
 };
 
 pub struct PlayerPlugin;
@@ -25,6 +25,7 @@ impl Plugin for PlayerPlugin {
                 toggle_weapon,
                 aim_weapon,
                 animate_weapon_swing,
+                sync_range_indicator,
                 update_weapon_visual,
             )
                 .run_if(in_state(GameState::Playing)),

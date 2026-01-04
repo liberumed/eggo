@@ -48,6 +48,7 @@ pub const ATTACK_HIT_DELAY_PERCENT: f32 = 0.5;  // Hit at 50% into swing animati
 pub const HIT_HIGHLIGHT_DURATION: f32 = 0.15;   // Red flash duration
 
 // Combat
+pub const WEAPON_OFFSET: (f32, f32) = (-4.0, 6.5);  // Weapon position relative to player
 pub const COLLISION_RADIUS: f32 = 14.0;
 pub const PUSH_RADIUS: f32 = COLLISION_RADIUS * 2.2;  // Larger than all collision checks (1.5 player, 1.8 creature)
 pub const PUSH_STRENGTH: f32 = 100.0;                  // Push force multiplier

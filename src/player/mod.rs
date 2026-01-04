@@ -1,9 +1,11 @@
 pub mod components;
+pub mod spawner;
 pub mod sprites;
 pub mod stats;
 pub mod systems;
 
 pub use components::*;
+pub use spawner::*;
 pub use sprites::*;
 pub use stats::*;
 pub use systems::*;

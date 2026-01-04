@@ -8,7 +8,8 @@ use crate::player::{Dashing, Player, PlayerAttackState};
 use crate::props::{CrateSprite, Destructible, Prop, PropRegistry, PropType};
 use super::{weapon_catalog, AttackType, CreatureRangeIndicator, Drawn, Fist, PlayerRangeIndicator, PlayerWeapon, Weapon, WeaponRangeIndicator, WeaponSwing, WeaponVisualMesh};
 use crate::effects::{BloodParticle, HitHighlight, Hitstop, ScreenShake, TargetOutline};
-use crate::spawners::{CharacterAssets, spawn_creature_range_indicator};
+use crate::core::CharacterAssets;
+use crate::creatures::spawn_creature_range_indicator;
 use super::hit_detection::{HitCone, angle_to_direction};
 use super::mesh::create_weapon_arc;
 

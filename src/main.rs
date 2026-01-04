@@ -7,7 +7,6 @@ mod effects;
 mod inventory;
 mod player;
 mod props;
-mod spawners;
 mod ui;
 
 use bevy::{image::ImageSamplerDescriptor, prelude::*};
@@ -27,7 +26,7 @@ use effects::{Hitstop, ScreenShake, BloodParticle, TargetOutline};
 use inventory::{build_item_registry, GroundItem, ItemIcons, ItemId, ItemRegistry};
 use player::{animate_sprites, Player, PlayerSpriteSheet, Stats, load_player_sprite_sheet, update_player_sprite_animation};
 use props::{CrateSprites, Prop, PropRegistry, build_prop_registry, load_crate_sprites};
-use spawners::CharacterAssets;
+use core::CharacterAssets;
 use ui::{
     auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_key_bindings_panel, toggle_pause_menu,
     HotbarUI, HotbarSlot, HotbarSlotIcon, HotbarSlotCount,
@@ -117,7 +116,7 @@ fn setup(
     item_icons.ground_icons.insert(ItemId::Mushroom, asset_server.load("sprites/items/mushroom_ground.png"));
 
     // Spawn background (static, doesn't need reset)
-    spawners::spawn_background_grid(&mut commands, &mut meshes, &mut materials);
+    player::spawn_background_grid(&mut commands, &mut meshes, &mut materials);
 
     // Insert resources for later use
     commands.insert_resource(character_assets);
@@ -148,13 +147,13 @@ fn spawn_world(
         return;
     }
 
-    spawners::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials);
-    spawners::spawn_target_outline(&mut commands, &character_assets);
-    spawners::spawn_creatures(&mut commands, &character_assets, &mut meshes, &mut materials);
-    spawners::spawn_world_props(&mut commands, &prop_registry, &crate_sprites);
+    player::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials);
+    player::spawn_target_outline(&mut commands, &character_assets);
+    creatures::spawn_creatures(&mut commands, &character_assets, &mut meshes, &mut materials);
+    props::spawn_world_props(&mut commands, &prop_registry, &crate_sprites);
 
     for (item_id, quantity, pos) in &config.starting_items {
-        spawners::spawn_ground_item(&mut commands, &character_assets, &item_registry, &item_icons, *item_id, *quantity, *pos);
+        player::spawn_ground_item(&mut commands, &character_assets, &item_registry, &item_icons, *item_id, *quantity, *pos);
     }
 }
 

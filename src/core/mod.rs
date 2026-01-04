@@ -1,3 +1,4 @@
+pub mod assets;
 pub mod camera;
 pub mod collisions;
 pub mod components;
@@ -6,6 +7,7 @@ pub mod input;
 pub mod state;
 pub mod systems;
 
+pub use assets::*;
 pub use camera::*;
 pub use collisions::*;
 pub use components::*;

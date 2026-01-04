@@ -1,7 +1,9 @@
 pub mod data;
+pub mod spawner;
 pub mod systems;
 
 pub use data::*;
+pub use spawner::*;
 pub use systems::*;
 
 use bevy::prelude::*;

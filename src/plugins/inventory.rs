@@ -4,8 +4,9 @@ use crate::resources::GameState;
 use crate::systems::{
     animate_ground_items, apply_ground_item_hover, cursor_not_over_ui, end_inventory_drag,
     handle_inventory_right_click, hover_ground_items, pickup_ground_items, start_inventory_drag,
-    toggle_inventory, update_cursor_over_ui, update_drag_visual, update_hotbar_ui,
-    update_inventory_panel_ui, use_hotbar_keys, CursorOverUI, DragState, InventoryUIState,
+    sync_selected_weapon, toggle_inventory, update_cursor_over_ui, update_drag_visual,
+    update_hotbar_ui, update_inventory_panel_ui, use_hotbar_keys, CursorOverUI, DragState,
+    InventoryUIState, SelectedHotbarSlot,
 };
 
 pub struct InventoryPlugin;
@@ -15,6 +16,7 @@ impl Plugin for InventoryPlugin {
         app.init_resource::<InventoryUIState>()
             .init_resource::<CursorOverUI>()
             .init_resource::<DragState>()
+            .init_resource::<SelectedHotbarSlot>()
             .add_systems(
                 Update,
                 (
@@ -25,6 +27,7 @@ impl Plugin for InventoryPlugin {
                     update_inventory_panel_ui,
                     handle_inventory_right_click,
                     use_hotbar_keys,
+                    sync_selected_weapon,
                     animate_ground_items,
                     hover_ground_items,
                     apply_ground_item_hover,

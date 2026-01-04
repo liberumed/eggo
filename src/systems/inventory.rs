@@ -19,6 +19,10 @@ pub struct DragState {
     pub drag_visual: Option<Entity>,
 }
 
+/// Tracks which hotbar slot is selected for weapons (None = fists)
+#[derive(Resource, Default)]
+pub struct SelectedHotbarSlot(pub Option<usize>);
+
 /// Marker for the dragged item visual
 #[derive(Component)]
 pub struct DraggedItemVisual;
@@ -60,14 +64,15 @@ pub fn toggle_inventory(
 pub fn update_hotbar_ui(
     registry: Res<ItemRegistry>,
     item_icons: Res<ItemIcons>,
+    selected_slot: Res<SelectedHotbarSlot>,
     inventory_query: Query<&Inventory, With<Player>>,
-    mut slot_query: Query<(&HotbarSlot, &mut BackgroundColor)>,
+    mut slot_query: Query<(&HotbarSlot, &mut BackgroundColor, &mut BorderColor)>,
     mut count_query: Query<(&HotbarSlotCount, &mut Text)>,
     mut icon_query: Query<(&HotbarSlotIcon, &mut ImageNode, &mut Visibility)>,
 ) {
     let Ok(inventory) = inventory_query.single() else { return };
 
-    for (slot, mut bg) in &mut slot_query {
+    for (slot, mut bg, mut border) in &mut slot_query {
         let item = inventory.get(slot.0);
         *bg = BackgroundColor(match item {
             Some(s) => {
@@ -79,6 +84,13 @@ pub fn update_hotbar_ui(
             }
             None => Color::srgba(0.2, 0.2, 0.22, 0.9),
         });
+
+        // Green border for selected weapon slot
+        *border = if selected_slot.0 == Some(slot.0) {
+            BorderColor::all(Color::srgb(0.2, 0.8, 0.3))
+        } else {
+            BorderColor::all(Color::srgb(0.4, 0.4, 0.45))
+        };
     }
 
     for (slot_count, mut text) in &mut count_query {
@@ -341,13 +353,11 @@ pub fn use_hotbar_keys(
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     bindings: Res<InputBindings>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     registry: Res<ItemRegistry>,
-    mut player_query: Query<(&mut Inventory, &mut Health, &mut EquippedWeaponId), With<Player>>,
-    mut weapon_query: Query<&mut Weapon, With<PlayerWeapon>>,
+    mut selected_slot: ResMut<SelectedHotbarSlot>,
+    mut player_query: Query<(&mut Inventory, &mut Health), With<Player>>,
 ) {
-    let Ok((mut inventory, mut health, mut equipped)) = player_query.single_mut() else { return };
+    let Ok((mut inventory, mut health)) = player_query.single_mut() else { return };
 
     let actions = [
         GameAction::Hotbar1,
@@ -368,24 +378,52 @@ pub fn use_hotbar_keys(
                         }
                     }
                     ItemCategory::Weapon => {
-                        // Equip weapon: swap with currently equipped
-                        if let Some(new_weapon_stats) = get_weapon_stats(slot.item_id, &mut meshes, &mut materials) {
-                            let old_weapon_id = equipped.0;
-
-                            if let Ok(mut weapon) = weapon_query.single_mut() {
-                                *weapon = new_weapon_stats;
-                            }
-
-                            equipped.0 = slot.item_id;
-
-                            inventory.slots[slot_index] = Some(InventorySlot {
-                                item_id: old_weapon_id,
-                                quantity: 1,
-                            });
+                        // Toggle selection: if already selected, deselect (use fists)
+                        if selected_slot.0 == Some(slot_index) {
+                            selected_slot.0 = None;
+                        } else {
+                            selected_slot.0 = Some(slot_index);
                         }
                     }
                     _ => {}
                 }
+            }
+        }
+    }
+}
+
+/// Syncs weapon stats based on selected hotbar slot (or fists if none selected)
+pub fn sync_selected_weapon(
+    selected_slot: Res<SelectedHotbarSlot>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    inventory_query: Query<&Inventory, With<Player>>,
+    mut equipped_query: Query<&mut EquippedWeaponId, With<Player>>,
+    mut weapon_query: Query<&mut Weapon, With<PlayerWeapon>>,
+) {
+    if !selected_slot.is_changed() {
+        return;
+    }
+
+    let Ok(inventory) = inventory_query.single() else { return };
+    let Ok(mut equipped) = equipped_query.single_mut() else { return };
+    let Ok(mut weapon) = weapon_query.single_mut() else { return };
+
+    match selected_slot.0 {
+        Some(slot_index) => {
+            // Get weapon from selected slot
+            if let Some(slot) = inventory.get(slot_index) {
+                if let Some(new_weapon) = get_weapon_stats(slot.item_id, &mut meshes, &mut materials) {
+                    *weapon = new_weapon;
+                    equipped.0 = slot.item_id;
+                }
+            }
+        }
+        None => {
+            // Use fists
+            if let Some(fist_weapon) = get_weapon_stats(ItemId::Fist, &mut meshes, &mut materials) {
+                *weapon = fist_weapon;
+                equipped.0 = ItemId::Fist;
             }
         }
     }

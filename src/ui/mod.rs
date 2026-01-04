@@ -1,10 +1,12 @@
+pub mod components;
+pub mod systems;
+
+pub use components::*;
+pub use systems::*;
+
 use bevy::prelude::*;
 
-use crate::resources::GameState;
-use crate::systems::{
-    handle_exit_button, handle_menu_new_game_button, handle_resume_button, show_death_menu,
-    stabilize_shadow, stabilize_text_rotation, update_counters, update_hp_text, update_weapon_info,
-};
+use crate::core::GameState;
 
 pub struct UiPlugin;
 

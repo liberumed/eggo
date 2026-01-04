@@ -1,11 +1,14 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate::components::*;
+use crate::combat::{create_weapon_arc, CreatureRangeIndicator, Equipment, Fist, PlayerRangeIndicator, PlayerWeapon, Weapon, WeaponRangeIndicator, WeaponVisual, WeaponVisualMesh, weapon_catalog};
 use crate::constants::*;
+use crate::core::{Health, HitCollider, Loot, Shadow, WalkCollider, YSorted};
+use crate::creatures::{Creature, CreatureAnimation, CreatureDefinition, Glowing, Hostile, creature_catalog};
 use crate::effects::{ResourceBall, TargetOutline};
-use crate::resources::PlayerSpriteSheet;
-use crate::utils::create_weapon_arc;
+use crate::inventory::{EquippedWeaponId, GroundItem, GroundItemBob, Inventory, ItemIcons, ItemId, ItemRegistry, Pickupable};
+use crate::player::{Player, PlayerAnimation, PlayerSpriteSheet, SpriteAnimation};
+use crate::ui::{HeartSprite, HpText};
 
 #[derive(Resource)]
 pub struct CharacterAssets {

@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate::components::*;
 use crate::constants::*;
-use crate::core::ellipse_push;
+use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, Health, HitCollider, InputBindings, Knockback, StaticCollider, Stunned};
+use crate::creatures::{Creature, Hostile};
+use crate::player::{Dashing, Player, PlayerAttackState};
 use crate::props::{CrateSprite, Destructible, Prop, PropRegistry, PropType};
-use crate::resources::{GameAction, InputBindings};
+use super::{weapon_catalog, AttackType, CreatureRangeIndicator, Drawn, Fist, PlayerRangeIndicator, PlayerWeapon, Weapon, WeaponRangeIndicator, WeaponSwing, WeaponVisualMesh};
 use crate::effects::{BloodParticle, HitHighlight, Hitstop, ScreenShake, TargetOutline};
 use crate::spawners::{CharacterAssets, spawn_creature_range_indicator};
 use super::hit_detection::{HitCone, angle_to_direction};

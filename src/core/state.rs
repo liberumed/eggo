@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::components::ItemId;
+use crate::inventory::ItemId;
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum GameState {

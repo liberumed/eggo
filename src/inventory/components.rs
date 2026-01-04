@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-use super::{Rarity, Weapon};
+use crate::combat::{Rarity, Weapon, weapon_catalog};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ItemId {
@@ -209,8 +209,7 @@ pub fn get_weapon_stats(
     id: ItemId,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
-) -> Option<super::Weapon> {
-    use super::weapon_catalog;
+) -> Option<Weapon> {
     match id {
         ItemId::WoodenStick => Some(weapon_catalog::wooden_stick(meshes, materials)),
         ItemId::RustyKnife => Some(weapon_catalog::rusty_knife(meshes, materials)),
@@ -256,8 +255,6 @@ pub fn build_item_registry(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) -> ItemRegistry {
-    use super::weapon_catalog;
-
     let mut items = HashMap::new();
 
     // Wooden Stick

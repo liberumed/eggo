@@ -1,7 +1,13 @@
 use bevy::prelude::*;
 
-use crate::components::*;
-use crate::resources::{GameAction, InputBindings};
+use crate::combat::{PlayerWeapon, Weapon};
+use crate::core::{GameAction, Health, InputBindings};
+use crate::player::Player;
+use super::{get_weapon_stats, ConsumableEffect, EquippedWeaponId, GroundItem, GroundItemBob, Inventory, InventorySlot, ItemCategory, ItemIcons, ItemId, ItemRegistry, Pickupable};
+use crate::ui::{
+    HotbarSlot, HotbarSlotCount, HotbarSlotIcon,
+    InventoryPanel, InventorySlotCount, InventorySlotIcon, InventorySlotUI,
+};
 
 #[derive(Resource, Default)]
 pub struct InventoryUIState {

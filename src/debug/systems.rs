@@ -1,8 +1,11 @@
 use bevy::prelude::*;
 
-use crate::components::{Creature, Dead, Fist, HitCollider, Player, PlayerAttackState, PlayerWeapon, StaticCollider, WalkCollider, Weapon, WeaponSwing};
+use crate::combat::{Fist, PlayerWeapon, Weapon, WeaponSwing};
 use crate::constants::WEAPON_OFFSET;
-use crate::data::{Prop, PropRegistry};
+use crate::core::{Dead, HitCollider, StaticCollider, WalkCollider};
+use crate::creatures::Creature;
+use crate::player::{Player, PlayerAttackState};
+use crate::props::{Prop, PropRegistry};
 use super::config::DebugConfig;
 
 /// Marker for debug collision circle (walk collision)

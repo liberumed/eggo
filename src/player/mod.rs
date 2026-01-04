@@ -15,7 +15,7 @@ use crate::combat::{
     aim_weapon, toggle_weapon, sync_range_indicator, update_weapon_visual,
     player_attack, handle_block, apply_player_delayed_hits, update_player_attack_state,
 };
-use crate::systems::cursor_not_over_ui;
+use crate::inventory::cursor_not_over_ui;
 
 pub struct PlayerPlugin;
 

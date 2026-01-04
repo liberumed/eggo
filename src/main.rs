@@ -1,32 +1,43 @@
 mod combat;
-mod components;
 mod constants;
 mod core;
 mod creatures;
-mod data;
 mod debug;
 mod effects;
+mod inventory;
 mod player;
-mod plugins;
 mod props;
-mod resources;
 mod spawners;
-mod systems;
-mod utils;
+mod ui;
 
 use bevy::{image::ImageSamplerDescriptor, prelude::*};
-use components::*;
 use constants::*;
-use plugins::*;
+
+// Domain module imports
+use core::CorePlugin;
+use creatures::CreaturePlugin;
+use effects::EffectsPlugin;
+use inventory::InventoryPlugin;
+use player::PlayerPlugin;
+use ui::UiPlugin;
+use core::{GameState, InputBindings, NewGameRequested, WorldConfig};
+use creatures::Creature;
 use debug::DebugConfig;
 use effects::{Hitstop, ScreenShake, BloodParticle, TargetOutline};
-use resources::{GameState, InputBindings, NewGameRequested, PlayerSpriteSheet, Stats, WorldConfig, load_player_sprite_sheet};
-use data::{CrateSprites, Prop, PropRegistry, build_prop_registry, load_crate_sprites};
+use inventory::{build_item_registry, GroundItem, ItemIcons, ItemId, ItemRegistry};
+use player::{animate_sprites, Player, PlayerSpriteSheet, Stats, load_player_sprite_sheet, update_player_sprite_animation};
+use props::{CrateSprites, Prop, PropRegistry, build_prop_registry, load_crate_sprites};
 use spawners::CharacterAssets;
-use systems::{auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_key_bindings_panel, toggle_pause_menu};
-use player::{animate_sprites, update_player_sprite_animation};
+use ui::{
+    auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_key_bindings_panel, toggle_pause_menu,
+    HotbarUI, HotbarSlot, HotbarSlotIcon, HotbarSlotCount,
+    InventoryPanel, InventorySlotUI, InventorySlotIcon, InventorySlotCount,
+    WeaponInfoPanel, WeaponNameText, WeaponDamageText, WeaponSpeedText,
+    WeaponRangeText, WeaponConeText, WeaponKnockbackText, WeaponTypeText,
+    GameMenu, MenuTitle, ResumeButton, MenuNewGameButton, ExitButton,
+    PhilosophyCounter, NatureStudyCounter, WisdomCounter,
+};
 use debug::{spawn_debug_circles, spawn_weapon_debug_cones, toggle_collision_debug, update_creature_debug_circles, update_debug_visibility, update_player_debug_cone};
-use components::build_item_registry;
 
 fn main() {
     App::new()
@@ -97,13 +108,13 @@ fn setup(
     let crate_sprites = load_crate_sprites(&asset_server, &mut texture_atlas_layouts);
 
     // Load item icons (UI icons and ground sprites)
-    let mut item_icons = components::ItemIcons::default();
-    item_icons.icons.insert(components::ItemId::RustyKnife, asset_server.load("sprites/items/knife.png"));
-    item_icons.ground_icons.insert(components::ItemId::RustyKnife, asset_server.load("sprites/items/knife_ground.png"));
-    item_icons.icons.insert(components::ItemId::WoodenStick, asset_server.load("sprites/items/stick.png"));
-    item_icons.ground_icons.insert(components::ItemId::WoodenStick, asset_server.load("sprites/items/stick_ground.png"));
-    item_icons.icons.insert(components::ItemId::Mushroom, asset_server.load("sprites/items/mushroom.png"));
-    item_icons.ground_icons.insert(components::ItemId::Mushroom, asset_server.load("sprites/items/mushroom_ground.png"));
+    let mut item_icons = ItemIcons::default();
+    item_icons.icons.insert(ItemId::RustyKnife, asset_server.load("sprites/items/knife.png"));
+    item_icons.ground_icons.insert(ItemId::RustyKnife, asset_server.load("sprites/items/knife_ground.png"));
+    item_icons.icons.insert(ItemId::WoodenStick, asset_server.load("sprites/items/stick.png"));
+    item_icons.ground_icons.insert(ItemId::WoodenStick, asset_server.load("sprites/items/stick_ground.png"));
+    item_icons.icons.insert(ItemId::Mushroom, asset_server.load("sprites/items/mushroom.png"));
+    item_icons.ground_icons.insert(ItemId::Mushroom, asset_server.load("sprites/items/mushroom_ground.png"));
 
     // Spawn background (static, doesn't need reset)
     spawners::spawn_background_grid(&mut commands, &mut meshes, &mut materials);

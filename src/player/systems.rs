@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::constants::*;
 use crate::core::{Blocking, Dead, DeathAnimation, WalkCollider, StaticCollider, ellipses_overlap, ellipse_push, Health, Knockback};
 use crate::effects::Hitstop;
-use crate::resources::{GameAction, InputBindings};
+use crate::core::{GameAction, InputBindings};
 use crate::spawners::CharacterAssets;
 use super::{Player, PlayerAnimation, Dashing, DashCooldown, Sprinting, PhaseThrough, PlayerAttackState, SpriteAnimation, PlayerSpriteSheet};
 use crate::combat::{Weapon, PlayerWeapon, Drawn, AttackType, WeaponSwing};

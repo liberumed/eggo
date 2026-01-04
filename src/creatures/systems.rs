@@ -4,7 +4,7 @@ use crate::constants::*;
 use crate::core::{Dead, DeathAnimation, DespawnTimer, Loot};
 use crate::effects::{Hitstop, MagnetizedBall, ResourceBall};
 use crate::player::Player;
-use crate::resources::Stats;
+use crate::player::Stats;
 use crate::spawners::CharacterAssets;
 use super::{Creature, CreatureAnimation};
 

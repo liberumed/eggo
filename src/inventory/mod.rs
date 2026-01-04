@@ -1,13 +1,12 @@
+pub mod components;
+pub mod systems;
+
+pub use components::*;
+pub use systems::*;
+
 use bevy::prelude::*;
 
-use crate::resources::GameState;
-use crate::systems::{
-    animate_ground_items, apply_ground_item_hover, cursor_not_over_ui, end_inventory_drag,
-    handle_inventory_right_click, hover_ground_items, pickup_ground_items, start_inventory_drag,
-    sync_selected_weapon, toggle_inventory, update_cursor_over_ui, update_drag_visual,
-    update_hotbar_ui, update_inventory_panel_ui, use_hotbar_keys, CursorOverUI, DragState,
-    InventoryUIState, SelectedHotbarSlot,
-};
+use crate::core::GameState;
 
 pub struct InventoryPlugin;
 
@@ -20,7 +19,6 @@ impl Plugin for InventoryPlugin {
             .add_systems(
                 Update,
                 (
-                    // Update cursor state first
                     update_cursor_over_ui,
                     toggle_inventory,
                     update_hotbar_ui,
@@ -31,7 +29,6 @@ impl Plugin for InventoryPlugin {
                     animate_ground_items,
                     hover_ground_items,
                     apply_ground_item_hover,
-                    // Drag and drop
                     start_inventory_drag,
                     update_drag_visual,
                     end_inventory_drag,

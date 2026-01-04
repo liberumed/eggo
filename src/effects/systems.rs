@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
-use crate::components::*;
+use crate::core::DespawnTimer;
+use crate::player::{Player, PlayerAnimation, Sprinting};
 use super::components::*;
 use super::game_feel::{Hitstop, ScreenShake};
 

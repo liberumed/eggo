@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::components::Player;
+use crate::player::Player;
 use crate::effects::ScreenShake;
 
 pub fn camera_follow(

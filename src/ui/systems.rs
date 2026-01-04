@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 
-use crate::components::*;
-use crate::resources::{GameAction, GameState, InputBindings, Stats};
+use super::components::*;
+use crate::combat::{PlayerWeapon, Weapon};
+use crate::core::{Dead, GameAction, GameState, Health, InputBindings, Shadow};
+use crate::creatures::Creature;
+use crate::player::{Player, Stats};
 
 pub fn update_counters(
     stats: Res<Stats>,
@@ -202,7 +205,7 @@ pub fn handle_menu_new_game_button(
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<MenuNewGameButton>)>,
     mut next_state: ResMut<NextState<GameState>>,
     current_state: Res<State<GameState>>,
-    mut new_game_requested: ResMut<crate::resources::NewGameRequested>,
+    mut new_game_requested: ResMut<crate::core::NewGameRequested>,
 ) {
     for interaction in &interaction_query {
         if *interaction == Interaction::Pressed {
@@ -224,7 +227,7 @@ pub fn handle_menu_new_game_button(
 // Auto-transition from Dead to Playing when new game was requested from pause
 pub fn auto_start_new_game(
     mut next_state: ResMut<NextState<GameState>>,
-    mut new_game_requested: ResMut<crate::resources::NewGameRequested>,
+    mut new_game_requested: ResMut<crate::core::NewGameRequested>,
 ) {
     if new_game_requested.0 {
         new_game_requested.0 = false;

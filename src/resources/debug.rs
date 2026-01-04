@@ -1,6 +1,2 @@
-use bevy::prelude::*;
-
-#[derive(Resource, Default)]
-pub struct DebugConfig {
-    pub show_collisions: bool,
-}
+// Re-export from new domain module
+pub use crate::debug::config::*;

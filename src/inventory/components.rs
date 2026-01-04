@@ -109,6 +109,10 @@ pub struct Consumable {
     pub heal_amount: i32,
 }
 
+/// Tracks which weapon ItemId is currently equipped
+#[derive(Component)]
+pub struct EquippedWeaponId(pub ItemId);
+
 pub mod item_catalog {
     use super::*;
     use crate::combat::Rarity;

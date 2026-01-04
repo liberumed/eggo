@@ -227,9 +227,4 @@ pub enum EquipmentSlot {
     Chest,
 }
 
-// Note: EquippedWeaponId uses ItemId which will be in inventory module
-// For now, keep it here with a placeholder import
-use crate::components::ItemId;
-
-#[derive(Component)]
-pub struct EquippedWeaponId(pub ItemId);
+// Note: EquippedWeaponId is in inventory/components.rs to avoid circular dependency

@@ -1,3 +1,10 @@
+/// Identifier for creature types (for future creature variety)
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CreatureId {
+    Blob,
+}
+
 /// Loot drop chances for a creature
 #[derive(Clone)]
 pub struct LootTable {

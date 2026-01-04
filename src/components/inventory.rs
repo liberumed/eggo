@@ -12,6 +12,7 @@ pub enum ItemId {
     RustyKnife,
     Fist,
     HealthPotion,
+    Mushroom,
     LeatherArmor,
 }
 
@@ -185,6 +186,12 @@ pub fn get_item_data(id: ItemId) -> ItemData {
             category: ItemCategory::Consumable,
             stack_max: 10,
         },
+        ItemId::Mushroom => ItemData {
+            id,
+            name: "Mushroom".to_string(),
+            category: ItemCategory::Consumable,
+            stack_max: 10,
+        },
         ItemId::LeatherArmor => ItemData {
             id,
             name: "Leather Armor".to_string(),
@@ -333,6 +340,21 @@ pub fn build_item_registry(
             },
             weapon: None,
             consumable_effect: Some(ConsumableEffect::Heal(5)),
+        },
+    );
+
+    // Mushroom
+    items.insert(
+        ItemId::Mushroom,
+        ItemDefinition {
+            name: "Mushroom".to_string(),
+            category: ItemCategory::Consumable,
+            stack_max: 10,
+            ground_visual: GroundItemVisual {
+                meshes: vec![],  // Uses sprite icon instead
+            },
+            weapon: None,
+            consumable_effect: Some(ConsumableEffect::Heal(3)),
         },
     );
 

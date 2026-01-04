@@ -20,8 +20,8 @@ impl Default for WorldConfig {
     fn default() -> Self {
         Self {
             starting_items: vec![
-                (ItemId::HealthPotion, 1, Vec2::new(30.0, 20.0)),
-                (ItemId::HealthPotion, 3, Vec2::new(-40.0, 30.0)),
+                (ItemId::Mushroom, 1, Vec2::new(30.0, 20.0)),
+                (ItemId::Mushroom, 3, Vec2::new(-40.0, 30.0)),
                 (ItemId::RustyKnife, 1, Vec2::new(50.0, -10.0)),
             ],
         }

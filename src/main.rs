@@ -91,6 +91,8 @@ fn setup(
     item_icons.ground_icons.insert(components::ItemId::RustyKnife, asset_server.load("sprites/items/knife_ground.png"));
     item_icons.icons.insert(components::ItemId::WoodenStick, asset_server.load("sprites/items/stick.png"));
     item_icons.ground_icons.insert(components::ItemId::WoodenStick, asset_server.load("sprites/items/stick_ground.png"));
+    item_icons.icons.insert(components::ItemId::Mushroom, asset_server.load("sprites/items/mushroom.png"));
+    item_icons.ground_icons.insert(components::ItemId::Mushroom, asset_server.load("sprites/items/mushroom_ground.png"));
 
     // Spawn background (static, doesn't need reset)
     spawners::spawn_background_grid(&mut commands, &mut meshes, &mut materials);

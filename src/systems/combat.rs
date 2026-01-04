@@ -498,15 +498,15 @@ pub fn apply_creature_delayed_hits(
 }
 
 /// Sync player range indicator position and rotation with weapon aim
-/// Shows actual attack direction, not defensive block stance
+/// Computes aim angle directly from mouse position to avoid timing issues
 pub fn sync_range_indicator(
-    player_query: Query<(Entity, &Children), With<Player>>,
-    weapon_query: Query<&Transform, (With<PlayerWeapon>, Without<WeaponRangeIndicator>)>,
+    windows: Query<&Window>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    player_query: Query<(&Transform, &Children), With<Player>>,
     swinging_weapon_query: Query<&WeaponSwing, With<PlayerWeapon>>,
-    blocking_query: Query<&Blocking>,
-    mut indicator_query: Query<&mut Transform, (With<WeaponRangeIndicator>, With<PlayerRangeIndicator>, Without<PlayerWeapon>)>,
+    mut indicator_query: Query<&mut Transform, (With<WeaponRangeIndicator>, With<PlayerRangeIndicator>, Without<Player>)>,
 ) {
-    let Ok((player_entity, player_children)) = player_query.single() else { return };
+    let Ok((player_transform, player_children)) = player_query.single() else { return };
 
     // Find indicator among player children
     let mut indicator_entity = None;
@@ -518,11 +518,8 @@ pub fn sync_range_indicator(
     }
     let Some(indicator_entity) = indicator_entity else { return };
     let Ok(mut indicator_transform) = indicator_query.get_mut(indicator_entity) else { return };
-    let Ok(weapon_transform) = weapon_query.single() else { return };
 
-    let is_blocking = blocking_query.get(player_entity).is_ok();
-
-    // Use base weapon offset (not affected by block pull-back)
+    // Use base weapon offset
     let weapon_offset = Vec2::new(WEAPON_OFFSET.0, WEAPON_OFFSET.1);
     indicator_transform.translation.x = weapon_offset.x;
     indicator_transform.translation.y = weapon_offset.y;
@@ -535,16 +532,18 @@ pub fn sync_range_indicator(
         }
     }
 
-    // Get actual aim rotation (remove block tilt if blocking)
-    let rotation = if is_blocking {
-        // Block adds 0.4 radians tilt, remove it to show true aim
-        let (axis, angle) = weapon_transform.rotation.to_axis_angle();
-        let true_angle = if axis.z >= 0.0 { angle } else { -angle };
-        Quat::from_rotation_z(true_angle - 0.4)
-    } else {
-        weapon_transform.rotation
-    };
-    indicator_transform.rotation = rotation;
+    // Compute aim angle directly from mouse position (same as aim_weapon)
+    // This avoids timing issues with weapon tilt during blocking
+    let Ok(window) = windows.single() else { return };
+    let Ok((camera, camera_transform)) = camera_query.single() else { return };
+    let Some(cursor_pos) = window.cursor_position() else { return };
+    let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else { return };
+
+    let player_pos = player_transform.translation.truncate();
+    let dir = world_pos - player_pos;
+    let aim_angle = dir.y.atan2(dir.x);
+
+    indicator_transform.rotation = Quat::from_rotation_z(aim_angle);
 }
 
 /// Sync creature range indicators position/rotation toward player (matches hit detection)

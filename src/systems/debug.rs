@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::components::{Blocking, Creature, Dead, Fist, HitCollider, Player, PlayerWeapon, StaticCollider, WalkCollider, Weapon, WeaponSwing};
+use crate::components::{Creature, Dead, Fist, HitCollider, Player, PlayerWeapon, StaticCollider, WalkCollider, Weapon, WeaponSwing};
 use crate::constants::WEAPON_OFFSET;
 use crate::resources::DebugConfig;
 
@@ -228,17 +228,16 @@ pub fn spawn_weapon_debug_cones(
     }
 }
 
-/// Sync player debug cone rotation with weapon (locked during swing, ignores block stance)
+/// Sync player debug cone rotation with aim direction (locked during swing)
 pub fn update_player_debug_cone(
-    weapon_query: Query<(&Transform, Option<&WeaponSwing>), With<PlayerWeapon>>,
-    player_query: Query<(Entity, &Transform, &Children), (With<Player>, Without<PlayerWeapon>)>,
-    blocking_query: Query<&Blocking>,
+    windows: Query<&Window>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    weapon_query: Query<Option<&WeaponSwing>, With<PlayerWeapon>>,
+    player_query: Query<(&Transform, &Children), (With<Player>, Without<PlayerWeapon>)>,
     mut cone_query: Query<&mut Transform, (With<WeaponReachCone>, Without<CreatureDebugCircle>, Without<Player>, Without<PlayerWeapon>)>,
 ) {
-    let Ok((weapon_transform, swing)) = weapon_query.single() else { return };
-    let Ok((player_entity, player_transform, children)) = player_query.single() else { return };
-
-    let is_blocking = blocking_query.get(player_entity).is_ok();
+    let Ok(swing) = weapon_query.single() else { return };
+    let Ok((player_transform, children)) = player_query.single() else { return };
 
     // CircularSector points +Y by default, weapon points +X, so offset by -90°
     let cone_offset = -std::f32::consts::FRAC_PI_2;
@@ -246,21 +245,25 @@ pub fn update_player_debug_cone(
     for child in children.iter() {
         if let Ok(mut cone_transform) = cone_query.get_mut(child) {
             // If swinging, use base_angle (locked aim direction)
-            let rotation = if let Some(swing) = swing {
+            let aim_angle = if let Some(swing) = swing {
                 if let Some(base_angle) = swing.base_angle {
-                    Quat::from_rotation_z(base_angle + cone_offset)
+                    base_angle
                 } else {
-                    weapon_transform.rotation * Quat::from_rotation_z(cone_offset)
+                    continue; // No base angle during swing, skip
                 }
-            } else if is_blocking {
-                // Block adds 0.4 radians tilt, remove it to show true aim
-                let (axis, angle) = weapon_transform.rotation.to_axis_angle();
-                let true_angle = if axis.z >= 0.0 { angle } else { -angle };
-                Quat::from_rotation_z(true_angle - 0.4 + cone_offset)
             } else {
-                weapon_transform.rotation * Quat::from_rotation_z(cone_offset)
+                // Compute aim angle directly from mouse position (same as arc indicator)
+                let Ok(window) = windows.single() else { continue };
+                let Ok((camera, camera_transform)) = camera_query.single() else { continue };
+                let Some(cursor_pos) = window.cursor_position() else { continue };
+                let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else { continue };
+
+                let player_pos = player_transform.translation.truncate();
+                let dir = world_pos - player_pos;
+                dir.y.atan2(dir.x)
             };
-            cone_transform.rotation = rotation;
+
+            cone_transform.rotation = Quat::from_rotation_z(aim_angle + cone_offset);
             // Counter any parent scale to keep cone at correct size
             cone_transform.scale = Vec3::new(
                 1.0 / player_transform.scale.x,

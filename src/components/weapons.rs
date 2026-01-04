@@ -193,7 +193,7 @@ pub mod weapon_catalog {
             damage: 1,
             speed: 1,
             reach: 3,
-            arc: 2,
+            arc: 3,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,

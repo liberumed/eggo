@@ -15,6 +15,13 @@ pub enum ItemId {
     LeatherArmor,
 }
 
+/// Resource holding item icon textures for UI and ground display
+#[derive(Resource, Default)]
+pub struct ItemIcons {
+    pub icons: HashMap<ItemId, Handle<Image>>,
+    pub ground_icons: HashMap<ItemId, Handle<Image>>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemCategory {
     Weapon,

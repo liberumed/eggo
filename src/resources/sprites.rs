@@ -133,5 +133,23 @@ pub fn load_player_sprite_sheet(
         texture_atlas_layouts,
     ));
 
+    // Load walk_up animation
+    animations.insert("walk_up".to_string(), load_animation(
+        "walk_up",
+        "sprites/player/player_walk_up.png",
+        "sprites/player/player_walk_up.json",
+        asset_server,
+        texture_atlas_layouts,
+    ));
+
+    // Load walk_down animation
+    animations.insert("walk_down".to_string(), load_animation(
+        "walk_down",
+        "sprites/player/player_walk_down.png",
+        "sprites/player/player_walk_down.json",
+        asset_server,
+        texture_atlas_layouts,
+    ));
+
     PlayerSpriteSheet { animations }
 }

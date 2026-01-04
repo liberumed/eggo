@@ -85,6 +85,13 @@ fn setup(
     let item_registry = build_item_registry(&mut meshes, &mut materials);
     let prop_registry = build_prop_registry(&mut meshes, &mut materials);
 
+    // Load item icons (UI icons and ground sprites)
+    let mut item_icons = components::ItemIcons::default();
+    item_icons.icons.insert(components::ItemId::RustyKnife, asset_server.load("sprites/items/knife.png"));
+    item_icons.ground_icons.insert(components::ItemId::RustyKnife, asset_server.load("sprites/items/knife_ground.png"));
+    item_icons.icons.insert(components::ItemId::WoodenStick, asset_server.load("sprites/items/stick.png"));
+    item_icons.ground_icons.insert(components::ItemId::WoodenStick, asset_server.load("sprites/items/stick_ground.png"));
+
     // Spawn background (static, doesn't need reset)
     spawners::spawn_background_grid(&mut commands, &mut meshes, &mut materials);
 
@@ -92,6 +99,7 @@ fn setup(
     commands.insert_resource(character_assets);
     commands.insert_resource(item_registry);
     commands.insert_resource(prop_registry);
+    commands.insert_resource(item_icons);
 
     // Transition to Playing state (triggers spawn_world)
     next_state.set(GameState::Playing);
@@ -102,6 +110,7 @@ fn spawn_world(
     character_assets: Res<CharacterAssets>,
     player_sprite_sheet: Res<PlayerSpriteSheet>,
     item_registry: Res<ItemRegistry>,
+    item_icons: Res<ItemIcons>,
     prop_registry: Res<PropRegistry>,
     config: Res<WorldConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -119,7 +128,7 @@ fn spawn_world(
     spawners::spawn_world_props(&mut commands, &prop_registry);
 
     for (item_id, quantity, pos) in &config.starting_items {
-        spawners::spawn_ground_item(&mut commands, &character_assets, &item_registry, *item_id, *quantity, *pos);
+        spawners::spawn_ground_item(&mut commands, &character_assets, &item_registry, &item_icons, *item_id, *quantity, *pos);
     }
 }
 
@@ -212,12 +221,24 @@ fn setup_ui(mut commands: Commands) {
                             border: UiRect::all(Val::Px(2.0)),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
+                            overflow: Overflow::clip(),
                             ..default()
                         },
                         BackgroundColor(Color::srgba(0.2, 0.2, 0.22, 0.9)),
                         BorderColor::all(Color::srgb(0.4, 0.4, 0.45)),
                     ))
                     .with_children(|slot| {
+                        // Item icon - Auto mode preserves aspect ratio
+                        slot.spawn((
+                            HotbarSlotIcon(i),
+                            ImageNode::default(),
+                            Node {
+                                max_width: Val::Px(40.0),
+                                max_height: Val::Px(40.0),
+                                ..default()
+                            },
+                            Visibility::Hidden,
+                        ));
                         // Number label (top-left)
                         slot.spawn((
                             Text::new((i + 1).to_string()),
@@ -306,12 +327,25 @@ fn setup_ui(mut commands: Commands) {
                                         border: UiRect::all(Val::Px(2.0)),
                                         justify_content: JustifyContent::Center,
                                         align_items: AlignItems::Center,
+                                        overflow: Overflow::clip(),
                                         ..default()
                                     },
                                     BackgroundColor(Color::srgba(0.2, 0.2, 0.22, 1.0)),
                                     BorderColor::all(Color::srgb(0.4, 0.4, 0.45)),
                                 ))
                                 .with_children(|slot| {
+                                    // Item icon - Auto mode preserves aspect ratio
+                                    slot.spawn((
+                                        InventorySlotIcon(index),
+                                        ImageNode::default(),
+                                        Node {
+                                            max_width: Val::Px(40.0),
+                                            max_height: Val::Px(40.0),
+                                            ..default()
+                                        },
+                                        Visibility::Hidden,
+                                    ));
+                                    // Stack count (bottom-right)
                                     slot.spawn((
                                         InventorySlotCount(index),
                                         Text::new(""),

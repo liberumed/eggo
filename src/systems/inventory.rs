@@ -59,16 +59,24 @@ pub fn toggle_inventory(
 
 pub fn update_hotbar_ui(
     registry: Res<ItemRegistry>,
+    item_icons: Res<ItemIcons>,
     inventory_query: Query<&Inventory, With<Player>>,
     mut slot_query: Query<(&HotbarSlot, &mut BackgroundColor)>,
     mut count_query: Query<(&HotbarSlotCount, &mut Text)>,
+    mut icon_query: Query<(&HotbarSlotIcon, &mut ImageNode, &mut Visibility)>,
 ) {
     let Ok(inventory) = inventory_query.single() else { return };
 
     for (slot, mut bg) in &mut slot_query {
         let item = inventory.get(slot.0);
         *bg = BackgroundColor(match item {
-            Some(s) => get_item_color(&registry, s.item_id),
+            Some(s) => {
+                if item_icons.icons.contains_key(&s.item_id) {
+                    Color::srgba(0.15, 0.15, 0.17, 0.9)
+                } else {
+                    get_item_color(&registry, s.item_id)
+                }
+            }
             None => Color::srgba(0.2, 0.2, 0.22, 0.9),
         });
     }
@@ -80,16 +88,36 @@ pub fn update_hotbar_ui(
             _ => String::new(),
         };
     }
+
+    for (slot_icon, mut image_node, mut visibility) in &mut icon_query {
+        let item = inventory.get(slot_icon.0);
+        if let Some(slot) = item {
+            if let Some(icon_handle) = item_icons.icons.get(&slot.item_id) {
+                image_node.image = icon_handle.clone();
+                *visibility = Visibility::Visible;
+            } else {
+                *visibility = Visibility::Hidden;
+            }
+        } else {
+            *visibility = Visibility::Hidden;
+        }
+    }
 }
 
 pub fn update_inventory_panel_ui(
     ui_state: Res<InventoryUIState>,
     registry: Res<ItemRegistry>,
+    item_icons: Res<ItemIcons>,
     inventory_query: Query<&Inventory, With<Player>>,
     mut slot_query: Query<(&InventorySlotUI, &mut BackgroundColor)>,
     mut count_query: Query<(&InventorySlotCount, &mut Text)>,
+    mut icon_query: Query<(&InventorySlotIcon, &mut ImageNode, &mut Visibility)>,
 ) {
     if !ui_state.open {
+        // Hide all inventory icons when panel is closed
+        for (_, _, mut visibility) in &mut icon_query {
+            *visibility = Visibility::Hidden;
+        }
         return;
     }
 
@@ -98,7 +126,13 @@ pub fn update_inventory_panel_ui(
     for (slot_ui, mut bg) in &mut slot_query {
         let item = inventory.get(slot_ui.0);
         *bg = BackgroundColor(match item {
-            Some(s) => get_item_color(&registry, s.item_id),
+            Some(s) => {
+                if item_icons.icons.contains_key(&s.item_id) {
+                    Color::srgba(0.15, 0.15, 0.17, 1.0)
+                } else {
+                    get_item_color(&registry, s.item_id)
+                }
+            }
             None => Color::srgba(0.2, 0.2, 0.22, 1.0),
         });
     }
@@ -109,6 +143,20 @@ pub fn update_inventory_panel_ui(
             Some(s) if s.quantity > 1 => s.quantity.to_string(),
             _ => String::new(),
         };
+    }
+
+    for (slot_icon, mut image_node, mut visibility) in &mut icon_query {
+        let item = inventory.get(slot_icon.0);
+        if let Some(slot) = item {
+            if let Some(icon_handle) = item_icons.icons.get(&slot.item_id) {
+                image_node.image = icon_handle.clone();
+                *visibility = Visibility::Visible;
+            } else {
+                *visibility = Visibility::Hidden;
+            }
+        } else {
+            *visibility = Visibility::Hidden;
+        }
     }
 }
 

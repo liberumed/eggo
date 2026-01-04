@@ -137,6 +137,7 @@ pub fn spawn_ground_item(
     commands: &mut Commands,
     assets: &CharacterAssets,
     registry: &ItemRegistry,
+    item_icons: &ItemIcons,
     item_id: ItemId,
     quantity: u32,
     position: Vec2,
@@ -162,13 +163,20 @@ pub fn spawn_ground_item(
                 Transform::from_xyz(0.0, 0.0, -0.1),
             ));
 
-            // Item visuals from registry - no match needed!
-            for (mesh, material, offset) in &item.ground_visual.meshes {
+            // Use ground sprite if available, otherwise mesh visuals
+            if let Some(ground_icon) = item_icons.ground_icons.get(&item_id) {
                 parent.spawn((
-                    Mesh2d(mesh.clone()),
-                    MeshMaterial2d(material.clone()),
-                    Transform::from_translation(*offset),
+                    Sprite::from_image(ground_icon.clone()),
+                    Transform::from_xyz(0.0, 0.0, 0.0),
                 ));
+            } else {
+                for (mesh, material, offset) in &item.ground_visual.meshes {
+                    parent.spawn((
+                        Mesh2d(mesh.clone()),
+                        MeshMaterial2d(material.clone()),
+                        Transform::from_translation(*offset),
+                    ));
+                }
             }
         });
 }

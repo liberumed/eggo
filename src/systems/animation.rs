@@ -267,7 +267,16 @@ pub fn update_player_sprite_animation(
         let (new_animation, anim_speed) = if velocity > PLAYER_SPEED * 1.2 {
             ("run", 1.0)
         } else if velocity > 0.1 {
-            ("walk", 1.0)
+            // Choose walk animation based on direction
+            let vx = player_anim.velocity.x.abs();
+            let vy = player_anim.velocity.y;
+            if vy > vx {
+                ("walk_up", 1.0)
+            } else if vy < -vx {
+                ("walk_down", 1.0)
+            } else {
+                ("walk", 1.0)
+            }
         } else {
             ("idle", 0.2)  // Slow idle animation
         };
@@ -275,7 +284,7 @@ pub fn update_player_sprite_animation(
         sprite_anim.set_animation(new_animation);
         sprite_anim.speed = anim_speed;
 
-        // Flip sprite based on movement direction
+        // Flip sprite based on movement direction (only for side animations)
         if player_anim.velocity.x.abs() > 0.1 {
             sprite_anim.flip_x = player_anim.velocity.x > 0.0;
         }

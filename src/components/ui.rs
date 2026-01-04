@@ -66,6 +66,9 @@ pub struct HotbarSlot(pub usize);
 pub struct HotbarSlotCount(pub usize);
 
 #[derive(Component)]
+pub struct HotbarSlotIcon(pub usize);
+
+#[derive(Component)]
 pub struct InventoryPanel;
 
 #[derive(Component)]
@@ -73,6 +76,9 @@ pub struct InventorySlotUI(pub usize);
 
 #[derive(Component)]
 pub struct InventorySlotCount(pub usize);
+
+#[derive(Component)]
+pub struct InventorySlotIcon(pub usize);
 
 #[derive(Component)]
 pub struct KeyBindingsPanel;

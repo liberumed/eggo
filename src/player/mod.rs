@@ -6,6 +6,51 @@ pub use components::*;
 pub use sprites::*;
 pub use stats::*;
 
-// Note: spawner.rs and systems.rs will be created during cleanup phase
-// by extracting from spawners/character.rs and systems/movement.rs
-// The PlayerPlugin will also be added then
+use bevy::prelude::*;
+
+use crate::resources::GameState;
+use crate::systems::{
+    animate_player_death, animate_weapon_swing,
+    move_player, apply_knockback, cursor_not_over_ui,
+    handle_dash_input, apply_dash, tick_dash_cooldown, tick_phase_through,
+};
+use crate::combat::{
+    aim_weapon, toggle_weapon, sync_range_indicator, update_weapon_visual,
+    player_attack, handle_block, apply_player_delayed_hits, update_player_attack_state,
+};
+
+pub struct PlayerPlugin;
+
+impl Plugin for PlayerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            (
+                move_player,
+                handle_dash_input,
+                apply_dash,
+                tick_dash_cooldown,
+                tick_phase_through,
+                apply_knockback,
+                animate_player_death,
+                toggle_weapon,
+                aim_weapon,
+                animate_weapon_swing,
+                sync_range_indicator,
+                update_weapon_visual,
+            )
+                .run_if(in_state(GameState::Playing)),
+        )
+        .add_systems(
+            Update,
+            (player_attack, handle_block)
+                .run_if(in_state(GameState::Playing))
+                .run_if(cursor_not_over_ui),
+        )
+        .add_systems(
+            Update,
+            (apply_player_delayed_hits, update_player_attack_state)
+                .run_if(in_state(GameState::Playing)),
+        );
+    }
+}

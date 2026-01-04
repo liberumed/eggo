@@ -1,5 +1,2 @@
-mod hit_detection;
-mod mesh;
-
-pub use hit_detection::*;
-pub use mesh::create_weapon_arc;
+// Re-export from combat for backwards compatibility
+pub use crate::combat::create_weapon_arc;

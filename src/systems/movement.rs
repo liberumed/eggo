@@ -2,7 +2,8 @@ use bevy::prelude::*;
 
 use crate::components::*;
 use crate::constants::*;
-use crate::resources::{GameAction, Hitstop, InputBindings};
+use crate::resources::{GameAction, InputBindings};
+use crate::effects::Hitstop;
 
 pub fn move_player(
     mut commands: Commands,

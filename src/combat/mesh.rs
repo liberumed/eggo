@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 
-use crate::components::Weapon;
+use super::weapons::Weapon;
 
 const ARC_THICKNESS: f32 = 0.4;
 const ARC_SEGMENTS: u32 = 16;

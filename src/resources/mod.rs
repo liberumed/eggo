@@ -1,13 +1,8 @@
-mod debug;
-mod game_feel;
-mod input;
-mod sprites;
-mod state;
-mod stats;
+// Re-export from core for backwards compatibility
+pub use crate::core::{GameAction, InputBindings};
+pub use crate::core::{GameState, WorldConfig, NewGameRequested};
 
-pub use debug::*;
-pub use game_feel::*;
-pub use input::*;
-pub use sprites::*;
-pub use state::*;
-pub use stats::*;
+// Re-export from player for backwards compatibility
+pub use crate::player::{
+    PlayerSpriteSheet, load_player_sprite_sheet, Stats,
+};

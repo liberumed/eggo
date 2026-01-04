@@ -1,12 +1,7 @@
 use bevy::prelude::*;
 
-use super::collisions::{StaticCollider, WalkCollider};
+use super::collisions::{StaticCollider, WalkCollider, YSorted};
 use super::components::Dead;
-
-#[derive(Component)]
-pub struct YSorted {
-    pub base_offset: f32,
-}
 
 const Y_MIN: f32 = -600.0;
 const Y_MAX: f32 = 600.0;

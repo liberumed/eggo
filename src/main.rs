@@ -1,31 +1,30 @@
+mod combat;
 mod components;
 mod constants;
+mod core;
+mod creatures;
 mod data;
+mod debug;
+mod effects;
+mod player;
 mod plugins;
+mod props;
 mod resources;
 mod spawners;
 mod systems;
 mod utils;
 
-// New domain-based modules (Phase 1 of migration)
-mod core;
-mod combat;
-mod creatures;
-mod debug;
-mod effects;
-mod inventory;
-mod player;
-mod props;
-mod ui;
-
 use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use components::*;
 use constants::*;
 use plugins::*;
-use resources::{DebugConfig, GameState, Hitstop, InputBindings, NewGameRequested, PlayerSpriteSheet, ScreenShake, Stats, WorldConfig, load_player_sprite_sheet};
+use debug::DebugConfig;
+use effects::{Hitstop, ScreenShake, BloodParticle, TargetOutline};
+use resources::{GameState, InputBindings, NewGameRequested, PlayerSpriteSheet, Stats, WorldConfig, load_player_sprite_sheet};
 use data::{CrateSprites, Prop, PropRegistry, build_prop_registry, load_crate_sprites};
 use spawners::CharacterAssets;
-use systems::{animate_sprites, auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_debug_circles, spawn_key_bindings_panel, spawn_weapon_debug_cones, toggle_collision_debug, toggle_pause_menu, update_creature_debug_circles, update_debug_visibility, update_player_debug_cone, update_player_sprite_animation};
+use systems::{animate_sprites, auto_start_new_game, hide_pause_menu, show_pause_menu, spawn_key_bindings_panel, toggle_pause_menu, update_player_sprite_animation};
+use debug::{spawn_debug_circles, spawn_weapon_debug_cones, toggle_collision_debug, update_creature_debug_circles, update_debug_visibility, update_player_debug_cone};
 use components::build_item_registry;
 
 fn main() {

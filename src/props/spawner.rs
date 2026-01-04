@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 use rand::Rng;
 
+use crate::components::{StaticCollider, YSorted};
+use crate::constants::{COLLISION_RADIUS, GRID_SPACING, WORLD_SIZE, Z_SHADOW_OFFSET};
 use super::components::{CrateSprite, Destructible, Prop};
 use super::data::{CrateSprites, PropDefinition, PropRegistry, PropType};
-use crate::constants::{COLLISION_RADIUS, GRID_SPACING, WORLD_SIZE, Z_SHADOW_OFFSET};
-use crate::core::{StaticCollider, YSorted};
 
 /// Spawns a prop from a definition (from registry)
 pub fn spawn_prop(

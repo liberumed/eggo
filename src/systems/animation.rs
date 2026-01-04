@@ -2,12 +2,13 @@ use bevy::prelude::*;
 
 use crate::components::*;
 use crate::constants::*;
+use crate::effects::{Hitstop, MagnetizedBall, ResourceBall};
 use crate::resources::{PlayerSpriteSheet, Stats};
 use crate::spawners::CharacterAssets;
 
 pub fn animate_creatures(
     time: Res<Time>,
-    hitstop: Res<crate::resources::Hitstop>,
+    hitstop: Res<Hitstop>,
     mut query: Query<(&mut Transform, &CreatureAnimation), (With<Creature>, Without<Dead>)>,
 ) {
     // Freeze during hitstop (anime-style impact pause)
@@ -40,7 +41,7 @@ pub fn animate_creatures(
 pub fn animate_weapon_swing(
     mut commands: Commands,
     time: Res<Time>,
-    hitstop: Res<crate::resources::Hitstop>,
+    hitstop: Res<Hitstop>,
     mut query: Query<(Entity, &mut Transform, &mut WeaponSwing)>,
 ) {
     // Freeze animation during hitstop (anime-style impact pause)

@@ -116,6 +116,7 @@ pub fn load_player_sprite_sheet(
 ) -> PlayerSpriteSheet {
     let mut animations = HashMap::new();
 
+    // Load idle animation
     animations.insert("idle".to_string(), load_animation(
         "idle",
         "sprites/player/player_idle.png",
@@ -125,6 +126,7 @@ pub fn load_player_sprite_sheet(
         true,
     ));
 
+    // Load walk animation
     animations.insert("walk".to_string(), load_animation(
         "walk",
         "sprites/player/player_walk.png",
@@ -134,6 +136,7 @@ pub fn load_player_sprite_sheet(
         true,
     ));
 
+    // Load walk_up animation
     animations.insert("walk_up".to_string(), load_animation(
         "walk_up",
         "sprites/player/player_walk_up.png",
@@ -143,6 +146,7 @@ pub fn load_player_sprite_sheet(
         true,
     ));
 
+    // Load walk_down animation
     animations.insert("walk_down".to_string(), load_animation(
         "walk_down",
         "sprites/player/player_walk_down.png",
@@ -152,6 +156,7 @@ pub fn load_player_sprite_sheet(
         true,
     ));
 
+    // Load attack animation (non-looping)
     animations.insert("attack".to_string(), load_animation(
         "attack",
         "sprites/player/player_attack.png",
@@ -161,6 +166,7 @@ pub fn load_player_sprite_sheet(
         false,
     ));
 
+    // Load idle with stick animation
     animations.insert("idle_stick".to_string(), load_animation(
         "idle_stick",
         "sprites/player/player_idle_stick.png",

@@ -3,10 +3,13 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::*;
-use crate::data::{CrateSprite, Destructible, Prop, PropRegistry, PropType};
-use crate::resources::{GameAction, Hitstop, InputBindings, ScreenShake};
+use crate::core::ellipse_push;
+use crate::props::{CrateSprite, Destructible, Prop, PropRegistry, PropType};
+use crate::resources::{GameAction, InputBindings};
+use crate::effects::{BloodParticle, HitHighlight, Hitstop, ScreenShake, TargetOutline};
 use crate::spawners::{CharacterAssets, spawn_creature_range_indicator};
-use crate::utils::{HitCone, angle_to_direction, create_weapon_arc};
+use super::hit_detection::{HitCone, angle_to_direction};
+use super::mesh::create_weapon_arc;
 
 pub fn toggle_weapon(
     mut commands: Commands,

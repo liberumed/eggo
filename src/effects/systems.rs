@@ -1,10 +1,8 @@
 use bevy::prelude::*;
 
+use crate::components::*;
 use super::components::*;
 use super::game_feel::{Hitstop, ScreenShake};
-use crate::core::{Dead, DespawnTimer};
-// Note: These imports will be updated as modules are reorganized
-use crate::components::{Player, PlayerAnimation, Sprinting};
 
 pub fn animate_blood(
     mut commands: Commands,

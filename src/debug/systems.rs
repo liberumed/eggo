@@ -1,13 +1,40 @@
 use bevy::prelude::*;
 
-use super::components::*;
-use super::config::DebugConfig;
-use crate::core::{Dead, HitCollider, StaticCollider, WalkCollider};
+use crate::components::{Creature, Dead, Fist, HitCollider, Player, PlayerAttackState, PlayerWeapon, StaticCollider, WalkCollider, Weapon, WeaponSwing};
 use crate::constants::WEAPON_OFFSET;
-// Note: These imports will be updated as modules are reorganized
-use crate::components::{Creature, Fist, Player, PlayerAttackState, PlayerWeapon, WeaponSwing};
-use crate::components::Weapon;
 use crate::data::{Prop, PropRegistry};
+use super::config::DebugConfig;
+
+/// Marker for debug collision circle (walk collision)
+#[derive(Component)]
+pub struct CollisionDebugCircle;
+
+/// Marker for debug hit collision circle (hurtbox)
+#[derive(Component)]
+pub struct HitDebugCircle;
+
+/// Marker for debug weapon reach cone
+#[derive(Component)]
+pub struct WeaponReachCone;
+
+/// Marker for entities that have debug circles spawned
+#[derive(Component)]
+pub struct HasDebugCircle;
+
+/// Marker for weapons that have debug cone spawned
+#[derive(Component)]
+pub struct HasDebugCone;
+
+/// Stores current weapon stats for the debug cone (to detect changes)
+#[derive(Component)]
+pub struct WeaponConeStats {
+    pub range: f32,
+    pub half_angle: f32,
+}
+
+/// Links a debug circle to its owner creature
+#[derive(Component)]
+pub struct CreatureDebugCircle(pub Entity);
 
 /// Toggle collision debug visibility with F3
 pub fn toggle_collision_debug(

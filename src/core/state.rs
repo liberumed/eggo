@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 
-// Note: ItemId import will be updated after inventory module is created
 use crate::components::ItemId;
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]

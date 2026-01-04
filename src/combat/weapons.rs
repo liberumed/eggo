@@ -4,12 +4,47 @@ use bevy::prelude::*;
 
 use crate::core::{Knockback, Stunned};
 
-/// Visual assets for weapon rendering
+#[derive(Component)]
+pub struct Knife;
+
+#[derive(Component)]
+pub struct Stick;
+
+#[derive(Component)]
+pub struct Fist;
+
+/// Visual assets for weapon rendering - stores actual asset handles
 #[derive(Clone)]
 pub struct WeaponVisual {
     pub mesh: Handle<Mesh>,
     pub material: Handle<ColorMaterial>,
     pub offset: f32,
+}
+
+/// Marker for weapon visual mesh children - used to find and despawn when swapping
+#[derive(Component)]
+pub struct WeaponVisualMesh;
+
+/// Marker for weapon range indicator (arc at attack range)
+#[derive(Component)]
+pub struct WeaponRangeIndicator;
+
+/// Marker for player's range indicator (to distinguish from creature indicators)
+#[derive(Component)]
+pub struct PlayerRangeIndicator;
+
+/// Links a creature's range indicator to its owner (for independent entity approach)
+#[derive(Component)]
+pub struct CreatureRangeIndicator(pub Entity);
+
+#[derive(Component)]
+pub struct WeaponSwing {
+    pub timer: f32,
+    pub duration: f32,
+    pub base_angle: Option<f32>,
+    pub attack_type: AttackType,
+    pub hit_delay: f32,      // Time before hit connects (wind-up)
+    pub hit_applied: bool,   // Track if damage was already applied
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -19,6 +54,7 @@ pub enum AttackType {
     Stab,
     Smash,
 }
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DamageType {
@@ -44,6 +80,7 @@ pub enum OnHitEffect {
 }
 
 impl OnHitEffect {
+    /// Apply this effect to an entity
     pub fn apply(&self, commands: &mut Commands, entity: Entity, direction: Vec2) {
         match self {
             OnHitEffect::Stun { duration } => {
@@ -59,21 +96,33 @@ impl OnHitEffect {
     }
 }
 
-/// Weapon stats - tier values (1-5) that scale to gameplay values via methods
+/// Weapon stats use tier values (1-5) that scale to gameplay values via methods.
 #[derive(Component, Clone)]
 pub struct Weapon {
     pub name: String,
+    /// Visual appearance of the weapon
     pub visual: WeaponVisual,
+    /// Direct damage value per hit
     pub damage: i32,
+    /// Attack speed tier: 1=slow, 5=fast → attack_speed() = 1.0 + speed * 0.5
     pub speed: i32,
+    /// Range tier: 1=short, 5=long → range() = 20 + reach * 10
     pub reach: i32,
+    /// Attack cone tier: 1=narrow, 5=wide → cone_angle() = 0.35 + arc * 0.25 rad
     pub arc: i32,
+    /// Slash=wide arc, Stab=narrow/fast, Smash=slow/heavy
     pub attack_type: AttackType,
+    /// Physical, Fire, Ice, etc. (for future resistances)
     pub damage_type: DamageType,
+    /// Common to Legendary (affects loot/visuals)
     pub rarity: Rarity,
+    /// Buy/sell value
     pub cost: u32,
+    /// Block damage reduction tier: 1=weak, 5=strong → block_damage_reduction() = 0.1 + block * 0.15
     pub block: i32,
+    /// Block knockback reduction tier: 1=weak, 5=strong → block_knockback_reduction() = 0.2 + block_kb * 0.15
     pub block_kb: i32,
+    /// Effects applied when this weapon hits a target
     pub on_hit: Vec<OnHitEffect>,
 }
 
@@ -102,12 +151,14 @@ impl Weapon {
         0.2 + self.block_kb as f32 * 0.15
     }
 
+    /// Apply all on-hit effects to a target entity
     pub fn apply_on_hit(&self, commands: &mut Commands, entity: Entity, direction: Vec2) {
         for effect in &self.on_hit {
             effect.apply(commands, entity, direction);
         }
     }
 
+    /// Get the knockback force from on_hit effects (for blocking calculations)
     pub fn knockback_force(&self) -> f32 {
         self.on_hit
             .iter()
@@ -144,6 +195,7 @@ pub mod weapon_catalog {
             block: 1,
             block_kb: 1,
             on_hit: vec![
+                //OnHitEffect::Stun { duration: 0.7 },
                 OnHitEffect::Knockback { force: 330.0 },
             ],
         }
@@ -210,6 +262,7 @@ pub mod weapon_catalog {
     }
 }
 
+
 #[derive(Component, Default)]
 pub struct Equipment {
     pub main_hand: Option<Entity>,
@@ -227,4 +280,8 @@ pub enum EquipmentSlot {
     Chest,
 }
 
-// Note: EquippedWeaponId is in inventory/components.rs to avoid circular dependency
+#[derive(Component)]
+pub struct Drawn;
+
+#[derive(Component)]
+pub struct PlayerWeapon;

@@ -222,7 +222,7 @@ pub fn build_prop_registry(
         prop_type: PropType::Crate,
         collision_radius_x: 5.0,
         collision_radius_y: 3.0,
-        collision_offset_x: 2.0,   // Compensate for off-center sprite (1px * 2x scale)
+        collision_offset_x: 1.0,   // Compensate for off-center sprite (1px * 2x scale)
         collision_offset_y: -5.0,  // Match shadow (ground footprint)
         base_offset: -9.0,
         visual_offset_y: 0.0,

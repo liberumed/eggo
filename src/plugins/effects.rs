@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::systems::{
+use crate::effects::{
     animate_blood, animate_dust, animate_hit_highlight, animate_magnetized_balls,
     animate_resource_balls, animate_sprite_hit_highlight, spawn_sprint_dust, tick_hitstop,
     tick_screen_shake,

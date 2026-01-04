@@ -3,6 +3,7 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::*;
+use crate::effects::{ResourceBall, TargetOutline};
 use crate::resources::PlayerSpriteSheet;
 use crate::utils::create_weapon_arc;
 

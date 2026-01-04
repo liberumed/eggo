@@ -28,7 +28,7 @@ pub struct Sprinting {
     pub duration: f32,
 }
 
-/// Brief phase-through after dash
+/// Brief phase-through after dash (prevents getting stuck in creatures)
 #[derive(Component)]
 pub struct PhaseThrough {
     pub timer: f32,
@@ -37,7 +37,7 @@ pub struct PhaseThrough {
 /// Active attack state for sprite-based attacks (Smash weapons)
 #[derive(Component)]
 pub struct PlayerAttackState {
-    pub facing_right: bool,
+    pub facing_right: bool,  // Locked at attack start
     pub timer: f32,
     pub duration: f32,
     pub hit_applied: bool,

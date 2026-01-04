@@ -71,3 +71,8 @@ pub fn ellipse_push(
         push_dir.y * overlap * combined.y,
     )
 }
+
+#[derive(Component)]
+pub struct YSorted {
+    pub base_offset: f32,
+}

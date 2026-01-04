@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 
-// Note: These imports will be updated as modules are reorganized
 use crate::components::Player;
-use crate::resources::ScreenShake;
+use crate::effects::ScreenShake;
 
 pub fn camera_follow(
     player_query: Query<&Transform, With<Player>>,

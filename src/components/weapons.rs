@@ -193,7 +193,7 @@ pub mod weapon_catalog {
             damage: 1,
             speed: 1,
             reach: 3,
-            arc: 3,
+            arc: 2,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
@@ -202,7 +202,7 @@ pub mod weapon_catalog {
             block_kb: 1,
             on_hit: vec![
                 //OnHitEffect::Stun { duration: 0.7 },
-                OnHitEffect::Knockback { force: 130.0 },
+                OnHitEffect::Knockback { force: 330.0 },
             ],
         }
     }
@@ -225,7 +225,7 @@ pub mod weapon_catalog {
             damage: 2,
             speed: 4,
             reach: 2,
-            arc: 2,
+            arc: 1,
             attack_type: AttackType::Slash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
@@ -233,8 +233,8 @@ pub mod weapon_catalog {
             block: 2,
             block_kb: 3,
             on_hit: vec![
-                OnHitEffect::Stun { duration: 0.45 },
-                OnHitEffect::Knockback { force: 20.0 },
+                OnHitEffect::Stun { duration: 0.65 },
+                OnHitEffect::Knockback { force: 70.0 },
             ],
         }
     }
@@ -253,7 +253,7 @@ pub mod weapon_catalog {
             damage: 1,
             speed: 2,
             reach: 1,
-            arc: 2,
+            arc: 1,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Common,
@@ -261,8 +261,8 @@ pub mod weapon_catalog {
             block: 1,
             block_kb: 1,
             on_hit: vec![
-                OnHitEffect::Stun { duration: 0.15 },
-                OnHitEffect::Knockback { force: 10.0 },
+                OnHitEffect::Stun { duration: 0.30 },
+                OnHitEffect::Knockback { force: 100.0 },
             ],
         }
     }

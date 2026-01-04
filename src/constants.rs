@@ -42,7 +42,7 @@ pub const SPRINT_MOMENTUM_FRICTION: f32 = 300.0; // Lower friction when slowing 
 
 // Game Feel
 pub const HITSTOP_DURATION: f32 = 0.15;       // 150ms freeze on hit (anime-style impact)
-pub const SCREEN_SHAKE_INTENSITY: f32 = 3.0;  // Pixels
+pub const SCREEN_SHAKE_INTENSITY: f32 = 5.0;  // Pixels
 pub const SCREEN_SHAKE_DURATION: f32 = 0.15;
 pub const ATTACK_HIT_DELAY_PERCENT: f32 = 0.5;  // Hit at 50% into swing animation
 pub const HIT_HIGHLIGHT_DURATION: f32 = 0.15;   // Red flash duration

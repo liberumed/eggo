@@ -4,7 +4,7 @@ use bevy::mesh::{Indices, PrimitiveTopology};
 
 use crate::components::Weapon;
 
-const ARC_THICKNESS: f32 = 0.8;
+const ARC_THICKNESS: f32 = 0.4;
 const ARC_SEGMENTS: u32 = 16;
 
 /// Create arc mesh for a weapon's range indicator

@@ -663,41 +663,21 @@ pub fn hostile_fist_aim(
     }
 }
 
-/// Requests transition to Attack state when creature is in range
+/// Requests transition to Attack state when creature detects player in range.
+/// Reads PlayerInRange events emitted by detect_player_proximity system.
 pub fn hostile_attack(
     mut transitions: MessageWriter<crate::state_machine::RequestTransition<crate::creatures::CreatureState>>,
-    player_query: Query<(&Transform, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    hostile_query: Query<(Entity, &Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
-    fist_query: Query<&Weapon, With<Fist>>,
+    mut player_in_range: MessageReader<crate::creatures::PlayerInRange>,
 ) {
     use crate::state_machine::{AttackPhase, RequestTransition};
     use crate::creatures::CreatureState;
 
-    let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
-    let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
-    let player_hit_radius = player_hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
-
-    for (entity, creature_transform, state_machine, children) in &hostile_query {
-        // Only attack from Chase state
-        if *state_machine.current() != CreatureState::Chase {
-            continue;
-        }
-
-        let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
-        let distance = player_pos.distance(creature_pos);
-
-        for child in children.iter() {
-            if let Ok(weapon) = fist_query.get(child) {
-                if distance < weapon.range() + player_hit_radius {
-                    // Request transition to Attack state
-                    transitions.write(RequestTransition::new(
-                        entity,
-                        CreatureState::Attack(AttackPhase::WindUp),
-                    ));
-                    break;
-                }
-            }
-        }
+    for event in player_in_range.read() {
+        // Request transition to Attack state
+        transitions.write(RequestTransition::new(
+            event.creature,
+            CreatureState::Attack(AttackPhase::WindUp),
+        ));
     }
 }
 

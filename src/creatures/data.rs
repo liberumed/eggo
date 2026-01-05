@@ -21,6 +21,55 @@ pub struct Hostile {
 #[derive(Component)]
 pub struct Glowing;
 
+/// Marker for creatures that became hostile after being hit (angry, direct pursuit)
+/// Creatures without this use flanking behavior
+#[derive(Component)]
+pub struct Provoked;
+
+/// Steering behavior strategy
+#[derive(Clone, Copy, Default, Debug)]
+pub enum SteeringStrategy {
+    #[default]
+    Direct,   // seek_interest - straight toward player
+    Flanking, // seek_with_flank - approach from angles
+}
+
+/// Configuration for creature steering AI behavior
+#[derive(Clone, Debug)]
+pub struct SteeringConfig {
+    pub strategy: SteeringStrategy,
+    pub sight_range: f32,           // How far can see player
+    pub obstacle_look_ahead: f32,   // Obstacle avoidance distance
+    pub separation_radius: f32,     // Distance from other creatures
+    pub min_player_distance: f32,   // Don't get closer than this
+    pub flank_angle_min: f32,       // Min flank angle (radians)
+    pub flank_angle_max: f32,       // Max flank angle (radians)
+    pub occupied_angle_spread: f32, // Angle spread for occupied_angle_danger
+}
+
+impl Default for SteeringConfig {
+    fn default() -> Self {
+        Self {
+            strategy: SteeringStrategy::Direct,
+            sight_range: 200.0,
+            obstacle_look_ahead: 50.0,
+            separation_radius: 35.0,
+            min_player_distance: 25.0,
+            flank_angle_min: 0.5,       // ~30°
+            flank_angle_max: 1.0,       // ~60°
+            occupied_angle_spread: 0.6, // ~35°
+        }
+    }
+}
+
+/// Active steering configuration for a creature
+#[derive(Component, Clone, Debug)]
+pub struct CreatureSteering(pub SteeringConfig);
+
+/// Stored steering config to use when creature becomes provoked
+#[derive(Component, Clone, Debug)]
+pub struct ProvokedSteering(pub SteeringConfig);
+
 /// Identifier for creature types (for future creature variety)
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -65,6 +114,9 @@ pub struct CreatureDefinition {
     pub hit_collider: ColliderDef,
     pub base_offset: f32,
     pub scale: f32,
+    // AI behavior
+    pub steering: SteeringConfig,
+    pub provoked_steering: SteeringConfig,
 }
 
 pub mod creature_catalog {
@@ -87,6 +139,13 @@ pub mod creature_catalog {
             hit_collider: ColliderDef::new(10.0, 14.0, 0.0),
             base_offset: -14.0,
             scale: 1.0,
+            // Neutral blobs don't have steering (not hostile by default)
+            steering: SteeringConfig::default(),
+            provoked_steering: SteeringConfig {
+                strategy: SteeringStrategy::Direct,
+                sight_range: 300.0, // Longer range when angry
+                ..Default::default()
+            },
         }
     }
 
@@ -107,6 +166,16 @@ pub mod creature_catalog {
             hit_collider: ColliderDef::new(10.0, 14.0, 0.0),
             base_offset: -14.0,
             scale: 1.0,
+            // Hostile blobs use flanking behavior
+            steering: SteeringConfig {
+                strategy: SteeringStrategy::Flanking,
+                sight_range: 200.0,
+                flank_angle_min: 0.5,
+                flank_angle_max: 1.0,
+                ..Default::default()
+            },
+            // Not used (always hostile from start)
+            provoked_steering: SteeringConfig::default(),
         }
     }
 }

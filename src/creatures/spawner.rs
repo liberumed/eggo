@@ -6,7 +6,7 @@ use crate::constants::*;
 use crate::core::{CharacterAssets, Health, HitCollider, Loot, Shadow, WalkCollider, YSorted};
 use crate::effects::ResourceBall;
 use crate::ui::{HeartSprite, HpText};
-use super::{Creature, CreatureAnimation, CreatureDefinition, Glowing, Hostile, creature_catalog};
+use super::{Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, Glowing, Hostile, ProvokedSteering, creature_catalog};
 
 /// Spawn a creature's range indicator as an independent entity
 /// This ensures consistent behavior - indicator follows creature but isn't affected by animations
@@ -147,6 +147,12 @@ fn spawn_creature(
         Mesh2d(assets.character_mesh.clone()),
         MeshMaterial2d(material),
         Transform::from_xyz(x, y, 0.0).with_scale(Vec3::splat(definition.scale)),
+    ));
+
+    // Always insert steering configs (used when creature becomes hostile)
+    entity_commands.insert((
+        CreatureSteering(definition.steering.clone()),
+        ProvokedSteering(definition.provoked_steering.clone()),
     ));
 
     if is_hostile {

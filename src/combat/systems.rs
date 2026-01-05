@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::constants::*;
 use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, Health, HitCollider, InputBindings, Knockback, StaticCollider, Stunned};
-use crate::creatures::{ContextMapCache, Creature, Hostile};
+use crate::creatures::{ContextMapCache, Creature, FlankPreference, Hostile};
 use crate::player::{Dashing, Player, PlayerAttackState};
 use crate::props::{CrateSprite, Destructible, Prop, PropRegistry, PropType};
 use super::{weapon_catalog, AttackType, CreatureRangeIndicator, Drawn, Fist, PlayerRangeIndicator, PlayerWeapon, Weapon, WeaponRangeIndicator, WeaponSwing, WeaponVisualMesh};
@@ -146,9 +146,10 @@ pub fn apply_player_delayed_hits(
     mut materials: ResMut<Assets<ColorMaterial>>,
     player_query: Query<(Entity, &Transform), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     mut weapon_query: Query<(&Transform, &Weapon, &mut WeaponSwing), With<PlayerWeapon>>,
-    mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>, Option<&crate::creatures::ProvokedSteering>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     assets: Res<CharacterAssets>,
 ) {
+    use crate::creatures::CreatureSteering;
     let Ok((weapon_transform, weapon, mut swing)) = weapon_query.single_mut() else { return };
 
     // Check if we've reached hit_delay and haven't applied hit yet
@@ -181,7 +182,7 @@ pub fn apply_player_delayed_hits(
     let mut rng = rand::rng();
     let mut hit_any = false;
 
-    for (entity, creature_transform, mut health, hostile, hit_collider) in &mut creatures_query {
+    for (entity, creature_transform, mut health, hostile, hit_collider, provoked_steering) in &mut creatures_query {
         let creature_pos = creature_transform.translation.truncate();
         let hit_radius = hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
 
@@ -237,8 +238,13 @@ pub fn apply_player_delayed_hits(
                     stage: 0,
                 });
             } else if hostile.is_none() {
-                // Make non-hostile creature become hostile when hit
-                commands.entity(entity).insert(Hostile { speed: PROVOKED_SPEED });
+                // Make non-hostile creature become hostile when hit (provoked = direct pursuit)
+                commands.entity(entity).insert((Hostile { speed: PROVOKED_SPEED }, crate::creatures::Provoked));
+
+                // Swap steering config to provoked behavior
+                if let Some(provoked_config) = provoked_steering {
+                    commands.entity(entity).insert(CreatureSteering(provoked_config.0.clone()));
+                }
 
                 // Spawn a fist for the newly hostile creature
                 let fist_weapon = weapon_catalog::fist(&mut meshes, &mut materials);
@@ -294,12 +300,13 @@ pub fn update_player_attack_state(
     prop_registry: Res<PropRegistry>,
     mut player_query: Query<(Entity, &Transform, &mut PlayerAttackState), With<Player>>,
     weapon_query: Query<(Entity, &Weapon), With<PlayerWeapon>>,
-    mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>, Option<&crate::creatures::ProvokedSteering>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     mut props_query: Query<(Entity, &Transform, &Prop, &mut Destructible, Option<&mut CrateSprite>, Option<&mut Sprite>), Without<Creature>>,
     assets: Res<CharacterAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    use crate::creatures::CreatureSteering;
     let Ok((player_entity, player_transform, mut attack_state)) = player_query.single_mut() else { return };
 
     // Freeze during hitstop
@@ -330,7 +337,7 @@ pub fn update_player_attack_state(
         let mut rng = rand::rng();
         let mut hit_any = false;
 
-        for (entity, creature_transform, mut health, hostile, hit_collider) in &mut creatures_query {
+        for (entity, creature_transform, mut health, hostile, hit_collider, provoked_steering) in &mut creatures_query {
             let creature_pos = creature_transform.translation.truncate();
             let hit_radius = hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
 
@@ -386,8 +393,13 @@ pub fn update_player_attack_state(
                         stage: 0,
                     });
                 } else if hostile.is_none() {
-                    // Make non-hostile creature become hostile when hit
-                    commands.entity(entity).insert(Hostile { speed: PROVOKED_SPEED });
+                    // Make non-hostile creature become hostile when hit (provoked = direct pursuit)
+                    commands.entity(entity).insert((Hostile { speed: PROVOKED_SPEED }, crate::creatures::Provoked));
+
+                    // Swap steering config to provoked behavior
+                    if let Some(provoked_config) = provoked_steering {
+                        commands.entity(entity).insert(CreatureSteering(provoked_config.0.clone()));
+                    }
 
                     // Spawn a fist for the newly hostile creature
                     let fist_weapon = weapon_catalog::fist(&mut meshes, &mut materials);
@@ -528,10 +540,11 @@ pub fn hostile_ai(
     collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
     mut creature_queries: ParamSet<(
         Query<(Entity, &Transform), (With<Creature>, Without<Dead>, Without<StaticCollider>)>,
-        Query<(Entity, &mut Transform, &Hostile, Option<&mut ContextMapCache>), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
+        Query<(Entity, &mut Transform, &Hostile, &crate::creatures::CreatureSteering, Option<&mut ContextMapCache>, Option<&FlankPreference>), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
     )>,
 ) {
-    use crate::creatures::{ContextMap, ContextMapCache, seek_interest, obstacle_danger, separation_danger, player_proximity_danger};
+    use crate::creatures::{ContextMap, ContextMapCache, FlankPreference, SteeringStrategy, seek_interest, seek_with_flank, obstacle_danger, separation_danger, player_proximity_danger, occupied_angle_danger};
+    use rand::Rng;
 
     let Ok(player_transform) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
@@ -549,31 +562,51 @@ pub fn hostile_ai(
         .map(|(t, c)| (Vec2::new(t.translation.x, t.translation.y + c.offset_y), Vec2::new(c.radius_x, c.radius_y)))
         .collect();
 
-    let player_min_dist = PLAYER_MIN_DISTANCE;
-
-    for (entity, mut transform, hostile, context_cache) in creature_queries.p1().iter_mut() {
+    for (entity, mut transform, hostile, steering, context_cache, flank_pref) in creature_queries.p1().iter_mut() {
+        let config = &steering.0;
         let creature_pos = transform.translation.truncate();
         let distance = player_pos.distance(creature_pos);
 
-        if distance < HOSTILE_SIGHT_RANGE && distance > player_min_dist {
+        if distance < config.sight_range && distance > config.min_player_distance {
             // Build context map
             let mut context = ContextMap::new();
 
-            // Interest: seek player
-            seek_interest(&mut context, creature_pos, player_pos);
+            // Interest: use strategy from config
+            match config.strategy {
+                SteeringStrategy::Direct => {
+                    seek_interest(&mut context, creature_pos, player_pos);
+                }
+                SteeringStrategy::Flanking => {
+                    let flank_angle = if let Some(pref) = flank_pref {
+                        pref.0
+                    } else {
+                        // Assign flank angle from config range
+                        let mut rng = rand::rng();
+                        let sign = if rng.random_bool(0.5) { 1.0 } else { -1.0 };
+                        let magnitude = rng.random_range(config.flank_angle_min..config.flank_angle_max);
+                        let angle = sign * magnitude;
+                        commands.entity(entity).insert(FlankPreference(angle));
+                        angle
+                    };
+                    seek_with_flank(&mut context, creature_pos, player_pos, flank_angle);
+                }
+            }
 
             // Danger: avoid obstacles
-            obstacle_danger(&mut context, creature_pos, &collider_data, OBSTACLE_LOOK_AHEAD);
+            obstacle_danger(&mut context, creature_pos, &collider_data, config.obstacle_look_ahead);
 
             // Danger: separation from other creatures
             let others: Vec<Vec2> = creature_positions.iter()
                 .filter(|(e, _)| *e != entity)
                 .map(|(_, p)| *p)
                 .collect();
-            separation_danger(&mut context, creature_pos, &others, SEPARATION_RADIUS);
+            separation_danger(&mut context, creature_pos, &others, config.separation_radius);
+
+            // Danger: avoid approaching from same angle as other creatures (forces spreading)
+            occupied_angle_danger(&mut context, creature_pos, player_pos, &others, config.occupied_angle_spread);
 
             // Danger: don't get too close to player
-            player_proximity_danger(&mut context, creature_pos, player_pos, player_min_dist);
+            player_proximity_danger(&mut context, creature_pos, player_pos, config.min_player_distance);
 
             // Resolve and move
             let (direction, strength) = context.resolve();

@@ -64,11 +64,17 @@ impl ContextMap {
 #[derive(Component, Clone, Debug, Default)]
 pub struct ContextMapCache(pub ContextMap);
 
+/// Stores creature's preferred flank angle (radians)
+/// Positive = approach from left, Negative = approach from right
+#[derive(Component, Clone, Debug)]
+pub struct FlankPreference(pub f32);
+
 // ============================================================================
 // Behaviors - Functions that fill the context maps
 // ============================================================================
 
 /// Add interest toward a target position (e.g., seeking the player)
+#[allow(dead_code)]
 pub fn seek_interest(map: &mut ContextMap, from_pos: Vec2, target_pos: Vec2) {
     let to_target = (target_pos - from_pos).normalize_or_zero();
     if to_target == Vec2::ZERO {
@@ -130,6 +136,84 @@ pub fn separation_danger(
                 let alignment = dir.dot(dir_to_other).max(0.0);
                 let danger = alignment * proximity;
                 map.danger[i] = map.danger[i].max(danger);
+            }
+        }
+    }
+}
+
+/// Add interest toward a rotated direction (for flanking)
+/// flank_angle: rotation in radians (positive = counter-clockwise)
+/// This causes creatures to approach from an angle rather than directly
+pub fn seek_with_flank(
+    map: &mut ContextMap,
+    creature_pos: Vec2,
+    player_pos: Vec2,
+    flank_angle: f32,
+) {
+    let to_player = (player_pos - creature_pos).normalize_or_zero();
+    if to_player == Vec2::ZERO {
+        return;
+    }
+
+    // Rotate the target direction by flank_angle
+    let cos_a = flank_angle.cos();
+    let sin_a = flank_angle.sin();
+    let rotated = Vec2::new(
+        to_player.x * cos_a - to_player.y * sin_a,
+        to_player.x * sin_a + to_player.y * cos_a,
+    );
+
+    for i in 0..NUM_DIRECTIONS {
+        let dir = ContextMap::direction(i);
+        let dot = dir.dot(rotated).max(0.0);
+        map.interest[i] = map.interest[i].max(dot);
+    }
+}
+
+/// Add danger for directions where other creatures are already positioned relative to player
+/// This forces creatures to spread around the player instead of bunching up
+pub fn occupied_angle_danger(
+    map: &mut ContextMap,
+    creature_pos: Vec2,
+    player_pos: Vec2,
+    other_creatures: &[Vec2],
+    angle_spread: f32, // How wide the "occupied" zone is (radians)
+) {
+    let to_player = player_pos - creature_pos;
+    let dist_to_player = to_player.length();
+    if dist_to_player < 1.0 {
+        return;
+    }
+
+    for other_pos in other_creatures {
+        let other_to_player = player_pos - *other_pos;
+        let other_dist = other_to_player.length();
+
+        // Only consider creatures that are closer to the player than us
+        if other_dist >= dist_to_player || other_dist < 1.0 {
+            continue;
+        }
+
+        // Get the angle this other creature occupies relative to player
+        let other_angle = (-other_to_player).y.atan2((-other_to_player).x);
+
+        // Add danger in directions that would put us at the same angle
+        for i in 0..NUM_DIRECTIONS {
+            let dir = ContextMap::direction(i);
+            // Where would we end up if we moved this direction?
+            let approach_angle = (-to_player + dir * 10.0).y.atan2((-to_player + dir * 10.0).x);
+
+            // How close is this to the occupied angle?
+            let angle_diff = (approach_angle - other_angle).abs();
+            let angle_diff = if angle_diff > std::f32::consts::PI {
+                std::f32::consts::TAU - angle_diff
+            } else {
+                angle_diff
+            };
+
+            if angle_diff < angle_spread {
+                let danger = 1.0 - (angle_diff / angle_spread);
+                map.danger[i] = map.danger[i].max(danger * 0.7);
             }
         }
     }

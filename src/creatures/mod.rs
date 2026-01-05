@@ -12,7 +12,7 @@ use bevy::prelude::*;
 
 use crate::core::GameState;
 use crate::combat::{
-    apply_creature_delayed_hits, hostile_ai, hostile_attack,
+    process_creature_attacks, hostile_ai, hostile_attack,
     hostile_fist_aim, sync_creature_range_indicators,
 };
 
@@ -26,7 +26,7 @@ impl Plugin for CreaturePlugin {
                 hostile_ai,
                 hostile_fist_aim,
                 hostile_attack,
-                apply_creature_delayed_hits,
+                process_creature_attacks,
                 apply_collision_push,
                 animate_creatures,
                 animate_death,

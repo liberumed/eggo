@@ -692,107 +692,162 @@ pub fn hostile_attack(
     }
 }
 
-/// Applies creature damage when swing reaches hit_delay
-pub fn apply_creature_delayed_hits(
+/// Check if player successfully blocks an attack from given direction
+/// Returns (damage_mult, knockback_mult, was_blocked)
+fn calculate_block(
+    player_pos: Vec2,
+    attacker_pos: Vec2,
+    is_blocking: bool,
+    player_weapon: Option<(&Weapon, &Transform)>,
+) -> (f32, f32, bool) {
+    if !is_blocking {
+        return (1.0, 1.0, false);
+    }
+
+    let Some((weapon, transform)) = player_weapon else {
+        return (1.0, 1.0, false);
+    };
+
+    // Get facing direction from weapon angle
+    let (_, angle) = transform.rotation.to_axis_angle();
+    let visual_angle = if transform.rotation.z < 0.0 { -angle } else { angle };
+    let facing_dir = angle_to_direction(visual_angle - BLOCK_FACING_OFFSET);
+
+    // Check if facing attacker
+    let to_attacker = attacker_pos - player_pos;
+    let to_attacker_len = to_attacker.length();
+
+    if to_attacker_len > 0.001 && facing_dir.dot(to_attacker) > BLOCK_ANGLE_THRESHOLD * to_attacker_len {
+        let dmg_mult = 1.0 - weapon.block_damage_reduction();
+        let kb_mult = 1.0 - weapon.block_knockback_reduction();
+        (dmg_mult, kb_mult, true)
+    } else {
+        (1.0, 1.0, false)
+    }
+}
+
+/// Apply creature attack effects to player (damage, knockback, visual effects)
+fn apply_attack_to_player(
+    commands: &mut Commands,
+    player_entity: Entity,
+    attacker_entity: Entity,
+    player_pos: Vec2,
+    attacker_pos: Vec2,
+    weapon: &Weapon,
+    damage_mult: f32,
+    knockback_mult: f32,
+    blocked: bool,
+    player_health: &mut Health,
+    hitstop: &mut Hitstop,
+    screen_shake: &mut ScreenShake,
+) {
+    // Apply damage
+    let final_damage = ((weapon.damage as f32) * damage_mult).floor() as i32;
+    player_health.0 -= final_damage.max(0);
+
+    // Knockback player
+    let knockback_dir = (player_pos - attacker_pos).normalize();
+    commands.entity(player_entity).insert(Knockback {
+        velocity: knockback_dir * weapon.knockback_force() * knockback_mult,
+        timer: 0.0,
+    });
+
+    // Knockback attacker if blocked
+    if blocked {
+        commands.entity(attacker_entity).insert(Knockback {
+            velocity: -knockback_dir * BLOCK_KNOCKBACK,
+            timer: 0.0,
+        });
+    }
+
+    // Effects
+    hitstop.trigger(HITSTOP_DURATION);
+    screen_shake.trigger(SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_DURATION);
+
+    commands.entity(player_entity).insert(HitHighlight {
+        timer: 0.0,
+        duration: HIT_HIGHLIGHT_DURATION,
+        original_material: None,
+    });
+}
+
+/// Process creature attacks against player
+/// Only one attack can hit per frame (prevents stun-lock from multiple creatures)
+pub fn process_creature_attacks(
     mut commands: Commands,
     mut hitstop: ResMut<Hitstop>,
     mut screen_shake: ResMut<ScreenShake>,
     mut player_query: Query<(Entity, &Transform, &mut Health, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    hostile_query: Query<(Entity, &Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
-    mut fist_query: Query<(&Weapon, &mut WeaponSwing), With<Fist>>,
+    hostile_query: Query<(Entity, &Transform), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    mut fist_query: Query<(&Weapon, &mut WeaponSwing, &ChildOf), With<Fist>>,
     knockback_query: Query<&Knockback>,
     dashing_query: Query<&Dashing>,
     blocking_query: Query<&Blocking>,
     player_weapon_query: Query<(&Weapon, &Transform), With<PlayerWeapon>>,
 ) {
     let Ok((player_entity, player_transform, mut player_health, player_hit_collider)) = player_query.single_mut() else { return };
-    let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
+    let player_pos = player_transform.translation.truncate();
     let player_hit_radius = player_hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
 
-    // Invincible during dash (i-frames)
-    if dashing_query.get(player_entity).is_ok() {
+    // Player invincible during dash or knockback
+    if dashing_query.get(player_entity).is_ok() || knockback_query.get(player_entity).is_ok() {
         return;
     }
 
-    if knockback_query.get(player_entity).is_ok() {
-        return;
-    }
-
+    // Check blocking state once
     let is_blocking = blocking_query.get(player_entity).is_ok();
+    let player_weapon = player_weapon_query.single().ok();
 
-    for (creature_entity, creature_transform, children) in &hostile_query {
-        let creature_pos = creature_transform.translation.truncate();
-
-        for child in children.iter() {
-            if let Ok((weapon, mut swing)) = fist_query.get_mut(child) {
-                // Check if we've reached hit_delay and haven't applied hit yet
-                if swing.timer < swing.hit_delay || swing.hit_applied {
-                    continue;
-                }
-                swing.hit_applied = true;
-
-                // Cone attack toward player (same as player attacks)
-                let attack_dir = (player_pos - creature_pos).normalize_or_zero();
-                let hit_cone = HitCone::new(creature_pos, attack_dir, weapon.range(), weapon.cone_angle());
-
-                if !hit_cone.hits(player_pos, player_hit_radius) {
-                    continue;
-                }
-
-                // Check if block is effective (facing the attacker)
-                let (damage_mult, kb_mult, blocked) = if is_blocking {
-                    if let Ok((player_weapon, weapon_transform)) = player_weapon_query.single() {
-                        let (_, angle) = weapon_transform.rotation.to_axis_angle();
-                        let visual_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
-                        let facing_angle = visual_angle - 0.4;
-                        let facing_dir = angle_to_direction(facing_angle);
-
-                        // Optimized: avoid normalize by comparing dot > threshold * length
-                        let to_attacker = creature_pos - player_pos;
-                        let to_attacker_len = to_attacker.length();
-                        let block_threshold = 0.5;
-                        if to_attacker_len > 0.001 && facing_dir.dot(to_attacker) > block_threshold * to_attacker_len {
-                            (1.0 - player_weapon.block_damage_reduction(), 1.0 - player_weapon.block_knockback_reduction(), true)
-                        } else {
-                            (1.0, 1.0, false)
-                        }
-                    } else {
-                        (1.0, 1.0, false)
-                    }
-                } else {
-                    (1.0, 1.0, false)
-                };
-
-                let final_damage = ((weapon.damage as f32) * damage_mult).floor() as i32;
-                player_health.0 -= final_damage.max(0);
-
-                let knockback_dir = (player_pos - creature_pos).normalize();
-                commands.entity(player_entity).insert(Knockback {
-                    velocity: knockback_dir * weapon.knockback_force() * kb_mult,
-                    timer: 0.0,
-                });
-
-                // Knock back attacker when blocked
-                if blocked {
-                    commands.entity(creature_entity).insert(Knockback {
-                        velocity: -knockback_dir * BLOCK_KNOCKBACK,
-                        timer: 0.0,
-                    });
-                }
-
-                // Trigger hitstop and screen shake (anime-style impact)
-                hitstop.trigger(HITSTOP_DURATION);
-                screen_shake.trigger(SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_DURATION);
-
-                // Add hit highlight to player (red flash)
-                commands.entity(player_entity).insert(HitHighlight {
-                    timer: 0.0,
-                    duration: HIT_HIGHLIGHT_DURATION,
-                    original_material: None,
-                });
-                return;
-            }
+    // Iterate fists directly (instead of nested children loop)
+    for (weapon, mut swing, child_of) in &mut fist_query {
+        // Skip if not ready to hit
+        if swing.timer < swing.hit_delay || swing.hit_applied {
+            continue;
         }
+
+        // Get attacker (parent creature) position
+        let Ok((attacker_entity, attacker_transform)) = hostile_query.get(child_of.parent()) else {
+            continue;
+        };
+        let attacker_pos = attacker_transform.translation.truncate();
+
+        // Mark hit as applied
+        swing.hit_applied = true;
+
+        // Hit detection: cone attack toward player
+        let attack_dir = (player_pos - attacker_pos).normalize_or_zero();
+        let hit_cone = HitCone::new(attacker_pos, attack_dir, weapon.range(), weapon.cone_angle());
+
+        if !hit_cone.hits(player_pos, player_hit_radius) {
+            continue;
+        }
+
+        // Calculate block result
+        let (damage_mult, knockback_mult, blocked) = calculate_block(
+            player_pos,
+            attacker_pos,
+            is_blocking,
+            player_weapon,
+        );
+
+        // Apply damage and effects
+        apply_attack_to_player(
+            &mut commands,
+            player_entity,
+            attacker_entity,
+            player_pos,
+            attacker_pos,
+            weapon,
+            damage_mult,
+            knockback_mult,
+            blocked,
+            &mut player_health,
+            &mut hitstop,
+            &mut screen_shake,
+        );
+
+        // Only one hit per frame
+        return;
     }
 }
 

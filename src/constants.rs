@@ -54,6 +54,8 @@ pub const PUSH_RADIUS: f32 = COLLISION_RADIUS * 2.2;  // Larger than all collisi
 pub const PUSH_STRENGTH: f32 = 100.0;                  // Push force multiplier
 pub const HOSTILE_SIGHT_RANGE: f32 = 200.0;
 pub const BLOCK_KNOCKBACK: f32 = 120.0;
+pub const BLOCK_FACING_OFFSET: f32 = 0.4;   // Radians offset for block facing direction
+pub const BLOCK_ANGLE_THRESHOLD: f32 = 0.5; // Dot product threshold for valid block
 pub const FIST_RANGE: f32 = COLLISION_RADIUS * 1.8;
 pub const KNIFE_RANGE: f32 = COLLISION_RADIUS * 4.0;
 

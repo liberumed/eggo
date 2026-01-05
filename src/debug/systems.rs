@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::combat::{Fist, PlayerWeapon, Weapon, WeaponSwing};
 use crate::constants::WEAPON_OFFSET;
 use crate::core::{Dead, HitCollider, StaticCollider, WalkCollider};
-use crate::creatures::Creature;
+use crate::creatures::{ContextMap, ContextMapCache, Creature, Hostile, NUM_DIRECTIONS};
 use crate::player::{Player, PlayerAttackState};
 use crate::props::{Prop, PropRegistry};
 use super::config::DebugConfig;
@@ -345,5 +345,132 @@ pub fn update_debug_visibility(
     }
     for mut vis in &mut cone_query {
         *vis = visibility;
+    }
+}
+
+// ============================================================================
+// Context Steering Debug Visualization
+// ============================================================================
+
+/// Marker for steering debug ray entities
+#[derive(Component)]
+pub struct SteeringDebugRay {
+    pub direction_index: usize,
+}
+
+/// Marker for creatures that have steering debug spawned
+#[derive(Component)]
+pub struct HasSteeringDebug;
+
+/// Links steering debug rays to their owner creature
+#[derive(Component)]
+pub struct SteeringDebugOwner(pub Entity);
+
+const STEERING_RAY_LENGTH: f32 = 25.0;
+const STEERING_RAY_WIDTH: f32 = 2.0;
+
+/// Spawn steering debug rays for hostile creatures with context map cache
+pub fn spawn_steering_debug(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    debug_config: Res<DebugConfig>,
+    hostile_query: Query<Entity, (With<Hostile>, With<ContextMapCache>, Without<HasSteeringDebug>)>,
+) {
+    if !debug_config.show_collisions {
+        return;
+    }
+
+    // Create ray mesh (rectangle pointing in +X direction)
+    let ray_mesh = meshes.add(Rectangle::new(STEERING_RAY_LENGTH, STEERING_RAY_WIDTH));
+    let neutral_color = materials.add(Color::srgba(0.5, 0.5, 0.5, 0.5));
+
+    for entity in &hostile_query {
+        commands.entity(entity).insert(HasSteeringDebug);
+
+        // Spawn 8 rays as independent entities
+        for i in 0..NUM_DIRECTIONS {
+            commands.spawn((
+                SteeringDebugRay { direction_index: i },
+                SteeringDebugOwner(entity),
+                Mesh2d(ray_mesh.clone()),
+                MeshMaterial2d(neutral_color.clone()),
+                Transform::from_xyz(0.0, 0.0, 9.5),
+            ));
+        }
+    }
+}
+
+/// Update steering debug ray positions, rotations, and colors
+pub fn update_steering_debug(
+    mut commands: Commands,
+    debug_config: Res<DebugConfig>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    hostile_query: Query<(&Transform, &ContextMapCache), (With<Hostile>, Without<Dead>, Without<SteeringDebugRay>)>,
+    mut ray_query: Query<(Entity, &SteeringDebugOwner, &SteeringDebugRay, &mut Transform, &mut MeshMaterial2d<ColorMaterial>), Without<Hostile>>,
+) {
+    if !debug_config.show_collisions {
+        return;
+    }
+
+    for (ray_entity, owner, ray, mut ray_transform, mut material) in &mut ray_query {
+        if let Ok((creature_transform, context_cache)) = hostile_query.get(owner.0) {
+            let creature_pos = creature_transform.translation.truncate();
+            let context = &context_cache.0;
+
+            // Get direction for this ray
+            let dir = ContextMap::direction(ray.direction_index);
+            let angle = dir.y.atan2(dir.x);
+
+            // Position ray at creature center, offset by half ray length in direction
+            ray_transform.translation.x = creature_pos.x + dir.x * STEERING_RAY_LENGTH * 0.5;
+            ray_transform.translation.y = creature_pos.y + dir.y * STEERING_RAY_LENGTH * 0.5;
+            ray_transform.rotation = Quat::from_rotation_z(angle);
+
+            // Color based on interest vs danger
+            let interest = context.interest[ray.direction_index];
+            let danger = context.danger[ray.direction_index];
+            let value = interest - danger;
+
+            let color = if value > 0.0 {
+                // Green for positive (interest > danger)
+                Color::srgba(0.0, value.min(1.0), 0.0, 0.6)
+            } else if danger > 0.0 {
+                // Red for danger
+                Color::srgba(danger.min(1.0), 0.0, 0.0, 0.6)
+            } else {
+                // Gray for neutral
+                Color::srgba(0.3, 0.3, 0.3, 0.3)
+            };
+
+            *material = MeshMaterial2d(materials.add(color));
+        } else {
+            // Owner no longer exists or is dead, despawn ray
+            commands.entity(ray_entity).despawn();
+        }
+    }
+}
+
+/// Clean up steering debug when toggling off
+pub fn cleanup_steering_debug(
+    mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    debug_config: Res<DebugConfig>,
+    ray_query: Query<Entity, With<SteeringDebugRay>>,
+    marker_query: Query<Entity, With<HasSteeringDebug>>,
+) {
+    if keyboard.just_pressed(KeyCode::F3) && debug_config.show_collisions {
+        // Debug was just turned off (show_collisions is the NEW state after toggle)
+        // Actually, toggle happens before this runs, so check if it's now OFF
+    }
+
+    // When debug is off, clean up
+    if !debug_config.show_collisions {
+        for entity in &ray_query {
+            commands.entity(entity).despawn();
+        }
+        for entity in &marker_query {
+            commands.entity(entity).remove::<HasSteeringDebug>();
+        }
     }
 }

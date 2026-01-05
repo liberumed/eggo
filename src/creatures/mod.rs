@@ -1,9 +1,11 @@
 pub mod data;
 pub mod spawner;
+pub mod steering;
 pub mod systems;
 
 pub use data::*;
 pub use spawner::*;
+pub use steering::*;
 pub use systems::*;
 
 use bevy::prelude::*;

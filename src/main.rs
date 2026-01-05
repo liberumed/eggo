@@ -15,8 +15,9 @@ use constants::*;
 use core::{CharacterAssets, CorePlugin, GameState, InputBindings, NewGameRequested, WorldConfig};
 use creatures::{Creature, CreaturePlugin};
 use debug::{
-    spawn_debug_circles, spawn_weapon_debug_cones, toggle_collision_debug,
-    update_creature_debug_circles, update_debug_visibility, update_player_debug_cone, DebugConfig,
+    cleanup_steering_debug, spawn_debug_circles, spawn_steering_debug, spawn_weapon_debug_cones,
+    toggle_collision_debug, update_creature_debug_circles, update_debug_visibility,
+    update_player_debug_cone, update_steering_debug, DebugConfig,
 };
 use effects::{BloodParticle, EffectsPlugin, Hitstop, ScreenShake, TargetOutline};
 use inventory::{build_item_registry, GroundItem, InventoryPlugin, ItemIcons, ItemId, ItemRegistry};
@@ -60,8 +61,11 @@ fn main() {
             toggle_collision_debug,
             spawn_debug_circles,
             spawn_weapon_debug_cones,
+            spawn_steering_debug,
             update_player_debug_cone,
             update_creature_debug_circles,
+            update_steering_debug,
+            cleanup_steering_debug,
             update_debug_visibility,
             update_player_sprite_animation,
             animate_sprites,

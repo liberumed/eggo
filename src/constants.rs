@@ -52,10 +52,15 @@ pub const WEAPON_OFFSET: (f32, f32) = (-4.0, 6.5);  // Weapon position relative 
 pub const COLLISION_RADIUS: f32 = 14.0;
 pub const PUSH_RADIUS: f32 = COLLISION_RADIUS * 2.2;  // Larger than all collision checks (1.5 player, 1.8 creature)
 pub const PUSH_STRENGTH: f32 = 100.0;                  // Push force multiplier
-pub const HOSTILE_SIGHT_RANGE: f32 = 100.0;
+pub const HOSTILE_SIGHT_RANGE: f32 = 200.0;
 pub const BLOCK_KNOCKBACK: f32 = 120.0;
 pub const FIST_RANGE: f32 = COLLISION_RADIUS * 1.8;
 pub const KNIFE_RANGE: f32 = COLLISION_RADIUS * 4.0;
+
+// Context Steering
+pub const OBSTACLE_LOOK_AHEAD: f32 = 50.0;            // How far to check for obstacles
+pub const SEPARATION_RADIUS: f32 = 35.0;              // Keep this distance from other creatures
+pub const PLAYER_MIN_DISTANCE: f32 = COLLISION_RADIUS * 1.8;  // Don't get too close to player
 
 // Animation Durations
 pub const KNIFE_SWING_DURATION: f32 = 0.4;

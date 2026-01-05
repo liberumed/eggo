@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::constants::*;
 use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, Health, HitCollider, InputBindings, Knockback, StaticCollider, Stunned};
-use crate::creatures::{Creature, Hostile};
+use crate::creatures::{ContextMapCache, Creature, Hostile};
 use crate::player::{Dashing, Player, PlayerAttackState};
 use crate::props::{CrateSprite, Destructible, Prop, PropRegistry, PropType};
 use super::{weapon_catalog, AttackType, CreatureRangeIndicator, Drawn, Fist, PlayerRangeIndicator, PlayerWeapon, Weapon, WeaponRangeIndicator, WeaponSwing, WeaponVisualMesh};
@@ -522,60 +522,83 @@ pub fn aim_weapon(
 }
 
 pub fn hostile_ai(
+    mut commands: Commands,
     time: Res<Time>,
     player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<StaticCollider>)>,
     collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
     mut creature_queries: ParamSet<(
         Query<(Entity, &Transform), (With<Creature>, Without<Dead>, Without<StaticCollider>)>,
-        Query<(Entity, &mut Transform, &Hostile), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
+        Query<(Entity, &mut Transform, &Hostile, Option<&mut ContextMapCache>), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
     )>,
 ) {
-    let Ok(player_transform) = player_query.single() else { return };
-    let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
+    use crate::creatures::{ContextMap, ContextMapCache, seek_interest, obstacle_danger, separation_danger, player_proximity_danger};
 
+    let Ok(player_transform) = player_query.single() else { return };
+    let player_pos = player_transform.translation.truncate();
+
+    // Gather all creature positions for separation behavior
     let creature_positions: Vec<(Entity, Vec2)> = creature_queries
         .p0()
         .iter()
-        .map(|(e, t)| (e, Vec2::new(t.translation.x, t.translation.y)))
+        .map(|(e, t)| (e, t.translation.truncate()))
         .collect();
 
+    // Gather static collider data for obstacle avoidance
     let collider_data: Vec<(Vec2, Vec2)> = collider_query
         .iter()
         .map(|(t, c)| (Vec2::new(t.translation.x, t.translation.y + c.offset_y), Vec2::new(c.radius_x, c.radius_y)))
         .collect();
 
-    let creature_collision_dist = COLLISION_RADIUS * 1.8;
-    let player_collision_dist = COLLISION_RADIUS * 2.0;
+    let player_min_dist = PLAYER_MIN_DISTANCE;
 
-    for (entity, mut transform, hostile) in creature_queries.p1().iter_mut() {
-        let creature_pos = Vec2::new(transform.translation.x, transform.translation.y);
+    for (entity, mut transform, hostile, context_cache) in creature_queries.p1().iter_mut() {
+        let creature_pos = transform.translation.truncate();
         let distance = player_pos.distance(creature_pos);
 
-        if distance < HOSTILE_SIGHT_RANGE && distance > player_collision_dist {
-            let dir = (player_pos - creature_pos).normalize();
-            let movement = dir * hostile.speed * time.delta_secs();
-            let mut new_pos = creature_pos + movement;
+        if distance < HOSTILE_SIGHT_RANGE && distance > player_min_dist {
+            // Build context map
+            let mut context = ContextMap::new();
 
-            // Check collision with other creatures
-            let blocked_by_creature = creature_positions.iter().any(|(other_entity, other_pos)| {
-                *other_entity != entity && new_pos.distance(*other_pos) < creature_collision_dist
-            });
+            // Interest: seek player
+            seek_interest(&mut context, creature_pos, player_pos);
 
-            // Check collision with player - don't move if new position is too close
-            let blocked_by_player = new_pos.distance(player_pos) < player_collision_dist;
+            // Danger: avoid obstacles
+            obstacle_danger(&mut context, creature_pos, &collider_data, OBSTACLE_LOOK_AHEAD);
 
-            // Push-based ellipse collision with static colliders (at feet level)
-            let creature_radius = Vec2::new(8.0, 5.0);
-            let creature_offset_y = -11.0;  // Match shadow (ground footprint)
-            for (collider_pos, collider_radius) in &collider_data {
-                let creature_feet = Vec2::new(new_pos.x, new_pos.y + creature_offset_y);
-                let push = ellipse_push(creature_feet, creature_radius, *collider_pos, *collider_radius);
-                new_pos += push;
-            }
+            // Danger: separation from other creatures
+            let others: Vec<Vec2> = creature_positions.iter()
+                .filter(|(e, _)| *e != entity)
+                .map(|(_, p)| *p)
+                .collect();
+            separation_danger(&mut context, creature_pos, &others, SEPARATION_RADIUS);
 
-            if !blocked_by_creature && !blocked_by_player {
+            // Danger: don't get too close to player
+            player_proximity_danger(&mut context, creature_pos, player_pos, player_min_dist);
+
+            // Resolve and move
+            let (direction, strength) = context.resolve();
+            if strength > 0.0 {
+                let movement = direction * hostile.speed * strength * time.delta_secs();
+                let mut new_pos = creature_pos + movement;
+
+                // Still apply push-based collision for safety (handles edge cases)
+                let creature_radius = Vec2::new(8.0, 5.0);
+                let creature_offset_y = -11.0;
+                for (collider_pos, collider_radius) in &collider_data {
+                    let creature_feet = Vec2::new(new_pos.x, new_pos.y + creature_offset_y);
+                    let push = ellipse_push(creature_feet, creature_radius, *collider_pos, *collider_radius);
+                    new_pos += push;
+                }
+
                 transform.translation.x = new_pos.x;
                 transform.translation.y = new_pos.y;
+            }
+
+            // Cache context map for debug visualization
+            if let Some(mut cache) = context_cache {
+                cache.0 = context;
+            } else {
+                commands.entity(entity).insert(ContextMapCache(context));
             }
         }
     }

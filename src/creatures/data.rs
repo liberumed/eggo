@@ -53,10 +53,10 @@ impl ColliderDef {
 /// Complete definition of a creature type
 #[derive(Clone)]
 pub struct CreatureDefinition {
+    #[allow(dead_code)]
     pub name: String,
     pub health: i32,
     pub speed: f32,
-    pub damage: i32,
     pub hostile_chance: f64,
     pub glowing_chance: f64,
     pub loot: LootTable,
@@ -76,7 +76,6 @@ pub mod creature_catalog {
             name: "Blob".to_string(),
             health: 2,
             speed: 55.0,
-            damage: 1,
             hostile_chance: 0.0,
             glowing_chance: 0.35,
             loot: LootTable {
@@ -97,7 +96,6 @@ pub mod creature_catalog {
             name: "Hostile Blob".to_string(),
             health: 6,
             speed: 55.0,
-            damage: 1,
             hostile_chance: 1.0,
             glowing_chance: 0.0,
             loot: LootTable {

@@ -47,7 +47,7 @@ pub struct WeaponSwing {
     pub hit_applied: bool,   // Track if damage was already applied
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 pub enum AttackType {
     #[default]
     Slash,

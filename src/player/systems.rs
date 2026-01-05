@@ -6,7 +6,7 @@ use crate::effects::Hitstop;
 use crate::core::{GameAction, InputBindings};
 use crate::core::CharacterAssets;
 use super::{Player, PlayerAnimation, Dashing, DashCooldown, Sprinting, PhaseThrough, PlayerAttackState, SpriteAnimation, PlayerSpriteSheet};
-use crate::combat::{Weapon, PlayerWeapon, Drawn, AttackType, WeaponSwing};
+use crate::combat::{Weapon, PlayerWeapon, Drawn, AttackType, WeaponSwing, Fist};
 use crate::creatures::Creature;
 
 pub fn move_player(
@@ -296,13 +296,13 @@ pub fn animate_weapon_swing(
     mut commands: Commands,
     time: Res<Time>,
     hitstop: Res<Hitstop>,
-    mut query: Query<(Entity, &mut Transform, &mut WeaponSwing)>,
+    mut query: Query<(Entity, &mut Transform, &mut WeaponSwing, Option<&Fist>)>,
 ) {
     if hitstop.is_active() {
         return;
     }
 
-    for (entity, mut transform, mut swing) in &mut query {
+    for (entity, mut transform, mut swing, is_fist) in &mut query {
         swing.timer += time.delta_secs();
         let t = swing.timer;
 
@@ -357,7 +357,11 @@ pub fn animate_weapon_swing(
             if let Some(base_angle) = swing.base_angle {
                 transform.rotation = Quat::from_rotation_z(base_angle);
             }
-            commands.entity(entity).remove::<WeaponSwing>();
+            // Only auto-remove for player weapons (not Fist)
+            // Creature fists are cleaned up by on_attack_exit via state machine
+            if is_fist.is_none() {
+                commands.entity(entity).remove::<WeaponSwing>();
+            }
         }
     }
 }

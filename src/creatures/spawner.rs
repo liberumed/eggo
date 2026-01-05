@@ -5,8 +5,9 @@ use crate::combat::{create_weapon_arc, CreatureRangeIndicator, Fist, Weapon, Wea
 use crate::constants::*;
 use crate::core::{CharacterAssets, Health, HitCollider, Loot, Shadow, WalkCollider, YSorted};
 use crate::effects::ResourceBall;
+use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
-use super::{Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, Glowing, Hostile, ProvokedSteering, creature_catalog};
+use super::{Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Hostile, ProvokedSteering, creature_catalog};
 
 /// Spawn a creature's range indicator as an independent entity
 /// This ensures consistent behavior - indicator follows creature but isn't affected by animations
@@ -154,6 +155,14 @@ fn spawn_creature(
         CreatureSteering(definition.steering.clone()),
         ProvokedSteering(definition.provoked_steering.clone()),
     ));
+
+    // State machine - all creatures get one
+    let initial_state = if is_hostile {
+        CreatureState::Chase
+    } else {
+        CreatureState::Idle
+    };
+    entity_commands.insert(StateMachine::new(initial_state));
 
     if is_hostile {
         entity_commands.insert(Hostile { speed: definition.speed });

@@ -1,0 +1,53 @@
+use crate::state_machine::{AttackPhase, StateType};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum CreatureState {
+    #[default]
+    Idle,
+    Chase,
+    Attack(AttackPhase),
+    Stunned,
+    Dying,
+    Dead,
+}
+
+impl StateType for CreatureState {
+    fn can_transition_to(&self, target: &Self) -> bool {
+        use CreatureState::*;
+
+        match (self, target) {
+            // Dead is terminal
+            (Dead, _) => false,
+
+            // Dying can only go to Dead
+            (Dying, Dead) => true,
+            (Dying, _) => false,
+
+            // Stunned can recover to Idle or Chase
+            (Stunned, Idle) => true,
+            (Stunned, Chase) => true,
+            (Stunned, Dying) => true,
+            (Stunned, Dead) => true,
+            (Stunned, _) => false,
+
+            // Anyone can die, start dying, or get stunned
+            (_, Dead) => true,
+            (_, Dying) => true,
+            (_, Stunned) => true,
+
+            // Idle can start chasing
+            (Idle, Chase) => true,
+            (Idle, _) => false,
+
+            // Chase can attack, return to idle
+            (Chase, Idle) => true,
+            (Chase, Attack(_)) => true,
+            (Chase, _) => false,
+
+            // Attack can transition between phases or return to chase/idle
+            (Attack(_), Attack(_)) => true,
+            (Attack(_), Chase) => true,
+            (Attack(_), Idle) => true,
+        }
+    }
+}

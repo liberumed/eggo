@@ -7,6 +7,7 @@ mod effects;
 mod inventory;
 mod player;
 mod props;
+mod state_machine;
 mod ui;
 
 use bevy::{image::ImageSamplerDescriptor, prelude::*};
@@ -76,6 +77,7 @@ fn main() {
         .add_systems(OnEnter(GameState::Dead), auto_start_new_game)
         .add_systems(OnExit(GameState::Dead), (hide_pause_menu, cleanup_world).chain())
         .add_plugins((
+            state_machine::StateMachinePlugin,
             CorePlugin,
             PlayerPlugin,
             CreaturePlugin,

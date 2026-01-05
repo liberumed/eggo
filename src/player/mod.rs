@@ -18,6 +18,7 @@ use crate::combat::{
     player_attack, handle_block, apply_player_delayed_hits, update_player_attack_state,
 };
 use crate::inventory::cursor_not_over_ui;
+use crate::state_machine::StateMachineSet;
 
 pub struct PlayerPlugin;
 
@@ -35,10 +36,17 @@ impl Plugin for PlayerPlugin {
                 animate_player_death,
                 toggle_weapon,
                 aim_weapon,
-                animate_weapon_swing,
                 sync_range_indicator,
                 update_weapon_visual,
             )
+                .run_if(in_state(GameState::Playing)),
+        )
+        // animate_weapon_swing must run AFTER advance_attack_phases (in Behavior set)
+        // so the state machine can detect swing completion before WeaponSwing is removed
+        .add_systems(
+            Update,
+            animate_weapon_swing
+                .in_set(StateMachineSet::Cleanup)
                 .run_if(in_state(GameState::Playing)),
         )
         .add_systems(

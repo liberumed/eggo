@@ -540,10 +540,10 @@ pub fn hostile_ai(
     collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
     mut creature_queries: ParamSet<(
         Query<(Entity, &Transform), (With<Creature>, Without<Dead>, Without<StaticCollider>)>,
-        Query<(Entity, &mut Transform, &Hostile, &crate::creatures::CreatureSteering, Option<&mut ContextMapCache>, Option<&FlankPreference>), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
+        Query<(Entity, &mut Transform, &Hostile, &crate::creatures::CreatureSteering, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&mut ContextMapCache>, Option<&FlankPreference>), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
     )>,
 ) {
-    use crate::creatures::{ContextMap, ContextMapCache, FlankPreference, SteeringStrategy, seek_interest, seek_with_flank, obstacle_danger, separation_danger, player_proximity_danger, occupied_angle_danger};
+    use crate::creatures::{ContextMap, ContextMapCache, CreatureState, FlankPreference, SteeringStrategy, seek_interest, seek_with_flank, obstacle_danger, separation_danger, player_proximity_danger, occupied_angle_danger};
     use rand::Rng;
 
     let Ok(player_transform) = player_query.single() else { return };
@@ -562,12 +562,17 @@ pub fn hostile_ai(
         .map(|(t, c)| (Vec2::new(t.translation.x, t.translation.y + c.offset_y), Vec2::new(c.radius_x, c.radius_y)))
         .collect();
 
-    for (entity, mut transform, hostile, steering, context_cache, flank_pref) in creature_queries.p1().iter_mut() {
+    for (entity, mut transform, hostile, steering, state_machine, context_cache, flank_pref) in creature_queries.p1().iter_mut() {
+        // Only process creatures in Chase state
+        if *state_machine.current() != CreatureState::Chase {
+            continue;
+        }
+
         let config = &steering.0;
         let creature_pos = transform.translation.truncate();
         let distance = player_pos.distance(creature_pos);
 
-        if distance < config.sight_range && distance > config.min_player_distance {
+        if distance > config.min_player_distance {
             // Build context map
             let mut context = ContextMap::new();
 
@@ -658,34 +663,38 @@ pub fn hostile_fist_aim(
     }
 }
 
-/// Starts creature swing animation when in range (damage applied later by apply_creature_delayed_hits)
+/// Requests transition to Attack state when creature is in range
 pub fn hostile_attack(
-    mut commands: Commands,
+    mut transitions: MessageWriter<crate::state_machine::RequestTransition<crate::creatures::CreatureState>>,
     player_query: Query<(&Transform, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    hostile_query: Query<(&Transform, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
-    fist_query: Query<(Entity, &Weapon), (With<Fist>, Without<WeaponSwing>)>,
+    hostile_query: Query<(Entity, &Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    fist_query: Query<&Weapon, With<Fist>>,
 ) {
+    use crate::state_machine::{AttackPhase, RequestTransition};
+    use crate::creatures::CreatureState;
+
     let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
     let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
     let player_hit_radius = player_hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
 
-    for (creature_transform, children) in &hostile_query {
+    for (entity, creature_transform, state_machine, children) in &hostile_query {
+        // Only attack from Chase state
+        if *state_machine.current() != CreatureState::Chase {
+            continue;
+        }
+
         let creature_pos = Vec2::new(creature_transform.translation.x, creature_transform.translation.y);
         let distance = player_pos.distance(creature_pos);
 
         for child in children.iter() {
-            if let Ok((fist_entity, weapon)) = fist_query.get(child) {
+            if let Ok(weapon) = fist_query.get(child) {
                 if distance < weapon.range() + player_hit_radius {
-                    // Start swing animation - hit applied later when hit_delay reached
-                    let duration = weapon.swing_duration();
-                    commands.entity(fist_entity).insert(WeaponSwing {
-                        timer: 0.0,
-                        duration,
-                        base_angle: None,
-                        attack_type: weapon.attack_type,
-                        hit_delay: duration * ATTACK_HIT_DELAY_PERCENT,
-                        hit_applied: false,
-                    });
+                    // Request transition to Attack state
+                    transitions.write(RequestTransition::new(
+                        entity,
+                        CreatureState::Attack(AttackPhase::WindUp),
+                    ));
+                    break;
                 }
             }
         }
@@ -773,18 +782,22 @@ fn apply_attack_to_player(
 
 /// Process creature attacks against player
 /// Only one attack can hit per frame (prevents stun-lock from multiple creatures)
+/// Only applies hits during Attack(Strike) phase
 pub fn process_creature_attacks(
     mut commands: Commands,
     mut hitstop: ResMut<Hitstop>,
     mut screen_shake: ResMut<ScreenShake>,
     mut player_query: Query<(Entity, &Transform, &mut Health, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    hostile_query: Query<(Entity, &Transform), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    hostile_query: Query<(Entity, &Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     mut fist_query: Query<(&Weapon, &mut WeaponSwing, &ChildOf), With<Fist>>,
     knockback_query: Query<&Knockback>,
     dashing_query: Query<&Dashing>,
     blocking_query: Query<&Blocking>,
     player_weapon_query: Query<(&Weapon, &Transform), With<PlayerWeapon>>,
 ) {
+    use crate::state_machine::AttackPhase;
+    use crate::creatures::CreatureState;
+
     let Ok((player_entity, player_transform, mut player_health, player_hit_collider)) = player_query.single_mut() else { return };
     let player_pos = player_transform.translation.truncate();
     let player_hit_radius = player_hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
@@ -800,15 +813,21 @@ pub fn process_creature_attacks(
 
     // Iterate fists directly (instead of nested children loop)
     for (weapon, mut swing, child_of) in &mut fist_query {
-        // Skip if not ready to hit
-        if swing.timer < swing.hit_delay || swing.hit_applied {
+        // Skip if hit already applied
+        if swing.hit_applied {
             continue;
         }
 
-        // Get attacker (parent creature) position
-        let Ok((attacker_entity, attacker_transform)) = hostile_query.get(child_of.parent()) else {
+        // Get attacker (parent creature) and check state
+        let Ok((attacker_entity, attacker_transform, state_machine)) = hostile_query.get(child_of.parent()) else {
             continue;
         };
+
+        // Only apply hit during Strike phase
+        if *state_machine.current() != CreatureState::Attack(AttackPhase::Strike) {
+            continue;
+        }
+
         let attacker_pos = attacker_transform.translation.truncate();
 
         // Mark hit as applied

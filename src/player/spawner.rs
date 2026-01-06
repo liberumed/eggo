@@ -6,8 +6,9 @@ use crate::constants::*;
 use crate::core::{CharacterAssets, Health, Shadow, WalkCollider, HitCollider, YSorted};
 use crate::effects::TargetOutline;
 use crate::inventory::{EquippedWeaponId, GroundItem, GroundItemBob, Inventory, ItemIcons, ItemId, ItemRegistry, Pickupable};
+use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
-use super::{Player, PlayerAnimation, PlayerSpriteSheet, SpriteAnimation};
+use super::{Player, PlayerAnimation, PlayerSpriteSheet, PlayerState, SpriteAnimation};
 
 pub fn spawn_ground_item(
     commands: &mut Commands,
@@ -79,6 +80,7 @@ pub fn spawn_player(
 
     commands.spawn((
         Player,
+        StateMachine::<PlayerState>::default(),
         YSorted { base_offset: -24.0 },  // Feet position for 64x64 sprite
         WalkCollider { radius_x: 8.0, radius_y: 4.0, offset_y: -4.0 },  // At feet
         HitCollider { radius_x: 10.0, radius_y: 14.0, offset_y: 5.0 },  // Centered on body

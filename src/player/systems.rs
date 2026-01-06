@@ -5,34 +5,43 @@ use crate::core::{Blocking, Dead, DeathAnimation, WalkCollider, StaticCollider, 
 use crate::effects::Hitstop;
 use crate::core::{GameAction, InputBindings};
 use crate::core::CharacterAssets;
-use super::{Player, PlayerAnimation, Dashing, DashCooldown, Sprinting, PhaseThrough, PlayerAttackState, SpriteAnimation, PlayerSpriteSheet};
+use crate::state_machine::{AttackPhase, RequestTransition, StateMachine};
+use super::{
+    Player, PlayerAnimation, DashCooldown, Sprinting, PhaseThrough,
+    SpriteAnimation, PlayerSpriteSheet, PlayerState,
+    PlayerDashing, PlayerAttacking, PlayerSmashAttack,
+};
 use crate::combat::{Weapon, PlayerWeapon, Drawn, AttackType, WeaponSwing, Fist};
 use crate::creatures::Creature;
 
 pub fn move_player(
     mut commands: Commands,
+    mut transitions: MessageWriter<RequestTransition<PlayerState>>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     bindings: Res<InputBindings>,
     hitstop: Res<Hitstop>,
     time: Res<Time>,
-    mut player_query: Query<(Entity, &mut Transform, &mut PlayerAnimation, &WalkCollider, Option<&mut Sprinting>, Option<&PhaseThrough>), (With<Player>, Without<Dead>, Without<DeathAnimation>, Without<Dashing>)>,
+    mut player_query: Query<(Entity, &mut Transform, &mut PlayerAnimation, &WalkCollider, &StateMachine<PlayerState>, Option<&mut Sprinting>, Option<&PhaseThrough>), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     creatures_query: Query<(&Transform, &WalkCollider, Option<&Dead>), (With<Creature>, Without<Player>)>,
     colliders_query: Query<(&Transform, &StaticCollider), Without<Player>>,
     blocking_query: Query<&Blocking>,
-    swing_query: Query<&WeaponSwing, With<PlayerWeapon>>,
-    attack_state_query: Query<&PlayerAttackState, With<Player>>,
 ) {
     if hitstop.is_active() {
         return;
     }
 
-    let is_swinging = swing_query.iter().next().is_some();
-    let is_attacking = attack_state_query.iter().next().is_some();
+    let dt = time.delta_secs();
 
-    let mut input_dir = Vec2::ZERO;
+    for (entity, mut transform, mut anim, walk_collider, state, sprinting, phase_through) in &mut player_query {
+        let current_state = state.current();
 
-    if !is_swinging && !is_attacking {
+        let can_move = matches!(current_state, PlayerState::Idle | PlayerState::Moving);
+        if !can_move {
+            continue;
+        }
+
+        let mut input_dir = Vec2::ZERO;
         if bindings.pressed(GameAction::MoveUp, &keyboard, &mouse) {
             input_dir.y += 1.0;
         }
@@ -45,11 +54,7 @@ pub fn move_player(
         if bindings.pressed(GameAction::MoveRight, &keyboard, &mouse) {
             input_dir.x += 1.0;
         }
-    }
 
-    let dt = time.delta_secs();
-
-    for (entity, mut transform, mut anim, walk_collider, sprinting, phase_through) in &mut player_query {
         let player_radius = Vec2::new(walk_collider.radius_x, walk_collider.radius_y);
         let player_offset_y = walk_collider.offset_y;
         let is_blocking = blocking_query.get(entity).is_ok();
@@ -95,6 +100,10 @@ pub fn move_player(
             } else {
                 anim.velocity += accel;
             }
+
+            if *current_state == PlayerState::Idle {
+                transitions.write(RequestTransition::new(entity, PlayerState::Moving));
+            }
         } else if anim.velocity != Vec2::ZERO {
             let current_speed = anim.velocity.length();
             let friction_amount = if current_speed > PLAYER_SPEED * 1.1 {
@@ -105,9 +114,14 @@ pub fn move_player(
             let friction = anim.velocity.normalize() * friction_amount * dt;
             if friction.length() >= anim.velocity.length() {
                 anim.velocity = Vec2::ZERO;
+                if *current_state == PlayerState::Moving {
+                    transitions.write(RequestTransition::new(entity, PlayerState::Idle));
+                }
             } else {
                 anim.velocity -= friction;
             }
+        } else if *current_state == PlayerState::Moving {
+            transitions.write(RequestTransition::new(entity, PlayerState::Idle));
         }
 
         if anim.velocity == Vec2::ZERO {
@@ -177,48 +191,11 @@ pub fn move_player(
     }
 }
 
-pub fn handle_dash_input(
-    mut commands: Commands,
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mouse: Res<ButtonInput<MouseButton>>,
-    bindings: Res<InputBindings>,
-    hitstop: Res<Hitstop>,
-    player_query: Query<(Entity, &PlayerAnimation, Option<&DashCooldown>), (With<Player>, Without<Dead>, Without<Dashing>)>,
-) {
-    if hitstop.is_active() {
-        return;
-    }
-
-    if !bindings.just_pressed(GameAction::Dash, &keyboard, &mouse) {
-        return;
-    }
-
-    let Ok((entity, anim, cooldown)) = player_query.single() else { return };
-
-    if let Some(cd) = cooldown {
-        if cd.timer > 0.0 {
-            return;
-        }
-    }
-
-    let direction = if anim.velocity.length() > 0.1 {
-        anim.velocity.normalize()
-    } else {
-        Vec2::X
-    };
-
-    commands.entity(entity).insert(Dashing {
-        direction,
-        timer: DASH_DURATION,
-    });
-    commands.entity(entity).insert(DashCooldown { timer: DASH_COOLDOWN });
-}
-
-pub fn apply_dash(
-    mut commands: Commands,
+pub fn apply_dash_state(
+    mut transitions: MessageWriter<RequestTransition<PlayerState>>,
     time: Res<Time>,
     hitstop: Res<Hitstop>,
-    mut query: Query<(Entity, &mut Transform, &mut Dashing, &mut PlayerAnimation), With<Player>>,
+    mut query: Query<(Entity, &mut Transform, &mut PlayerDashing, &mut PlayerAnimation, &StateMachine<PlayerState>), With<Player>>,
 ) {
     if hitstop.is_active() {
         return;
@@ -226,7 +203,11 @@ pub fn apply_dash(
 
     let dt = time.delta_secs();
 
-    for (entity, mut transform, mut dash, mut anim) in &mut query {
+    for (entity, mut transform, mut dash, mut anim, state) in &mut query {
+        if *state.current() != PlayerState::Dashing {
+            continue;
+        }
+
         dash.timer -= dt;
 
         let movement = dash.direction * DASH_SPEED * dt;
@@ -236,8 +217,7 @@ pub fn apply_dash(
         anim.velocity = dash.direction * PLAYER_SPEED;
 
         if dash.timer <= 0.0 {
-            commands.entity(entity).remove::<Dashing>();
-            commands.entity(entity).insert(PhaseThrough { timer: 0.15 });
+            transitions.write(RequestTransition::new(entity, PlayerState::Moving));
         }
     }
 }
@@ -422,8 +402,83 @@ pub fn animate_player_death(
     }
 }
 
+pub fn advance_player_attack_phases(
+    mut transitions: MessageWriter<RequestTransition<PlayerState>>,
+    time: Res<Time>,
+    hitstop: Res<Hitstop>,
+    mut smash_query: Query<(Entity, &mut PlayerSmashAttack, &StateMachine<PlayerState>), With<Player>>,
+    mut swing_query: Query<(&WeaponSwing, &ChildOf), With<PlayerWeapon>>,
+    player_query: Query<(Entity, &StateMachine<PlayerState>), With<Player>>,
+) {
+    if hitstop.is_active() {
+        return;
+    }
+
+    let dt = time.delta_secs();
+
+    for (entity, mut smash, state) in &mut smash_query {
+        let PlayerState::Attacking(current_phase) = state.current() else { continue };
+
+        smash.timer += dt;
+
+        match current_phase {
+            AttackPhase::WindUp => {
+                let hit_delay = smash.duration * ATTACK_HIT_DELAY_PERCENT;
+                if smash.timer >= hit_delay {
+                    transitions.write(RequestTransition::new(
+                        entity,
+                        PlayerState::Attacking(AttackPhase::Strike),
+                    ));
+                }
+            }
+            AttackPhase::Strike => {
+                if smash.hit_applied {
+                    transitions.write(RequestTransition::new(
+                        entity,
+                        PlayerState::Attacking(AttackPhase::Recovery),
+                    ));
+                }
+            }
+            AttackPhase::Recovery => {
+                if smash.timer >= smash.duration {
+                    transitions.write(RequestTransition::new(entity, PlayerState::Idle));
+                }
+            }
+        }
+    }
+
+    for (swing, parent) in &mut swing_query {
+        let Ok((entity, state)) = player_query.get(parent.parent()) else { continue };
+        let PlayerState::Attacking(current_phase) = state.current() else { continue };
+
+        match current_phase {
+            AttackPhase::WindUp => {
+                if swing.timer >= swing.hit_delay {
+                    transitions.write(RequestTransition::new(
+                        entity,
+                        PlayerState::Attacking(AttackPhase::Strike),
+                    ));
+                }
+            }
+            AttackPhase::Strike => {
+                if swing.hit_applied {
+                    transitions.write(RequestTransition::new(
+                        entity,
+                        PlayerState::Attacking(AttackPhase::Recovery),
+                    ));
+                }
+            }
+            AttackPhase::Recovery => {
+                if swing.timer >= swing.duration {
+                    transitions.write(RequestTransition::new(entity, PlayerState::Idle));
+                }
+            }
+        }
+    }
+}
+
 pub fn update_player_sprite_animation(
-    mut query: Query<(&PlayerAnimation, &mut SpriteAnimation, Option<&PlayerAttackState>), With<Player>>,
+    mut query: Query<(&PlayerAnimation, &mut SpriteAnimation, &StateMachine<PlayerState>, Option<&PlayerAttacking>), With<Player>>,
     weapon_query: Query<(&Weapon, Option<&Drawn>), With<PlayerWeapon>>,
 ) {
     let has_smash_weapon = weapon_query
@@ -432,11 +487,13 @@ pub fn update_player_sprite_animation(
         .map(|(w, drawn)| w.attack_type == AttackType::Smash && drawn.is_some())
         .unwrap_or(false);
 
-    for (player_anim, mut sprite_anim, attack_state) in &mut query {
-        if let Some(attack) = attack_state {
-            sprite_anim.set_animation("attack");
-            sprite_anim.speed = 1.0;
-            sprite_anim.flip_x = !attack.facing_right;
+    for (player_anim, mut sprite_anim, state, attacking) in &mut query {
+        if matches!(state.current(), PlayerState::Attacking(_)) {
+            if let Some(attack) = attacking {
+                sprite_anim.set_animation("attack");
+                sprite_anim.speed = 1.0;
+                sprite_anim.flip_x = !attack.facing_right;
+            }
             continue;
         }
 

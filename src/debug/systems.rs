@@ -4,8 +4,9 @@ use crate::combat::{Fist, PlayerWeapon, Weapon, WeaponSwing};
 use crate::constants::WEAPON_OFFSET;
 use crate::core::{Dead, HitCollider, StaticCollider, WalkCollider};
 use crate::creatures::{ContextMap, ContextMapCache, Creature, Hostile, NUM_DIRECTIONS};
-use crate::player::{Player, PlayerAttackState};
+use crate::player::{Player, PlayerSmashAttack, PlayerState};
 use crate::props::{Prop, PropRegistry};
+use crate::state_machine::StateMachine;
 use super::config::DebugConfig;
 
 /// Marker for debug collision circle (walk collision)
@@ -252,11 +253,11 @@ pub fn update_player_debug_cone(
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     weapon_query: Query<Option<&WeaponSwing>, With<PlayerWeapon>>,
-    player_query: Query<(&Transform, &Children, Option<&PlayerAttackState>), (With<Player>, Without<PlayerWeapon>)>,
+    player_query: Query<(&Transform, &Children, &StateMachine<PlayerState>, Option<&PlayerSmashAttack>), (With<Player>, Without<PlayerWeapon>)>,
     mut cone_query: Query<&mut Transform, (With<WeaponReachCone>, Without<CreatureDebugCircle>, Without<Player>, Without<PlayerWeapon>)>,
 ) {
     let Ok(swing) = weapon_query.single() else { return };
-    let Ok((player_transform, children, attack_state)) = player_query.single() else { return };
+    let Ok((player_transform, children, state, smash_attack)) = player_query.single() else { return };
 
     // CircularSector points +Y by default, weapon points +X, so offset by -90°
     let cone_offset = -std::f32::consts::FRAC_PI_2;
@@ -264,9 +265,9 @@ pub fn update_player_debug_cone(
     for child in children.iter() {
         if let Ok(mut cone_transform) = cone_query.get_mut(child) {
             // Check for sprite-based attack (Smash weapons)
-            let aim_angle = if let Some(attack) = attack_state {
+            let aim_angle = if let Some(smash) = smash_attack {
                 // Smash attack: locked to left or right
-                if attack.facing_right { 0.0 } else { std::f32::consts::PI }
+                if smash.facing_right { 0.0 } else { std::f32::consts::PI }
             } else if let Some(swing) = swing {
                 // Slash/Stab weapon swing: use base_angle
                 if let Some(base_angle) = swing.base_angle {

@@ -9,13 +9,6 @@ pub struct PlayerAnimation {
     pub velocity: Vec2,
 }
 
-/// Active dash state
-#[derive(Component)]
-pub struct Dashing {
-    pub direction: Vec2,
-    pub timer: f32,
-}
-
 /// Dash cooldown tracker
 #[derive(Component, Default)]
 pub struct DashCooldown {
@@ -32,15 +25,6 @@ pub struct Sprinting {
 #[derive(Component)]
 pub struct PhaseThrough {
     pub timer: f32,
-}
-
-/// Active attack state for sprite-based attacks (Smash weapons)
-#[derive(Component)]
-pub struct PlayerAttackState {
-    pub facing_right: bool,
-    pub timer: f32,
-    pub duration: f32,
-    pub hit_applied: bool,
 }
 
 /// Component for animated sprites

@@ -6,7 +6,7 @@ use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, Heal
 use crate::creatures::{ContextMapCache, Creature, FlankPreference, Hostile};
 use crate::player::{Player, PlayerSmashAttack, PlayerState};
 use crate::state_machine::StateMachine;
-use crate::props::{CrateSprite, Destructible, Prop, PropRegistry, PropType};
+use crate::props::{CrateSprite, Crate2Sprite, Destructible, Prop, PropRegistry, PropType};
 use super::{weapon_catalog, AttackType, CreatureRangeIndicator, Drawn, Fist, PlayerRangeIndicator, PlayerWeapon, Weapon, WeaponRangeIndicator, WeaponSwing, WeaponVisualMesh};
 use crate::effects::{BloodParticle, HitHighlight, Hitstop, ScreenShake, TargetOutline};
 use crate::core::CharacterAssets;
@@ -223,7 +223,7 @@ pub fn apply_smash_attack_hits(
     mut player_query: Query<(Entity, &Transform, &mut PlayerSmashAttack, &StateMachine<PlayerState>), With<Player>>,
     weapon_query: Query<(Entity, &Weapon), With<PlayerWeapon>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>, Option<&crate::creatures::ProvokedSteering>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    mut props_query: Query<(Entity, &Transform, &Prop, &mut Destructible, Option<&mut CrateSprite>, Option<&mut Sprite>), Without<Creature>>,
+    mut props_query: Query<(Entity, &Transform, &Prop, &mut Destructible, Option<&mut CrateSprite>, Option<&mut Crate2Sprite>, Option<&mut Sprite>), Without<Creature>>,
     assets: Res<CharacterAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -344,7 +344,7 @@ pub fn apply_smash_attack_hits(
         }
     }
 
-    for (entity, prop_transform, prop, mut destructible, crate_sprite, sprite) in &mut props_query {
+    for (entity, prop_transform, prop, mut destructible, crate_sprite, crate2_sprite, sprite) in &mut props_query {
         let prop_pos = prop_transform.translation.truncate();
 
         let Some(definition) = prop_registry.get(prop.prop_type) else { continue };
@@ -360,6 +360,15 @@ pub fn apply_smash_attack_hits(
                 if let (Some(mut crate_state), Some(mut sprite)) = (crate_sprite, sprite) {
                     if !crate_state.damaged {
                         crate_state.damaged = true;
+                        if let Some(atlas) = &mut sprite.texture_atlas {
+                            atlas.index = 1;
+                        }
+                    }
+                }
+            } else if prop.prop_type == PropType::Crate2 {
+                if let (Some(mut crate2_state), Some(mut sprite)) = (crate2_sprite, sprite) {
+                    if !crate2_state.damaged {
+                        crate2_state.damaged = true;
                         if let Some(atlas) = &mut sprite.texture_atlas {
                             atlas.index = 1;
                         }

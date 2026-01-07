@@ -17,3 +17,9 @@ pub struct Destructible {
 pub struct CrateSprite {
     pub damaged: bool,
 }
+
+/// Component for crate2 sprite state
+#[derive(Component)]
+pub struct Crate2Sprite {
+    pub damaged: bool,
+}

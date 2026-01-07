@@ -3,8 +3,8 @@ use rand::Rng;
 
 use crate::core::{StaticCollider, YSorted};
 use crate::constants::{COLLISION_RADIUS, GRID_SPACING, WORLD_SIZE, Z_SHADOW_OFFSET};
-use super::components::{CrateSprite, Destructible, Prop};
-use super::data::{CrateSprites, PropDefinition, PropRegistry, PropType};
+use super::components::{CrateSprite, Crate2Sprite, Destructible, Prop};
+use super::data::{CrateSprites, Crate2Sprites, PropDefinition, PropRegistry, PropType};
 
 /// Spawns a prop from a definition (from registry)
 pub fn spawn_prop(
@@ -94,10 +94,44 @@ pub fn spawn_crate(
     ));
 }
 
+/// Spawns a sprite-based crate2
+pub fn spawn_crate2(
+    commands: &mut Commands,
+    crate2_sprites: &Crate2Sprites,
+    registry: &PropRegistry,
+    position: Vec2,
+) {
+    let Some(definition) = registry.get(PropType::Crate2) else { return };
+
+    commands.spawn((
+        Prop { prop_type: PropType::Crate2 },
+        Crate2Sprite { damaged: false },
+        Destructible { health: 2 },
+        YSorted { base_offset: definition.base_offset },
+        StaticCollider {
+            radius_x: definition.collision_radius_x,
+            radius_y: definition.collision_radius_y,
+            offset_x: definition.collision_offset_x,
+            offset_y: definition.collision_offset_y,
+        },
+        Sprite {
+            image: crate2_sprites.texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: crate2_sprites.atlas_layout.clone(),
+                index: 0,  // Normal crate
+            }),
+            ..default()
+        },
+        Transform::from_xyz(position.x, position.y, 0.0)
+            .with_scale(Vec3::splat(2.0)),
+    ));
+}
+
 pub fn spawn_world_props(
     commands: &mut Commands,
     registry: &PropRegistry,
     crate_sprites: &CrateSprites,
+    crate2_sprites: &Crate2Sprites,
 ) {
     let mut rng = rand::rng();
     let world_size = WORLD_SIZE as f32 * GRID_SPACING;
@@ -127,16 +161,20 @@ pub fn spawn_world_props(
         positions.push(pos);
 
         // Random prop type
-        let prop_type = match rng.random_range(0..4) {
+        let prop_type = match rng.random_range(0..5) {
             0 => PropType::Pillar,
             1 => PropType::Barrel,
             2 => PropType::Crate,
+            3 => PropType::Crate2,
             _ => PropType::Pillar,
         };
 
         match prop_type {
             PropType::Crate => {
                 spawn_crate(commands, crate_sprites, registry, pos);
+            }
+            PropType::Crate2 => {
+                spawn_crate2(commands, crate2_sprites, registry, pos);
             }
             _ => {
                 if let Some(definition) = registry.get(prop_type) {

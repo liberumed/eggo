@@ -10,12 +10,20 @@ pub enum PropType {
     Pillar,
     Barrel,
     Crate,
+    Crate2,
     StoneWall,
 }
 
 /// Resource holding crate sprite textures
 #[derive(Resource)]
 pub struct CrateSprites {
+    pub texture: Handle<Image>,
+    pub atlas_layout: Handle<TextureAtlasLayout>,
+}
+
+/// Resource holding crate2 sprite textures
+#[derive(Resource)]
+pub struct Crate2Sprites {
     pub texture: Handle<Image>,
     pub atlas_layout: Handle<TextureAtlasLayout>,
 }
@@ -62,6 +70,33 @@ pub fn load_crate_sprites(
     let atlas_layout = texture_atlas_layouts.add(layout);
 
     CrateSprites { texture, atlas_layout }
+}
+
+/// Load crate2 sprites from Aseprite export
+pub fn load_crate2_sprites(
+    asset_server: &AssetServer,
+    texture_atlas_layouts: &mut Assets<TextureAtlasLayout>,
+) -> Crate2Sprites {
+    let texture: Handle<Image> = asset_server.load("sprites/props/crate2.png");
+
+    let json_str = std::fs::read_to_string("assets/sprites/props/crate2.json")
+        .expect("Failed to read crate2 JSON");
+    let aseprite: AsepriteArrayJson = serde_json::from_str(&json_str)
+        .expect("Failed to parse crate2 JSON");
+
+    let frame_width = aseprite.frames.first().map(|f| f.frame.w).unwrap_or(32);
+    let frame_height = aseprite.frames.first().map(|f| f.frame.h).unwrap_or(32);
+
+    let layout = TextureAtlasLayout::from_grid(
+        UVec2::new(frame_width, frame_height),
+        aseprite.frames.len() as u32,
+        1,
+        None,
+        None,
+    );
+    let atlas_layout = texture_atlas_layouts.add(layout);
+
+    Crate2Sprites { texture, atlas_layout }
 }
 
 /// A single visual layer (mesh + material + transform offset)
@@ -256,6 +291,35 @@ pub fn build_prop_registry(
                     rotation: -0.785,
                 },
             ],
+        },
+    });
+
+    // Crate2 (32x32 sprite scaled 2x in-game = 64x64 visual)
+    props.insert(PropType::Crate2, PropDefinition {
+        prop_type: PropType::Crate2,
+        collision_radius_x: 6.0,
+        collision_radius_y: 4.0,
+        collision_offset_x: 0.0,
+        collision_offset_y: -6.0,
+        base_offset: -10.0,
+        visual_offset_y: 0.0,
+        destructible: true,
+        health: Some(2),
+        hit_radius: Some(12.0),
+        visual: PropVisual {
+            body: PropMeshLayer {
+                mesh: meshes.add(Rectangle::new(32.0, 32.0)),
+                material: materials.add(Color::srgb(0.6, 0.45, 0.25)),
+                offset: Vec3::ZERO,
+                rotation: 0.0,
+            },
+            shadow: Some(PropMeshLayer {
+                mesh: shadow_mesh.clone(),
+                material: shadow_material.clone(),
+                offset: Vec3::new(0.0, -12.0, 0.0),
+                rotation: 0.0,
+            }),
+            details: vec![],
         },
     });
 

@@ -23,3 +23,9 @@ pub struct CrateSprite {
 pub struct Crate2Sprite {
     pub damaged: bool,
 }
+
+/// Component for barrel sprite state
+#[derive(Component)]
+pub struct BarrelSprite {
+    pub damaged: bool,
+}

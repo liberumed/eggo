@@ -28,6 +28,13 @@ pub struct Crate2Sprites {
     pub atlas_layout: Handle<TextureAtlasLayout>,
 }
 
+/// Resource holding barrel sprite textures
+#[derive(Resource)]
+pub struct BarrelSprites {
+    pub texture: Handle<Image>,
+    pub atlas_layout: Handle<TextureAtlasLayout>,
+}
+
 // Aseprite JSON array format structures
 #[derive(Deserialize)]
 struct AsepriteArrayJson {
@@ -97,6 +104,33 @@ pub fn load_crate2_sprites(
     let atlas_layout = texture_atlas_layouts.add(layout);
 
     Crate2Sprites { texture, atlas_layout }
+}
+
+/// Load barrel sprites from Aseprite export
+pub fn load_barrel_sprites(
+    asset_server: &AssetServer,
+    texture_atlas_layouts: &mut Assets<TextureAtlasLayout>,
+) -> BarrelSprites {
+    let texture: Handle<Image> = asset_server.load("sprites/props/barrel.png");
+
+    let json_str = std::fs::read_to_string("assets/sprites/props/barrel.json")
+        .expect("Failed to read barrel JSON");
+    let aseprite: AsepriteArrayJson = serde_json::from_str(&json_str)
+        .expect("Failed to parse barrel JSON");
+
+    let frame_width = aseprite.frames.first().map(|f| f.frame.w).unwrap_or(32);
+    let frame_height = aseprite.frames.first().map(|f| f.frame.h).unwrap_or(32);
+
+    let layout = TextureAtlasLayout::from_grid(
+        UVec2::new(frame_width, frame_height),
+        aseprite.frames.len() as u32,
+        1,
+        None,
+        None,
+    );
+    let atlas_layout = texture_atlas_layouts.add(layout);
+
+    BarrelSprites { texture, atlas_layout }
 }
 
 /// A single visual layer (mesh + material + transform offset)

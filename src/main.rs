@@ -26,7 +26,7 @@ use player::{
     animate_sprites, load_player_sprite_sheet, update_player_sprite_animation,
     Player, PlayerPlugin, PlayerSpriteSheet, Stats,
 };
-use props::{build_prop_registry, load_crate_sprites, load_crate2_sprites, CrateSprites, Crate2Sprites, Prop, PropRegistry};
+use props::{build_prop_registry, load_barrel_sprites, load_crate_sprites, load_crate2_sprites, BarrelSprites, CrateSprites, Crate2Sprites, Prop, PropRegistry};
 use ui::{
     auto_start_new_game, hide_pause_menu, setup_ui, show_pause_menu,
     spawn_key_bindings_panel, toggle_pause_menu, UiPlugin,
@@ -109,6 +109,7 @@ fn setup(
     let prop_registry = build_prop_registry(&mut meshes, &mut materials);
     let crate_sprites = load_crate_sprites(&asset_server, &mut texture_atlas_layouts);
     let crate2_sprites = load_crate2_sprites(&asset_server, &mut texture_atlas_layouts);
+    let barrel_sprites = load_barrel_sprites(&asset_server, &mut texture_atlas_layouts);
     let item_icons = load_item_icons(&asset_server);
 
     // Spawn background (static, doesn't need reset)
@@ -121,6 +122,7 @@ fn setup(
     commands.insert_resource(prop_registry);
     commands.insert_resource(crate_sprites);
     commands.insert_resource(crate2_sprites);
+    commands.insert_resource(barrel_sprites);
     commands.insert_resource(item_icons);
 
     next_state.set(GameState::Playing);
@@ -146,6 +148,7 @@ fn spawn_world(
     prop_registry: Res<PropRegistry>,
     crate_sprites: Res<CrateSprites>,
     crate2_sprites: Res<Crate2Sprites>,
+    barrel_sprites: Res<BarrelSprites>,
     config: Res<WorldConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -159,7 +162,7 @@ fn spawn_world(
     player::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials);
     player::spawn_target_outline(&mut commands, &character_assets);
     creatures::spawn_creatures(&mut commands, &character_assets, &mut meshes, &mut materials);
-    props::spawn_world_props(&mut commands, &prop_registry, &crate_sprites, &crate2_sprites);
+    props::spawn_world_props(&mut commands, &prop_registry, &crate_sprites, &crate2_sprites, &barrel_sprites);
 
     for (item_id, quantity, pos) in &config.starting_items {
         player::spawn_ground_item(&mut commands, &character_assets, &item_registry, &item_icons, *item_id, *quantity, *pos);

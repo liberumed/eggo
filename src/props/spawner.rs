@@ -3,8 +3,8 @@ use rand::Rng;
 
 use crate::core::{StaticCollider, YSorted};
 use crate::constants::{COLLISION_RADIUS, GRID_SPACING, WORLD_SIZE, Z_SHADOW_OFFSET};
-use super::components::{CrateSprite, Crate2Sprite, Destructible, Prop};
-use super::data::{CrateSprites, Crate2Sprites, PropDefinition, PropRegistry, PropType};
+use super::components::{BarrelSprite, CrateSprite, Crate2Sprite, Destructible, Prop};
+use super::data::{BarrelSprites, CrateSprites, Crate2Sprites, PropDefinition, PropRegistry, PropType};
 
 /// Spawns a prop from a definition (from registry)
 pub fn spawn_prop(
@@ -127,11 +127,45 @@ pub fn spawn_crate2(
     ));
 }
 
+/// Spawns a sprite-based barrel
+pub fn spawn_barrel(
+    commands: &mut Commands,
+    barrel_sprites: &BarrelSprites,
+    registry: &PropRegistry,
+    position: Vec2,
+) {
+    let Some(definition) = registry.get(PropType::Barrel) else { return };
+
+    commands.spawn((
+        Prop { prop_type: PropType::Barrel },
+        BarrelSprite { damaged: false },
+        Destructible { health: 2 },
+        YSorted { base_offset: definition.base_offset },
+        StaticCollider {
+            radius_x: definition.collision_radius_x,
+            radius_y: definition.collision_radius_y,
+            offset_x: definition.collision_offset_x,
+            offset_y: definition.collision_offset_y,
+        },
+        Sprite {
+            image: barrel_sprites.texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: barrel_sprites.atlas_layout.clone(),
+                index: 0,
+            }),
+            ..default()
+        },
+        Transform::from_xyz(position.x, position.y, 0.0)
+            .with_scale(Vec3::splat(2.0)),
+    ));
+}
+
 pub fn spawn_world_props(
     commands: &mut Commands,
     registry: &PropRegistry,
     crate_sprites: &CrateSprites,
     crate2_sprites: &Crate2Sprites,
+    barrel_sprites: &BarrelSprites,
 ) {
     let mut rng = rand::rng();
     let world_size = WORLD_SIZE as f32 * GRID_SPACING;
@@ -175,6 +209,9 @@ pub fn spawn_world_props(
             }
             PropType::Crate2 => {
                 spawn_crate2(commands, crate2_sprites, registry, pos);
+            }
+            PropType::Barrel => {
+                spawn_barrel(commands, barrel_sprites, registry, pos);
             }
             _ => {
                 if let Some(definition) = registry.get(prop_type) {

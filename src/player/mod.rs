@@ -32,6 +32,8 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         register_state_type::<PlayerState>(app);
 
+        app.init_resource::<CameraState>();
+
         app.add_message::<DashInputDetected>()
             .add_message::<AttackInputDetected>()
             .add_message::<MovementInputDetected>();

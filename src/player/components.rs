@@ -1,8 +1,36 @@
 use bevy::prelude::*;
 
+use crate::constants::{CAMERA_BASE_SCALE, CAMERA_ZOOM_OUT_SCALE};
+
 /// Player marker component
 #[derive(Component)]
 pub struct Player;
+
+/// Camera zoom state - zooms out when player is moving
+#[derive(Resource)]
+pub struct CameraState {
+    pub current_scale: f32,
+    pub target_scale: f32,
+}
+
+impl Default for CameraState {
+    fn default() -> Self {
+        Self {
+            current_scale: CAMERA_BASE_SCALE,
+            target_scale: CAMERA_BASE_SCALE,
+        }
+    }
+}
+
+impl CameraState {
+    pub fn set_moving(&mut self, is_moving: bool) {
+        self.target_scale = if is_moving {
+            CAMERA_ZOOM_OUT_SCALE
+        } else {
+            CAMERA_BASE_SCALE
+        };
+    }
+}
 
 #[derive(Component, Default)]
 pub struct PlayerAnimation {

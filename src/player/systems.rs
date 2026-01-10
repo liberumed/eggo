@@ -1,6 +1,11 @@
 use bevy::prelude::*;
 
-use crate::constants::*;
+use crate::constants::{
+    CAMERA_ZOOM_SPEED, DASH_SPEED, DEATH_COLLAPSE_DURATION, DEATH_EXPAND_DURATION,
+    PLAYER_ACCELERATION, PLAYER_FRICTION, PLAYER_SPEED, SPRINT_MAX_MULTIPLIER,
+    SPRINT_MIN_MULTIPLIER, SPRINT_MOMENTUM_FRICTION, SPRINT_RAMP_TIME, Z_DEAD,
+    ATTACK_HIT_DELAY_PERCENT,
+};
 use crate::core::{Blocking, Dead, DeathAnimation, WalkCollider, StaticCollider, ellipses_overlap, ellipse_push, Health, Knockback};
 use crate::effects::{Hitstop, ScreenShake};
 use crate::core::{GameAction, InputBindings};
@@ -8,7 +13,7 @@ use crate::core::CharacterAssets;
 use crate::state_machine::{AttackPhase, RequestTransition, StateMachine};
 use super::{
     Player, PlayerAnimation, DashCooldown, Sprinting, PhaseThrough,
-    SpriteAnimation, PlayerSpriteSheet, PlayerState,
+    SpriteAnimation, PlayerSpriteSheet, PlayerState, CameraState,
     PlayerDashing, PlayerAttacking, PlayerSmashAttack,
 };
 use crate::inventory::AttackType;
@@ -569,15 +574,29 @@ pub fn animate_sprites(
 }
 
 pub fn camera_follow(
-    player_query: Query<&Transform, With<Player>>,
+    time: Res<Time>,
+    player_query: Query<(&Transform, &PlayerAnimation), With<Player>>,
     mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
+    mut camera_state: ResMut<CameraState>,
     screen_shake: Res<ScreenShake>,
 ) {
-    let Ok(player_transform) = player_query.single() else { return };
+    let Ok((player_transform, player_anim)) = player_query.single() else { return };
     let Ok(mut camera_transform) = camera_query.single_mut() else { return };
 
-    let shake_offset = screen_shake.get_offset();
+    // Update zoom based on player velocity
+    let is_moving = player_anim.velocity.length() > 1.0;
+    camera_state.set_moving(is_moving);
 
+    // Smooth lerp toward target zoom
+    let dt = time.delta_secs();
+    camera_state.current_scale = camera_state.current_scale
+        + (camera_state.target_scale - camera_state.current_scale) * CAMERA_ZOOM_SPEED * dt;
+
+    // Apply position with shake
+    let shake_offset = screen_shake.get_offset();
     camera_transform.translation.x = player_transform.translation.x + shake_offset.x;
     camera_transform.translation.y = player_transform.translation.y + shake_offset.y;
+
+    // Apply zoom
+    camera_transform.scale = Vec3::splat(camera_state.current_scale);
 }

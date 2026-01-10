@@ -93,6 +93,7 @@ impl Plugin for PlayerPlugin {
             handle_block
                 .run_if(in_state(GameState::Playing))
                 .run_if(cursor_not_over_ui),
-        );
+        )
+        .add_systems(Update, camera_follow);
     }
 }

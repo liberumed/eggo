@@ -1,5 +1,22 @@
 # Eggo Architecture
 
+## Module Dependency Hierarchy
+
+```
+core/               ← Pure foundation (NO game module imports)
+    ↓
+world/              ← Game configuration (imports inventory for ItemId)
+inventory/          ← Items and weapons (imports core)
+    ↓
+combat/             ← Combat systems (imports inventory, creatures, player)
+creatures/          ← Creature AI (imports combat, inventory, player)
+player/             ← Player logic (imports combat, inventory, effects)
+    ↓
+effects/            ← Visual effects (imports core, player)
+ui/                 ← User interface (imports inventory, player, creatures)
+debug/              ← Debug tools (imports everything)
+```
+
 ## Domain-Driven Structure
 
 ```
@@ -7,15 +24,17 @@ src/
 ├── main.rs              # App entry, plugin registration, UI setup
 ├── constants.rs         # Game constants (z-layers, sizes, etc.)
 │
-├── core/                # Shared infrastructure
+├── core/                # Shared infrastructure (NO game imports)
 │   ├── assets.rs        # CharacterAssets (meshes, materials)
-│   ├── camera.rs        # Camera follow system
 │   ├── collisions.rs    # WalkCollider, HitCollider, ellipse math
 │   ├── components.rs    # Health, Dead, Stunned, Knockback, Shadow, Loot
 │   ├── depth.rs         # YSorted, depth sorting
 │   ├── input.rs         # InputBindings, GameAction
-│   ├── state.rs         # GameState, WorldConfig
+│   ├── state.rs         # GameState enum only
 │   └── systems.rs       # update_stun, update_despawn_timer
+│
+├── world/               # Game configuration
+│   └── mod.rs           # WorldConfig, NewGameRequested
 │
 ├── state_machine/       # Generic state machine infrastructure
 │   ├── mod.rs           # StateMachinePlugin, StateMachineSet, register_state_type
@@ -25,14 +44,29 @@ src/
 │   ├── systems.rs       # process_transitions, tick_state_time
 │   └── attack.rs        # AttackPhase, AttackTimer
 │
+├── inventory/           # Items and weapons domain
+│   ├── components.rs    # Inventory, GroundItem, Pickupable
+│   ├── data.rs          # Rarity, ItemId, ItemCategory, ItemRegistry
+│   ├── systems.rs       # Pickup, hotbar, inventory UI interaction
+│   ├── weapons/         # Weapon definitions
+│   │   ├── data.rs      # Weapon, AttackType, DamageType, OnHitEffect, weapon_catalog
+│   │   └── components.rs # Fist, Knife, Stick, WeaponSwing, Drawn, PlayerWeapon
+│   └── items/           # Non-weapon items
+│       ├── data.rs      # ConsumableEffect, item_catalog
+│       └── components.rs # Armor, Consumable
+│
 ├── player/              # Player domain
 │   ├── components.rs    # Player, PlayerAnimation, Dashing, Sprinting
+│   ├── events.rs        # DashInputDetected, AttackInputDetected, MovementInputDetected
 │   ├── spawner.rs       # spawn_player, spawn_ground_item, spawn_background_grid
 │   ├── sprites.rs       # PlayerSpriteSheet, Aseprite loader
+│   ├── state.rs         # PlayerState enum
+│   ├── state_handlers.rs # Input detection, state entry/exit handlers
 │   ├── stats.rs         # Stats resource
-│   └── systems.rs       # Movement, dash, knockback, animation
+│   └── systems.rs       # Movement, dash, knockback, animation, camera_follow
 │
 ├── creatures/           # Creature domain
+│   ├── components.rs    # Creature, CreatureAnimation, Hostile, Glowing, steering components
 │   ├── data.rs          # CreatureDefinition, SteeringConfig, creature_catalog
 │   ├── events.rs        # PlayerInRange and other creature events
 │   ├── state.rs         # CreatureState enum, transition rules
@@ -41,18 +75,14 @@ src/
 │   ├── spawner.rs       # spawn_creatures, spawn_creature_range_indicator
 │   └── systems.rs       # Animation, death, collision push
 │
-├── combat/              # Combat domain
+├── combat/              # Combat systems domain
+│   ├── components.rs    # Equipment, WeaponRangeIndicator, PlayerRangeIndicator
 │   ├── hit_detection.rs # HitCone, arc intersection
 │   ├── mesh.rs          # create_weapon_arc
-│   ├── systems.rs       # Attack, block, damage, AI (hostile_ai, hostile_attack)
-│   └── weapons.rs       # Weapon, AttackType, WeaponSwing, weapon_catalog
-│
-├── inventory/           # Inventory domain
-│   ├── components.rs    # Inventory, ItemId, ItemRegistry, GroundItem
-│   └── systems.rs       # Pickup, hotbar, inventory UI interaction
+│   └── systems.rs       # Attack, block, damage, AI (hostile_ai, hostile_attack)
 │
 ├── props/               # World props domain
-│   ├── components.rs    # Prop, Destructible, CrateSprite
+│   ├── components.rs    # Prop, Destructible, CrateSprite, BarrelSprite
 │   ├── data.rs          # PropRegistry, PropDefinition
 │   └── spawner.rs       # spawn_world_props
 │
@@ -74,9 +104,9 @@ src/
 
 Each domain has a plugin in its `mod.rs`:
 
-- `CorePlugin` - camera, depth sorting, status timers
+- `CorePlugin` - depth sorting, status timers (no game logic)
 - `StateMachinePlugin` - state transition processing, system set ordering
-- `PlayerPlugin` - movement, combat, animation
+- `PlayerPlugin` - movement, combat, animation, camera follow
 - `CreaturePlugin` - AI, attack, death, state handlers
 - `EffectsPlugin` - particles, screen effects
 - `InventoryPlugin` - item management, hotbar
@@ -212,7 +242,7 @@ Hostile creatures use context-based steering with interest/danger maps:
 
 ## Combat System
 
-- Weapons have `AttackType`: Slash, Stab, Smash
+- Weapons defined in `inventory/weapons/` with `AttackType`: Slash, Stab, Smash
 - Hit detection uses ellipse-arc intersection
 - Blocking reduces damage and reflects knockback
 - Hitstop freezes action on hit for game feel

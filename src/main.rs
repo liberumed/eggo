@@ -9,11 +9,13 @@ mod player;
 mod props;
 mod state_machine;
 mod ui;
+mod world;
 
 use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use constants::*;
 
-use core::{CharacterAssets, CorePlugin, GameState, InputBindings, NewGameRequested, WorldConfig};
+use core::{CharacterAssets, CorePlugin, GameState, InputBindings};
+use world::{NewGameRequested, WorldConfig};
 use creatures::{Creature, CreaturePlugin};
 use debug::{
     cleanup_steering_debug, spawn_debug_circles, spawn_steering_debug, spawn_weapon_debug_cones,

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::constants::*;
 use crate::core::{Blocking, Dead, DeathAnimation, WalkCollider, StaticCollider, ellipses_overlap, ellipse_push, Health, Knockback};
-use crate::effects::Hitstop;
+use crate::effects::{Hitstop, ScreenShake};
 use crate::core::{GameAction, InputBindings};
 use crate::core::CharacterAssets;
 use crate::state_machine::{AttackPhase, RequestTransition, StateMachine};
@@ -566,4 +566,18 @@ pub fn animate_sprites(
 
         sprite.flip_x = anim.flip_x;
     }
+}
+
+pub fn camera_follow(
+    player_query: Query<&Transform, With<Player>>,
+    mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
+    screen_shake: Res<ScreenShake>,
+) {
+    let Ok(player_transform) = player_query.single() else { return };
+    let Ok(mut camera_transform) = camera_query.single_mut() else { return };
+
+    let shake_offset = screen_shake.get_offset();
+
+    camera_transform.translation.x = player_transform.translation.x + shake_offset.x;
+    camera_transform.translation.y = player_transform.translation.y + shake_offset.y;
 }

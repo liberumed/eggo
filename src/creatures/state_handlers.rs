@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::combat::{Fist, Weapon, WeaponSwing};
+use crate::inventory::weapons::{Fist, Weapon, WeaponSwing};
 use crate::constants::ATTACK_HIT_DELAY_PERCENT;
 use crate::core::{Dead, DeathAnimation, HitCollider, Stunned};
 use crate::player::Player;

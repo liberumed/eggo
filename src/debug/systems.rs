@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::combat::{Fist, PlayerWeapon, Weapon, WeaponSwing};
+use crate::inventory::weapons::{Fist, PlayerWeapon, Weapon, WeaponSwing};
 use crate::constants::WEAPON_OFFSET;
 use crate::core::{Dead, HitCollider, StaticCollider, WalkCollider};
 use crate::creatures::{ContextMap, ContextMapCache, Creature, Hostile, NUM_DIRECTIONS};

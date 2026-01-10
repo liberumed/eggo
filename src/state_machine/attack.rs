@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
-use crate::combat::{AttackType, Weapon};
+use crate::inventory::AttackType;
+use crate::inventory::Weapon;
 use crate::constants::ATTACK_HIT_DELAY_PERCENT;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

@@ -1,3 +1,4 @@
+pub mod components;
 pub mod data;
 pub mod events;
 pub mod spawner;
@@ -6,6 +7,7 @@ pub mod state_handlers;
 pub mod steering;
 pub mod systems;
 
+pub use components::*;
 pub use data::*;
 pub use events::*;
 pub use spawner::*;

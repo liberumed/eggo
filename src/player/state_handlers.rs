@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
-use crate::combat::{AttackType, Drawn, PlayerWeapon, Weapon, WeaponSwing};
+use crate::inventory::AttackType;
+use crate::inventory::weapons::{Drawn, PlayerWeapon, Weapon, WeaponSwing};
 use crate::constants::ATTACK_HIT_DELAY_PERCENT;
 use crate::core::{Dead, DeathAnimation, GameAction, InputBindings};
 use crate::state_machine::{AttackPhase, RequestTransition, StateEntered, StateExited, StateMachine};

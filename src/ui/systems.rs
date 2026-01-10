@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::components::*;
-use crate::combat::{PlayerWeapon, Weapon};
+use crate::inventory::weapons::{PlayerWeapon, Weapon};
 use crate::core::{Dead, GameAction, GameState, Health, InputBindings, Shadow};
 use crate::creatures::Creature;
 use crate::player::{Player, Stats};

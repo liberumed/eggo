@@ -11,7 +11,8 @@ use super::{
     SpriteAnimation, PlayerSpriteSheet, PlayerState,
     PlayerDashing, PlayerAttacking, PlayerSmashAttack,
 };
-use crate::combat::{Weapon, PlayerWeapon, Drawn, AttackType, WeaponSwing, Fist};
+use crate::inventory::AttackType;
+use crate::inventory::weapons::{Weapon, PlayerWeapon, Drawn, WeaponSwing, Fist};
 use crate::creatures::Creature;
 
 pub fn move_player(

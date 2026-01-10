@@ -1,8 +1,20 @@
 pub mod components;
+pub mod data;
+pub mod items;
 pub mod systems;
+pub mod weapons;
 
 pub use components::*;
+pub use data::*;
+#[allow(unused_imports)]
+pub use items::{Armor, Consumable, ConsumableEffect, item_catalog};
 pub use systems::*;
+#[allow(unused_imports)]
+pub use weapons::{
+    Weapon, WeaponVisual, weapon_catalog,
+    Fist, Knife, Stick, WeaponSwing, Drawn, PlayerWeapon, WeaponVisualMesh,
+    AttackType, DamageType, OnHitEffect,
+};
 
 use bevy::prelude::*;
 

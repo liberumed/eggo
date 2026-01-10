@@ -1,30 +1,4 @@
-use bevy::prelude::*;
-
-/// Creature marker component (creatures in the world)
-#[derive(Component)]
-pub struct Creature;
-
-#[derive(Component)]
-pub struct CreatureAnimation {
-    pub phase: f32,
-    pub speed: f32,
-    pub amplitude: f32,
-}
-
-/// Marker for creatures that will attack the player
-#[derive(Component)]
-pub struct Hostile {
-    pub speed: f32,
-}
-
-/// Marker for glowing creatures
-#[derive(Component)]
-pub struct Glowing;
-
-/// Marker for creatures that became hostile after being hit (angry, direct pursuit)
-/// Creatures without this use flanking behavior
-#[derive(Component)]
-pub struct Provoked;
+#![allow(dead_code)]
 
 /// Steering behavior strategy
 #[derive(Clone, Copy, Default, Debug)]
@@ -62,16 +36,7 @@ impl Default for SteeringConfig {
     }
 }
 
-/// Active steering configuration for a creature
-#[derive(Component, Clone, Debug)]
-pub struct CreatureSteering(pub SteeringConfig);
-
-/// Stored steering config to use when creature becomes provoked
-#[derive(Component, Clone, Debug)]
-pub struct ProvokedSteering(pub SteeringConfig);
-
-/// Identifier for creature types (for future creature variety)
-#[allow(dead_code)]
+/// Identifier for creature types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CreatureId {
     Blob,
@@ -102,7 +67,6 @@ impl ColliderDef {
 /// Complete definition of a creature type
 #[derive(Clone)]
 pub struct CreatureDefinition {
-    #[allow(dead_code)]
     pub name: String,
     pub health: i32,
     pub speed: f32,

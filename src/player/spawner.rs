@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate::combat::{create_weapon_arc, Equipment, Fist, PlayerRangeIndicator, PlayerWeapon, WeaponRangeIndicator, WeaponVisualMesh, weapon_catalog};
+use crate::combat::{create_weapon_arc, Equipment, PlayerRangeIndicator, WeaponRangeIndicator};
+use crate::inventory::weapons::{Fist, PlayerWeapon, WeaponVisualMesh, weapon_catalog};
 use crate::constants::*;
 use crate::core::{CharacterAssets, Health, Shadow, WalkCollider, HitCollider, YSorted};
 use crate::effects::TargetOutline;

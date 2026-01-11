@@ -8,8 +8,11 @@ pub enum CreatureState {
     Attack(AttackPhase),
     /// Post-attack cooldown - creature waits before attacking again
     Cooldown,
+    #[allow(dead_code)]
     Stunned,
+    #[allow(dead_code)]
     Dying,
+    #[allow(dead_code)]
     Dead,
 }
 

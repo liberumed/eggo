@@ -18,6 +18,7 @@ impl<S: StateType> RequestTransition<S> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn forced(entity: Entity, target: S) -> Self {
         Self {
             entity,

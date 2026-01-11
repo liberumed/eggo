@@ -266,7 +266,7 @@ pub fn update_player_debug_cone(
     mut cone_query: Query<&mut Transform, (With<WeaponReachCone>, Without<CreatureDebugCircle>, Without<Player>, Without<PlayerWeapon>)>,
 ) {
     let Ok(swing) = weapon_query.single() else { return };
-    let Ok((player_transform, children, state, smash_attack)) = player_query.single() else { return };
+    let Ok((player_transform, children, _state, smash_attack)) = player_query.single() else { return };
 
     // CircularSector points +Y by default, weapon points +X, so offset by -90°
     let cone_offset = -std::f32::consts::FRAC_PI_2;

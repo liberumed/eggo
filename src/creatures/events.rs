@@ -4,5 +4,6 @@ use bevy::prelude::*;
 #[derive(Event, Message, Debug)]
 pub struct PlayerInRange {
     pub creature: Entity,
+    #[allow(dead_code)]
     pub distance: f32,
 }

@@ -63,6 +63,7 @@ impl Inventory {
         self.slots[index].as_ref()
     }
 
+    #[allow(dead_code)]
     pub fn hotbar_slots(&self) -> &[Option<InventorySlot>] {
         &self.slots[..HOTBAR_SIZE]
     }

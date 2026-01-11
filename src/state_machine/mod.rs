@@ -4,7 +4,7 @@ mod machine;
 mod systems;
 mod traits;
 
-pub use attack::{AttackPhase, AttackTimer};
+pub use attack::AttackPhase;
 pub use events::{RequestTransition, StateEntered, StateExited};
 pub use machine::StateMachine;
 pub use traits::StateType;

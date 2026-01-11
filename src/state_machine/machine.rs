@@ -32,6 +32,7 @@ impl<S: StateType> StateMachine<S> {
         &self.current
     }
 
+    #[allow(dead_code)]
     pub fn previous(&self) -> Option<&S> {
         self.previous.as_ref()
     }
@@ -40,6 +41,7 @@ impl<S: StateType> StateMachine<S> {
         self.time_in_state
     }
 
+    #[allow(dead_code)]
     pub fn is(&self, state: &S) -> bool {
         &self.current == state
     }

@@ -7,8 +7,11 @@ pub enum PlayerState {
     Moving,
     Dashing,
     Attacking(AttackPhase),
+    #[allow(dead_code)]
     Stunned,
+    #[allow(dead_code)]
     Dying,
+    #[allow(dead_code)]
     Dead,
 }
 

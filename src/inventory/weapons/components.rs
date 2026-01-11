@@ -3,10 +3,12 @@ use bevy::prelude::*;
 use super::AttackType;
 
 /// Marker component for knife weapons
+#[allow(dead_code)]
 #[derive(Component)]
 pub struct Knife;
 
 /// Marker component for stick weapons
+#[allow(dead_code)]
 #[derive(Component)]
 pub struct Stick;
 

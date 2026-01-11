@@ -2,11 +2,13 @@ use super::super::Rarity;
 use super::components::{Armor, Consumable};
 
 /// Effect when a consumable is used
+#[allow(dead_code)]
 #[derive(Clone)]
 pub enum ConsumableEffect {
     Heal(i32),
 }
 
+#[allow(dead_code)]
 pub mod item_catalog {
     use super::*;
 

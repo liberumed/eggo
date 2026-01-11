@@ -17,6 +17,7 @@ pub struct CreatureRangeIndicator(pub Entity);
 pub struct GoblinAttackIndicator(pub Entity);
 
 /// Equipment slots on an entity
+#[allow(dead_code)]
 #[derive(Component, Default)]
 pub struct Equipment {
     pub main_hand: Option<Entity>,
@@ -24,11 +25,13 @@ pub struct Equipment {
 }
 
 /// Marks an item as equippable in a slot
+#[allow(dead_code)]
 #[derive(Component)]
 pub struct Equippable {
     pub slot: EquipmentSlot,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EquipmentSlot {
     MainHand,

@@ -12,6 +12,10 @@ pub struct PlayerRangeIndicator;
 #[derive(Component)]
 pub struct CreatureRangeIndicator(pub Entity);
 
+/// Links a goblin's attack area indicator (filled half-circle) to its owner
+#[derive(Component)]
+pub struct GoblinAttackIndicator(pub Entity);
+
 /// Equipment slots on an entity
 #[derive(Component, Default)]
 pub struct Equipment {

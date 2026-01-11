@@ -1,17 +1,18 @@
 use bevy::prelude::*;
 
+use crate::combat::snap_to_cardinal;
 use crate::inventory::weapons::{Fist, Weapon, WeaponSwing};
-use crate::constants::ATTACK_HIT_DELAY_PERCENT;
+use crate::constants::{ATTACK_CENTER_OFFSET_Y, ATTACK_HIT_DELAY_PERCENT};
 use crate::core::{Dead, DeathAnimation, HitCollider, Stunned};
 use crate::player::Player;
 use crate::state_machine::{AttackPhase, RequestTransition, StateEntered, StateExited, StateMachine};
-use super::{Creature, CreatureState, Hostile, PlayerInRange};
+use super::{Creature, CreatureState, Goblin, Hostile, PlayerInRange};
 
 pub fn on_attack_windup_enter(
     mut commands: Commands,
     mut events: MessageReader<StateEntered<CreatureState>>,
     player_query: Query<&Transform, With<Player>>,
-    creature_query: Query<(&Transform, &Children)>,
+    creature_query: Query<(&Transform, &Children, Option<&Goblin>)>,
     fist_query: Query<(Entity, &Weapon), With<Fist>>,
 ) {
     let Ok(player_transform) = player_query.single() else { return };
@@ -22,13 +23,20 @@ pub fn on_attack_windup_enter(
             continue;
         }
 
-        let Ok((creature_transform, children)) = creature_query.get(event.entity) else {
+        let Ok((creature_transform, children, goblin)) = creature_query.get(event.entity) else {
             continue;
         };
 
         let creature_pos = creature_transform.translation.truncate();
         let dir = player_pos - creature_pos;
-        let base_angle = Some(dir.y.atan2(dir.x));
+        let raw_angle = dir.y.atan2(dir.x);
+
+        // Goblins snap to cardinal directions (like player)
+        let base_angle = Some(if goblin.is_some() {
+            snap_to_cardinal(raw_angle)
+        } else {
+            raw_angle
+        });
 
         for child in children.iter() {
             if let Ok((fist_entity, weapon)) = fist_query.get(child) {
@@ -95,21 +103,28 @@ pub fn on_creature_provoked(
 pub fn detect_player_proximity(
     mut events: MessageWriter<PlayerInRange>,
     player_query: Query<(&Transform, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    creature_query: Query<(Entity, &Transform, &StateMachine<CreatureState>, &Children), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    creature_query: Query<(Entity, &Transform, &StateMachine<CreatureState>, &Children, Option<&Goblin>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     fist_query: Query<&Weapon, With<Fist>>,
 ) {
     let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
     let player_hit_radius = player_hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
 
-    for (entity, creature_transform, state_machine, children) in &creature_query {
+    for (entity, creature_transform, state_machine, children, goblin) in &creature_query {
         // Only detect from Chase state
         if *state_machine.current() != CreatureState::Chase {
             continue;
         }
 
         let creature_pos = creature_transform.translation.truncate();
-        let distance = player_pos.distance(creature_pos);
+
+        // Goblins attack from body center (with Y offset), others from base position
+        let attack_origin = if goblin.is_some() {
+            Vec2::new(creature_pos.x, creature_pos.y + ATTACK_CENTER_OFFSET_Y)
+        } else {
+            creature_pos
+        };
+        let distance = player_pos.distance(attack_origin);
 
         // Check if within weapon range
         for child in children.iter() {
@@ -173,13 +188,30 @@ pub fn advance_attack_phases(
                 }
             }
             AttackPhase::Recovery => {
-                // Transition back to Chase when swing is complete
+                // Transition to Cooldown when swing is complete
                 if swing.timer >= swing.duration {
                     transitions.write(RequestTransition::new(
                         entity,
-                        CreatureState::Chase,
+                        CreatureState::Cooldown,
                     ));
                 }
+            }
+        }
+    }
+}
+
+/// Cooldown duration in seconds before creature can attack again
+const ATTACK_COOLDOWN_DURATION: f32 = 1.5;
+
+/// Transitions creatures from Cooldown back to Chase after the cooldown expires
+pub fn advance_cooldown_state(
+    mut transitions: MessageWriter<RequestTransition<CreatureState>>,
+    query: Query<(Entity, &StateMachine<CreatureState>), With<Hostile>>,
+) {
+    for (entity, state_machine) in &query {
+        if *state_machine.current() == CreatureState::Cooldown {
+            if state_machine.time_in_state() >= ATTACK_COOLDOWN_DURATION {
+                transitions.write(RequestTransition::new(entity, CreatureState::Chase));
             }
         }
     }

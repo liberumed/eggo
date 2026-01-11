@@ -40,6 +40,7 @@ impl Default for SteeringConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CreatureId {
     Blob,
+    Goblin,
 }
 
 /// Loot drop chances for a creature
@@ -139,6 +140,36 @@ pub mod creature_catalog {
                 ..Default::default()
             },
             // Not used (always hostile from start)
+            provoked_steering: SteeringConfig::default(),
+        }
+    }
+
+    /// Goblin - humanoid enemy with club, uses player-like sprites
+    pub fn goblin() -> CreatureDefinition {
+        CreatureDefinition {
+            name: "Goblin".to_string(),
+            health: 4,
+            speed: 50.0,
+            hostile_chance: 1.0,  // Always hostile
+            glowing_chance: 0.0,
+            loot: LootTable {
+                philosophy_chance: 0.3,
+                nature_chance: 0.3,
+                wisdom_chance: 0.4,
+            },
+            // Same colliders as player for sprite-based enemy
+            walk_collider: ColliderDef::new(8.0, 4.0, -4.0),
+            hit_collider: ColliderDef::new(10.0, 14.0, 5.0),
+            base_offset: -24.0,  // Same as player for 64x64 sprites
+            scale: 1.0,
+            // Goblins use flanking behavior
+            steering: SteeringConfig {
+                strategy: SteeringStrategy::Flanking,
+                sight_range: 200.0,
+                flank_angle_min: 0.3,
+                flank_angle_max: 0.8,
+                ..Default::default()
+            },
             provoked_steering: SteeringConfig::default(),
         }
     }

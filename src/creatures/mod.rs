@@ -21,7 +21,7 @@ use bevy::prelude::*;
 use crate::core::GameState;
 use crate::combat::{
     process_creature_attacks, hostile_ai, hostile_attack,
-    hostile_fist_aim, sync_creature_range_indicators,
+    hostile_fist_aim, sync_creature_range_indicators, update_goblin_attack_indicator,
 };
 use crate::state_machine::{register_state_type, StateMachineSet};
 
@@ -47,12 +47,15 @@ impl Plugin for CreaturePlugin {
                 hostile_fist_aim.in_set(StateMachineSet::Behavior),
                 hostile_attack.in_set(StateMachineSet::Behavior).after(detect_player_proximity),
                 advance_attack_phases.in_set(StateMachineSet::Behavior),
+                advance_cooldown_state.in_set(StateMachineSet::Behavior),
                 process_creature_attacks.in_set(StateMachineSet::Behavior),
                 // Other systems
                 apply_collision_push,
                 animate_creatures,
                 animate_death,
                 sync_creature_range_indicators,
+                update_goblin_attack_indicator,
+                update_goblin_sprite_animation,
             )
                 .run_if(in_state(GameState::Playing)),
         );

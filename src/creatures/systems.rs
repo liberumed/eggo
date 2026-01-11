@@ -3,10 +3,11 @@ use bevy::prelude::*;
 use crate::constants::*;
 use crate::core::{Dead, DeathAnimation, DespawnTimer, Loot};
 use crate::effects::{Hitstop, MagnetizedBall, ResourceBall};
-use crate::player::Player;
+use crate::player::{Player, SpriteAnimation};
 use crate::player::Stats;
 use crate::core::CharacterAssets;
-use super::{Creature, CreatureAnimation};
+use crate::state_machine::StateMachine;
+use super::{Creature, CreatureAnimation, CreatureState, Goblin};
 
 pub fn animate_creatures(
     time: Res<Time>,
@@ -175,5 +176,53 @@ pub fn apply_collision_push(
 
         transform.translation.x += push.x;
         transform.translation.y += push.y;
+    }
+}
+
+/// Updates goblin sprite animations based on state and movement
+pub fn update_goblin_sprite_animation(
+    player_query: Query<&Transform, (With<Player>, Without<Goblin>)>,
+    mut goblin_query: Query<(&Transform, &mut SpriteAnimation, &StateMachine<CreatureState>), (With<Goblin>, Without<Dead>)>,
+) {
+    let Ok(player_transform) = player_query.single() else { return };
+    let player_pos = player_transform.translation.truncate();
+
+    for (transform, mut sprite_anim, state_machine) in &mut goblin_query {
+        let goblin_pos = transform.translation.truncate();
+        let dir_to_player = player_pos - goblin_pos;
+
+        match state_machine.current() {
+            CreatureState::Attack(_) => {
+                sprite_anim.set_animation("attack");
+                sprite_anim.speed = 1.0;
+                // Face toward player during attack (flip when player is to the left)
+                sprite_anim.flip_x = dir_to_player.x < 0.0;
+            }
+            CreatureState::Chase | CreatureState::Cooldown => {
+                // Use directional walk animations based on direction to player
+                // (Cooldown uses same animation - creature still moves/follows)
+                let vx = dir_to_player.x.abs();
+                let vy = dir_to_player.y;
+
+                let new_animation = if vy > vx {
+                    "walk_up"
+                } else if vy < -vx {
+                    "walk_down"
+                } else {
+                    "walk"
+                };
+
+                sprite_anim.set_animation(new_animation);
+                sprite_anim.speed = 1.0;
+                sprite_anim.flip_x = dir_to_player.x < 0.0;
+            }
+            CreatureState::Idle | CreatureState::Stunned => {
+                sprite_anim.set_animation("idle");
+                sprite_anim.speed = 0.5;
+            }
+            CreatureState::Dying | CreatureState::Dead => {
+                // Keep last animation frame when dying/dead
+            }
+        }
     }
 }

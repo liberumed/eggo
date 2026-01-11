@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::combat::hit_detection::snap_to_cardinal;
 use crate::inventory::AttackType;
 use crate::inventory::weapons::{Drawn, PlayerWeapon, Weapon, WeaponSwing};
 use crate::constants::ATTACK_HIT_DELAY_PERCENT;
@@ -220,7 +221,7 @@ pub fn on_attacking_windup_enter(
     mut events: MessageReader<StateEntered<PlayerState>>,
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    query: Query<(&Transform, &Children, Option<&PlayerAttacking>), With<Player>>,
+    query: Query<(&Transform, &Children), With<Player>>,
     weapon_query: Query<(Entity, &Weapon, &Transform), With<PlayerWeapon>>,
 ) {
     for event in events.read() {
@@ -228,18 +229,20 @@ pub fn on_attacking_windup_enter(
             continue;
         }
 
-        let Ok((player_transform, children, attacking)) = query.get(event.entity) else { continue };
+        let Ok((player_transform, children)) = query.get(event.entity) else { continue };
 
-        // PlayerAttacking may not be inserted yet due to command deferral
-        // Fall back to calculating from cursor position
-        let facing_right = attacking.map(|a| a.facing_right).unwrap_or_else(|| {
-            get_cursor_world_pos(&windows, &camera_query)
-                .map(|pos| pos.x >= player_transform.translation.x)
-                .unwrap_or(true)
-        });
+        // Calculate attack direction from mouse and snap to cardinal
+        let player_pos = player_transform.translation.truncate();
+        let attack_angle = if let Some(cursor_pos) = get_cursor_world_pos(&windows, &camera_query) {
+            let dir = cursor_pos - player_pos;
+            let raw_angle = dir.y.atan2(dir.x);
+            snap_to_cardinal(raw_angle)
+        } else {
+            0.0 // Default to right
+        };
 
         for child in children.iter() {
-            if let Ok((weapon_entity, weapon, weapon_transform)) = weapon_query.get(child) {
+            if let Ok((weapon_entity, weapon, _weapon_transform)) = weapon_query.get(child) {
                 let duration = weapon.swing_duration();
 
                 if weapon.attack_type == AttackType::Smash {
@@ -247,16 +250,13 @@ pub fn on_attacking_windup_enter(
                         timer: 0.0,
                         duration,
                         hit_applied: false,
-                        facing_right,
+                        attack_angle,
                     });
                 } else {
-                    let (_, angle) = weapon_transform.rotation.to_axis_angle();
-                    let base_angle = if weapon_transform.rotation.z < 0.0 { -angle } else { angle };
-
                     commands.entity(weapon_entity).insert(WeaponSwing {
                         timer: 0.0,
                         duration,
-                        base_angle: Some(base_angle),
+                        base_angle: Some(attack_angle),
                         attack_type: weapon.attack_type,
                         hit_delay: duration * ATTACK_HIT_DELAY_PERCENT,
                         hit_applied: false,
@@ -273,7 +273,7 @@ pub struct PlayerSmashAttack {
     pub timer: f32,
     pub duration: f32,
     pub hit_applied: bool,
-    pub facing_right: bool,
+    pub attack_angle: f32,
 }
 
 pub fn on_attacking_exit(

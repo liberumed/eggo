@@ -12,6 +12,19 @@ pub fn create_weapon_arc(meshes: &mut Assets<Mesh>, weapon: &Weapon) -> Handle<M
     meshes.add(create_arc_mesh(weapon.range(), weapon.cone_angle(), ARC_THICKNESS, ARC_SEGMENTS))
 }
 
+/// Create half-circle arc mesh for player attacks (180° = PI)
+pub fn create_half_circle_arc(meshes: &mut Assets<Mesh>, range: f32) -> Handle<Mesh> {
+    meshes.add(create_arc_mesh(range, std::f32::consts::PI, ARC_THICKNESS, ARC_SEGMENTS))
+}
+
+/// Create filled half-circle mesh for attack indicators (like debug mode)
+/// Uses CircularSector - note: points +Y by default, needs -90° rotation offset
+pub fn create_filled_half_circle(meshes: &mut Assets<Mesh>, range: f32) -> Handle<Mesh> {
+    use bevy::math::primitives::CircularSector;
+    // CircularSector takes half-angle, so PI/2 for a half-circle (180°)
+    meshes.add(CircularSector::new(range, std::f32::consts::FRAC_PI_2))
+}
+
 /// Create an arc (annular sector) mesh - a thin ring segment
 fn create_arc_mesh(range: f32, cone_angle: f32, thickness: f32, segments: u32) -> Mesh {
     let half_angle = cone_angle / 2.0;

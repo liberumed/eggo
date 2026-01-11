@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 
+use crate::combat::hit_detection::snap_to_cardinal;
+use crate::constants::ATTACK_CENTER_OFFSET_Y;
 use crate::inventory::weapons::{Fist, PlayerWeapon, Weapon, WeaponSwing};
-use crate::constants::WEAPON_OFFSET;
 use crate::core::{Dead, HitCollider, StaticCollider, WalkCollider};
-use crate::creatures::{ContextMap, ContextMapCache, Creature, Hostile, NUM_DIRECTIONS};
+use crate::creatures::{ContextMap, ContextMapCache, Creature, Goblin, Hostile, NUM_DIRECTIONS};
 use crate::player::{Player, PlayerSmashAttack, PlayerState};
 use crate::props::{Prop, PropRegistry};
 use crate::state_machine::StateMachine;
@@ -38,7 +39,10 @@ pub struct WeaponConeStats {
 
 /// Links a debug circle to its owner creature
 #[derive(Component)]
-pub struct CreatureDebugCircle(pub Entity);
+pub struct CreatureDebugCircle {
+    pub entity: Entity,
+    pub is_goblin: bool,
+}
 
 /// Toggle collision debug visibility with F3
 pub fn toggle_collision_debug(
@@ -128,9 +132,9 @@ pub fn spawn_debug_circles(
                 MeshMaterial2d(walk_color.clone()),
                 Transform::from_xyz(0.0, offset_y, 10.0),
             ));
-            // Hit collision (outer ellipse) - slightly larger for visibility
+            // Hit collision (outer ellipse)
             if let Some(hit) = hit_collider {
-                let hit_mesh = meshes.add(Ellipse::new(hit.radius_x + 2.0, hit.radius_y + 2.0));
+                let hit_mesh = meshes.add(Ellipse::new(hit.radius_x, hit.radius_y));
                 parent.spawn((
                     HitDebugCircle,
                     Mesh2d(hit_mesh),
@@ -181,7 +185,7 @@ pub fn spawn_weapon_debug_cones(
     // Existing player cones to despawn if weapon changed (exclude creature circles)
     cone_query: Query<Entity, (With<WeaponReachCone>, Without<CreatureDebugCircle>)>,
     // Creatures with fists (spawn circle on creature, not fist)
-    creature_query: Query<(Entity, &Children), (With<Creature>, Without<HasDebugCone>)>,
+    creature_query: Query<(Entity, &Children, Option<&Goblin>), (With<Creature>, Without<HasDebugCone>)>,
     fist_query: Query<&Weapon, With<Fist>>,
 ) {
     if !debug_config.show_collisions {
@@ -193,7 +197,7 @@ pub fn spawn_weapon_debug_cones(
     // Player weapon cone - spawn on player entity, positioned at weapon origin
     if let Ok((player_entity, existing_stats)) = player_query.single() {
         if let Ok(weapon) = player_weapon_query.single() {
-            let cone_angle = weapon.cone_angle();  // Full angle, not half
+            let cone_angle = std::f32::consts::PI;  // Half-circle for player attacks
             let range = weapon.range();
 
             // Check if we need to create/recreate the cone
@@ -210,8 +214,7 @@ pub fn spawn_weapon_debug_cones(
 
                 // CircularSector::new takes half angle, so divide by 2
                 let cone_mesh = meshes.add(CircularSector::new(range, cone_angle / 2.0));
-                // Use fixed weapon offset (not affected by block pull-back)
-                let weapon_offset = Vec2::new(WEAPON_OFFSET.0, WEAPON_OFFSET.1);
+                // Center on player body for half-circle attacks
                 commands.entity(player_entity)
                     .insert(WeaponConeStats { range, half_angle: cone_angle })
                     .with_children(|parent| {
@@ -219,7 +222,7 @@ pub fn spawn_weapon_debug_cones(
                             WeaponReachCone,
                             Mesh2d(cone_mesh),
                             MeshMaterial2d(cone_color.clone()),
-                            Transform::from_xyz(weapon_offset.x, weapon_offset.y, 9.8),
+                            Transform::from_xyz(0.0, ATTACK_CENTER_OFFSET_Y, 9.8),
                         ));
                     });
             }
@@ -227,17 +230,23 @@ pub fn spawn_weapon_debug_cones(
     }
 
     // Creature fist cones - spawn as independent entities (not children) to avoid scale issues
-    for (creature_entity, children) in &creature_query {
+    for (creature_entity, children, maybe_goblin) in &creature_query {
         // Find fist weapon in children
         for child in children.iter() {
             if let Ok(weapon) = fist_query.get(child) {
-                // Use cone like player, not circle
-                let cone_mesh = meshes.add(CircularSector::new(weapon.range(), weapon.cone_angle() / 2.0));
+                let is_goblin = maybe_goblin.is_some();
+                // Goblins use half-circle like player, other creatures use weapon cone
+                let cone_angle = if is_goblin {
+                    std::f32::consts::PI
+                } else {
+                    weapon.cone_angle()
+                };
+                let cone_mesh = meshes.add(CircularSector::new(weapon.range(), cone_angle / 2.0));
                 commands.entity(creature_entity).insert(HasDebugCone);
                 // Spawn as independent entity, will follow creature position and rotation
                 commands.spawn((
                     WeaponReachCone,
-                    CreatureDebugCircle(creature_entity),
+                    CreatureDebugCircle { entity: creature_entity, is_goblin },
                     Mesh2d(cone_mesh),
                     MeshMaterial2d(cone_color.clone()),
                     Transform::from_xyz(0.0, 0.0, 9.8),
@@ -266,17 +275,17 @@ pub fn update_player_debug_cone(
         if let Ok(mut cone_transform) = cone_query.get_mut(child) {
             // Check for sprite-based attack (Smash weapons)
             let aim_angle = if let Some(smash) = smash_attack {
-                // Smash attack: locked to left or right
-                if smash.facing_right { 0.0 } else { std::f32::consts::PI }
+                // Smash attack: use stored attack angle (already snapped to cardinal)
+                smash.attack_angle
             } else if let Some(swing) = swing {
-                // Slash/Stab weapon swing: use base_angle
+                // Slash/Stab weapon swing: use base_angle (already snapped to cardinal)
                 if let Some(base_angle) = swing.base_angle {
                     base_angle
                 } else {
                     continue; // No base angle during swing, skip
                 }
             } else {
-                // Compute aim angle directly from mouse position (same as arc indicator)
+                // Compute aim angle from mouse position, snapped to cardinal
                 let Ok(window) = windows.single() else { continue };
                 let Ok((camera, camera_transform)) = camera_query.single() else { continue };
                 let Some(cursor_pos) = window.cursor_position() else { continue };
@@ -284,7 +293,8 @@ pub fn update_player_debug_cone(
 
                 let player_pos = player_transform.translation.truncate();
                 let dir = world_pos - player_pos;
-                dir.y.atan2(dir.x)
+                let raw_angle = dir.y.atan2(dir.x);
+                snap_to_cardinal(raw_angle)
             };
 
             cone_transform.rotation = Quat::from_rotation_z(aim_angle + cone_offset);
@@ -308,14 +318,24 @@ pub fn update_creature_debug_circles(
     let player_pos = player_query.single().map(|t| t.translation.truncate()).unwrap_or_default();
 
     for (circle_entity, link, mut circle_transform) in &mut circle_query {
-        if let Ok(creature_transform) = creature_query.get(link.0) {
+        if let Ok(creature_transform) = creature_query.get(link.entity) {
             let creature_pos = creature_transform.translation.truncate();
+
+            // Goblins use ATTACK_CENTER_OFFSET_Y like player
+            let y_offset = if link.is_goblin { ATTACK_CENTER_OFFSET_Y } else { 0.0 };
             circle_transform.translation.x = creature_pos.x;
-            circle_transform.translation.y = creature_pos.y;
+            circle_transform.translation.y = creature_pos.y + y_offset;
+
             // Rotate cone toward player (same direction as attack)
             // CircularSector points +Y by default, so offset by -90° to align with attack direction
             let dir = player_pos - creature_pos;
-            let angle = dir.y.atan2(dir.x);
+            let raw_angle = dir.y.atan2(dir.x);
+            // Goblins snap to cardinal directions like player
+            let angle = if link.is_goblin {
+                snap_to_cardinal(raw_angle)
+            } else {
+                raw_angle
+            };
             let offset = -std::f32::consts::FRAC_PI_2;
             circle_transform.rotation = Quat::from_rotation_z(angle + offset);
         } else {

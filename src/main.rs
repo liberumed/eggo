@@ -164,6 +164,10 @@ fn spawn_world(
     player::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials);
     player::spawn_target_outline(&mut commands, &character_assets);
     creatures::spawn_creatures(&mut commands, &character_assets, &mut meshes, &mut materials);
+    // Spawn 3 goblins at different positions
+    creatures::spawn_goblin(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, Vec2::new(100.0, 50.0));
+    creatures::spawn_goblin(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, Vec2::new(-80.0, 70.0));
+    creatures::spawn_goblin(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, Vec2::new(50.0, -90.0));
     props::spawn_world_props(&mut commands, &prop_registry, &crate_sprites, &crate2_sprites, &barrel_sprites);
 
     for (item_id, quantity, pos) in &config.starting_items {

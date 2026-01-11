@@ -6,6 +6,8 @@ pub enum CreatureState {
     Idle,
     Chase,
     Attack(AttackPhase),
+    /// Post-attack cooldown - creature waits before attacking again
+    Cooldown,
     Stunned,
     Dying,
     Dead,
@@ -44,10 +46,16 @@ impl StateType for CreatureState {
             (Chase, Attack(_)) => true,
             (Chase, _) => false,
 
-            // Attack can transition between phases or return to chase/idle
+            // Attack transitions to Cooldown after recovery (or between phases)
             (Attack(_), Attack(_)) => true,
-            (Attack(_), Chase) => true,
+            (Attack(_), Cooldown) => true,
+            (Attack(_), Chase) => true,  // Allow direct transition if needed
             (Attack(_), Idle) => true,
+
+            // Cooldown returns to Chase (or Idle)
+            (Cooldown, Chase) => true,
+            (Cooldown, Idle) => true,
+            (Cooldown, _) => false,
         }
     }
 }

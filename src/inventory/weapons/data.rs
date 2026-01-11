@@ -205,4 +205,32 @@ pub mod weapon_catalog {
             ],
         }
     }
+
+    /// Club weapon for Goblins - slower but stronger than fist
+    pub fn club(
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<ColorMaterial>,
+    ) -> Weapon {
+        Weapon {
+            name: "Club".to_string(),
+            visual: WeaponVisual {
+                mesh: meshes.add(Capsule2d::new(3.0, 12.0)),
+                material: materials.add(Color::srgb(0.5, 0.35, 0.2)),
+                offset: 14.0,
+            },
+            damage: 2,
+            speed: 2,
+            reach: 2,
+            arc: 2,
+            attack_type: AttackType::Smash,
+            damage_type: DamageType::Physical,
+            rarity: Rarity::Common,
+            cost: 0,
+            block: 1,
+            block_kb: 1,
+            on_hit: vec![
+                OnHitEffect::Knockback { force: 150.0 },
+            ],
+        }
+    }
 }

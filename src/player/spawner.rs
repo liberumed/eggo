@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate::combat::{create_weapon_arc, Equipment, PlayerRangeIndicator, WeaponRangeIndicator};
+use crate::combat::{create_half_circle_arc, Equipment, PlayerRangeIndicator, WeaponRangeIndicator};
 use crate::inventory::weapons::{Fist, PlayerWeapon, WeaponVisualMesh, weapon_catalog};
 use crate::constants::*;
 use crate::core::{CharacterAssets, Health, Shadow, WalkCollider, HitCollider, YSorted};
@@ -135,13 +135,11 @@ pub fn spawn_player(
             Transform::from_xyz(2.0, 35.0, Z_UI_WORLD).with_scale(Vec3::splat(0.25)),
         ));
         // Default weapon with visual (hidden until attack)
-        // Y offset matches body center (slightly above sprite center)
-        let arc_mesh = create_weapon_arc(meshes, &weapon);
         let weapon_pos = Vec3::new(12.0, 5.0, Z_WEAPON);
         parent.spawn((
             Fist,
             PlayerWeapon,
-            weapon,
+            weapon.clone(),
             Transform::from_translation(weapon_pos),
             Visibility::Hidden,
             InheritedVisibility::HIDDEN,
@@ -153,13 +151,14 @@ pub fn spawn_player(
                 Transform::from_xyz(weapon_visual.offset, 0.0, 0.0),
             ));
         });
-        // Range indicator as sibling (not affected by weapon swing animation)
+        // Range indicator - centered on player body for half-circle attacks
+        let arc_mesh = create_half_circle_arc(meshes, weapon.range());
         parent.spawn((
             WeaponRangeIndicator,
             PlayerRangeIndicator,
             Mesh2d(arc_mesh),
             MeshMaterial2d(assets.range_indicator_material.clone()),
-            Transform::from_translation(weapon_pos + Vec3::new(0.0, 0.0, 0.1)),
+            Transform::from_xyz(0.0, ATTACK_CENTER_OFFSET_Y, Z_WEAPON + 0.1),
         ));
     });
 }

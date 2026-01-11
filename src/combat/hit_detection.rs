@@ -61,3 +61,28 @@ impl HitCone {
 pub fn angle_to_direction(angle: f32) -> Vec2 {
     Vec2::new(angle.cos(), angle.sin())
 }
+
+/// Cardinal direction angles in radians
+pub const CARDINAL_RIGHT: f32 = 0.0;
+pub const CARDINAL_UP: f32 = std::f32::consts::FRAC_PI_2;
+pub const CARDINAL_LEFT: f32 = std::f32::consts::PI;
+pub const CARDINAL_DOWN: f32 = -std::f32::consts::FRAC_PI_2;
+
+/// Snap angle to nearest cardinal direction (Right, Up, Left, Down)
+pub fn snap_to_cardinal(angle: f32) -> f32 {
+    use std::f32::consts::{FRAC_PI_4, TAU};
+
+    // Normalize to [0, 2π)
+    let normalized = angle.rem_euclid(TAU);
+
+    // Determine quadrant (each cardinal owns 90° around it)
+    if normalized < FRAC_PI_4 || normalized >= 7.0 * FRAC_PI_4 {
+        CARDINAL_RIGHT  // 0°
+    } else if normalized < 3.0 * FRAC_PI_4 {
+        CARDINAL_UP     // 90°
+    } else if normalized < 5.0 * FRAC_PI_4 {
+        CARDINAL_LEFT   // 180°
+    } else {
+        CARDINAL_DOWN   // 270° (-90°)
+    }
+}

@@ -1,14 +1,15 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate::combat::{create_weapon_arc, CreatureRangeIndicator, WeaponRangeIndicator};
+use crate::combat::{create_weapon_arc, create_half_circle_arc, create_filled_half_circle, CreatureRangeIndicator, GoblinAttackIndicator, WeaponRangeIndicator};
 use crate::inventory::weapons::{Fist, Weapon, WeaponVisual, WeaponVisualMesh, weapon_catalog};
 use crate::constants::*;
 use crate::core::{CharacterAssets, Health, HitCollider, Loot, Shadow, WalkCollider, YSorted};
 use crate::effects::ResourceBall;
+use crate::player::{PlayerSpriteSheet, SpriteAnimation};
 use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
-use super::{Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Hostile, ProvokedSteering, creature_catalog};
+use super::{Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Goblin, Hostile, ProvokedSteering, creature_catalog};
 
 /// Spawn a creature's range indicator as an independent entity
 /// This ensures consistent behavior - indicator follows creature but isn't affected by animations
@@ -36,7 +37,6 @@ pub fn spawn_creatures(
 ) {
     let mut rng = rand::rng();
     let blob = creature_catalog::blob();
-    let hostile_blob = creature_catalog::hostile_blob();
     let world_size = WORLD_SIZE as f32 * GRID_SPACING;
     let min_distance = COLLISION_RADIUS * 6.0;
     let cell_size = min_distance * 1.2;
@@ -69,13 +69,8 @@ pub fn spawn_creatures(
 
             positions.push(pos);
 
-            // 15% chance to spawn hostile variant
-            let definition = if rng.random_bool(0.15) {
-                &hostile_blob
-            } else {
-                &blob
-            };
-            spawn_creature(commands, assets, meshes, materials, &mut rng, definition, x, y);
+            // Only spawn neutral blobs (no hostile red eggs for now)
+            spawn_creature(commands, assets, meshes, materials, &mut rng, &blob, x, y);
         }
     }
 }
@@ -289,4 +284,132 @@ fn spawn_creature_children(
         });
         // Range indicator spawned as independent entity in spawn_creature()
     }
+}
+
+/// Spawn a goblin enemy that uses player sprites and half-circle attacks
+pub fn spawn_goblin(
+    commands: &mut Commands,
+    assets: &CharacterAssets,
+    sprite_sheet: &PlayerSpriteSheet,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+    position: Vec2,
+) {
+    let definition = creature_catalog::goblin();
+    let club = weapon_catalog::club(meshes, materials);
+    let club_visual = club.visual.clone();
+    // Thin arc (always visible)
+    let arc_mesh = create_half_circle_arc(meshes, club.range());
+    // Filled half-circle (only during attack)
+    let attack_mesh = create_filled_half_circle(meshes, club.range());
+
+    // Get initial animation data (same sprites as player)
+    let initial_anim = sprite_sheet.animations.get("idle").unwrap_or_else(|| {
+        sprite_sheet.animations.values().next().expect("No animations in sprite sheet")
+    });
+
+    let loot = Loot {
+        philosophy: rand::rng().random_bool(definition.loot.philosophy_chance),
+        nature_study: rand::rng().random_bool(definition.loot.nature_chance),
+        wisdom: rand::rng().random_bool(definition.loot.wisdom_chance),
+    };
+
+    let goblin_entity = commands.spawn((
+        Goblin,
+        Creature,
+        Hostile { speed: definition.speed },
+        StateMachine::<CreatureState>::new(CreatureState::Chase),
+        YSorted { base_offset: definition.base_offset },
+        WalkCollider {
+            radius_x: definition.walk_collider.radius_x,
+            radius_y: definition.walk_collider.radius_y,
+            offset_y: definition.walk_collider.offset_y,
+        },
+        HitCollider {
+            radius_x: definition.hit_collider.radius_x,
+            radius_y: definition.hit_collider.radius_y,
+            offset_y: definition.hit_collider.offset_y,
+        },
+        Health(definition.health),
+        loot,
+        CreatureSteering(definition.steering.clone()),
+        ProvokedSteering(definition.provoked_steering.clone()),
+        SpriteAnimation::new("idle", initial_anim.frame_duration_ms),
+        Sprite::from_atlas_image(
+            initial_anim.texture.clone(),
+            TextureAtlas {
+                layout: initial_anim.atlas_layout.clone(),
+                index: initial_anim.start_index,
+            },
+        ),
+        Transform::from_xyz(position.x, position.y, 0.0),
+    )).with_children(|parent| {
+        // Shadow
+        parent.spawn((
+            Shadow { base_scale: Vec2::new(0.6, 0.5) },
+            Mesh2d(assets.shadow_mesh.clone()),
+            MeshMaterial2d(assets.shadow_material.clone()),
+            Transform::from_xyz(0.0, -3.0, Z_SHADOW_OFFSET),
+        ));
+        // Heart display
+        parent.spawn((
+            HeartSprite,
+            Mesh2d(assets.heart_mesh.clone()),
+            MeshMaterial2d(assets.heart_material.clone()),
+            Transform::from_xyz(-6.0, 36.0, Z_UI_WORLD),
+        ));
+        parent.spawn((
+            HeartSprite,
+            Mesh2d(assets.heart_top_mesh.clone()),
+            MeshMaterial2d(assets.heart_material.clone()),
+            Transform::from_xyz(-7.5, 37.0, Z_UI_WORLD),
+        ));
+        parent.spawn((
+            HeartSprite,
+            Mesh2d(assets.heart_top_mesh.clone()),
+            MeshMaterial2d(assets.heart_material.clone()),
+            Transform::from_xyz(-4.5, 37.0, Z_UI_WORLD),
+        ));
+        // HP text
+        parent.spawn((
+            HpText,
+            Text2d::new(format!("{}", definition.health)),
+            TextFont { font_size: 32.0, ..default() },
+            TextColor(Color::srgb(1.0, 1.0, 1.0)),
+            Transform::from_xyz(2.0, 35.0, Z_UI_WORLD).with_scale(Vec3::splat(0.25)),
+        ));
+        // Club weapon
+        parent.spawn((
+            Fist, // Use Fist marker for weapon targeting system
+            club,
+            Transform::from_xyz(12.0, 5.0, Z_WEAPON),
+            Visibility::Hidden,
+            InheritedVisibility::HIDDEN,
+        )).with_children(|weapon_parent| {
+            weapon_parent.spawn((
+                WeaponVisualMesh,
+                Mesh2d(club_visual.mesh),
+                MeshMaterial2d(club_visual.material),
+                Transform::from_xyz(club_visual.offset, 0.0, 0.0),
+            ));
+        });
+    }).id();
+
+    // Spawn thin arc indicator (always visible)
+    spawn_creature_range_indicator(
+        commands,
+        goblin_entity,
+        arc_mesh,
+        assets.range_indicator_material.clone(),
+        Vec3::new(position.x, position.y, 0.0),
+    );
+
+    // Spawn filled half-circle attack indicator (hidden initially)
+    commands.spawn((
+        GoblinAttackIndicator(goblin_entity),
+        Mesh2d(attack_mesh),
+        MeshMaterial2d(assets.attack_windup_material.clone()),
+        Transform::from_xyz(position.x, position.y + ATTACK_CENTER_OFFSET_Y, Z_WEAPON + 0.05),
+        Visibility::Hidden,
+    ));
 }

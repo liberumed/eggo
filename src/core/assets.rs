@@ -46,6 +46,8 @@ pub struct CharacterAssets {
 
     // Weapon range indicator (mesh created dynamically per-weapon)
     pub range_indicator_material: Handle<ColorMaterial>,
+    pub attack_windup_material: Handle<ColorMaterial>,
+    pub attack_strike_material: Handle<ColorMaterial>,
 }
 
 impl CharacterAssets {
@@ -94,6 +96,8 @@ impl CharacterAssets {
         let item_glow_material = materials.add(Color::srgba(1.0, 1.0, 0.8, 0.3));
 
         let range_indicator_material = materials.add(Color::srgba(1.0, 0.2, 0.2, 0.8));
+        let attack_windup_material = materials.add(Color::srgba(1.0, 0.5, 0.0, 0.5)); // Orange, semi-transparent
+        let attack_strike_material = materials.add(Color::srgba(1.0, 0.1, 0.1, 0.9)); // Bright red
 
         Self {
             character_mesh,
@@ -123,6 +127,8 @@ impl CharacterAssets {
             item_glow_mesh,
             item_glow_material,
             range_indicator_material,
+            attack_windup_material,
+            attack_strike_material,
         }
     }
 }

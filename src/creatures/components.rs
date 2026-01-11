@@ -35,3 +35,7 @@ pub struct CreatureSteering(pub SteeringConfig);
 /// Stored steering config to use when creature becomes provoked
 #[derive(Component, Clone, Debug)]
 pub struct ProvokedSteering(pub SteeringConfig);
+
+/// Marker for Goblin enemies (use player sprites, half-circle attacks)
+#[derive(Component)]
+pub struct Goblin;

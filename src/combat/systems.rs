@@ -3,16 +3,16 @@ use rand::Rng;
 
 use crate::constants::*;
 use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, Health, HitCollider, InputBindings, Knockback, StaticCollider, Stunned};
-use crate::creatures::{ContextMapCache, Creature, FlankPreference, Hostile};
+use crate::creatures::{ContextMapCache, Creature, FlankPreference, Goblin, Hostile};
 use crate::player::{Player, PlayerSmashAttack, PlayerState};
 use crate::state_machine::StateMachine;
 use crate::props::{BarrelSprite, CrateSprite, Crate2Sprite, Destructible, Prop, PropRegistry, PropType};
-use super::{CreatureRangeIndicator, PlayerRangeIndicator, WeaponRangeIndicator};
+use super::{CreatureRangeIndicator, GoblinAttackIndicator, PlayerRangeIndicator, WeaponRangeIndicator};
 use crate::inventory::weapons::{weapon_catalog, AttackType, Drawn, Fist, PlayerWeapon, Weapon, WeaponSwing, WeaponVisualMesh};
 use crate::effects::{BloodParticle, HitHighlight, Hitstop, ScreenShake, TargetOutline};
 use crate::core::CharacterAssets;
 use crate::creatures::spawn_creature_range_indicator;
-use super::hit_detection::{HitCone, angle_to_direction};
+use super::hit_detection::{HitCone, angle_to_direction, snap_to_cardinal};
 use super::mesh::create_weapon_arc;
 
 pub fn toggle_weapon(
@@ -85,12 +85,8 @@ pub fn apply_mesh_attack_hits(
     }
     swing.hit_applied = true;
 
-    // Attack origin: weapon position (same as debug cone)
-    let weapon_offset = weapon_transform.translation;
-    let attack_origin = Vec2::new(
-        player_transform.translation.x + weapon_offset.x,
-        player_transform.translation.y + weapon_offset.y,
-    );
+    // Attack origin: centered on player body for half-circle attacks
+    let attack_origin = player_transform.translation.truncate() + Vec2::new(0.0, ATTACK_CENTER_OFFSET_Y);
 
     // Attack direction from stored angle or current weapon rotation
     let attack_dir = if let Some(base_angle) = swing.base_angle {
@@ -101,8 +97,8 @@ pub fn apply_mesh_attack_hits(
         angle_to_direction(current_angle)
     };
 
-    // Create hit cone (precomputes trig once)
-    let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), weapon.cone_angle());
+    // Create hit half-circle (precomputes trig once)
+    let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), std::f32::consts::PI);
 
     let mut rng = rand::rng();
     let mut hit_any = false;
@@ -244,14 +240,11 @@ pub fn apply_smash_attack_hits(
 
     let Ok((_, weapon)) = weapon_query.single() else { return };
 
-    let attack_dir = if smash.facing_right {
-        Vec2::X
-    } else {
-        Vec2::NEG_X
-    };
+    let attack_dir = angle_to_direction(smash.attack_angle);
 
-    let attack_origin = player_transform.translation.truncate();
-    let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), weapon.cone_angle());
+    // Attack origin: centered on player body for half-circle attacks
+    let attack_origin = player_transform.translation.truncate() + Vec2::new(0.0, ATTACK_CENTER_OFFSET_Y);
+    let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), std::f32::consts::PI);
 
     let mut rng = rand::rng();
     let mut hit_any = false;
@@ -687,7 +680,7 @@ pub fn process_creature_attacks(
     mut hitstop: ResMut<Hitstop>,
     mut screen_shake: ResMut<ScreenShake>,
     mut player_query: Query<(Entity, &Transform, &mut Health, Option<&HitCollider>, &StateMachine<PlayerState>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    hostile_query: Query<(Entity, &Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    hostile_query: Query<(Entity, &Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&Goblin>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     mut fist_query: Query<(&Weapon, &mut WeaponSwing, &ChildOf), With<Fist>>,
     knockback_query: Query<&Knockback>,
     blocking_query: Query<&Blocking>,
@@ -717,7 +710,7 @@ pub fn process_creature_attacks(
         }
 
         // Get attacker (parent creature) and check state
-        let Ok((attacker_entity, attacker_transform, state_machine)) = hostile_query.get(child_of.parent()) else {
+        let Ok((attacker_entity, attacker_transform, state_machine, is_goblin)) = hostile_query.get(child_of.parent()) else {
             continue;
         };
 
@@ -731,9 +724,28 @@ pub fn process_creature_attacks(
         // Mark hit as applied
         swing.hit_applied = true;
 
-        // Hit detection: cone attack toward player
-        let attack_dir = (player_pos - attacker_pos).normalize_or_zero();
-        let hit_cone = HitCone::new(attacker_pos, attack_dir, weapon.range(), weapon.cone_angle());
+        // Hit detection: goblin uses half-circle with stored angle, others use cone toward player
+        let (attack_dir, cone_angle) = if is_goblin.is_some() {
+            // Goblin: use stored base_angle (snapped to cardinal) and half-circle
+            let angle = swing.base_angle.unwrap_or_else(|| {
+                let dir = player_pos - attacker_pos;
+                dir.y.atan2(dir.x)
+            });
+            (angle_to_direction(angle), std::f32::consts::PI)
+        } else {
+            // Other creatures: direct toward player with weapon cone
+            let dir = (player_pos - attacker_pos).normalize_or_zero();
+            (dir, weapon.cone_angle())
+        };
+
+        // Attack origin: centered on body for goblins (like player)
+        let attack_origin = if is_goblin.is_some() {
+            attacker_pos + Vec2::new(0.0, ATTACK_CENTER_OFFSET_Y)
+        } else {
+            attacker_pos
+        };
+
+        let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), cone_angle);
 
         if !hit_cone.hits(player_pos, player_hit_radius) {
             continue;
@@ -790,12 +802,11 @@ pub fn sync_range_indicator(
     let Some(indicator_entity) = indicator_entity else { return };
     let Ok(mut indicator_transform) = indicator_query.get_mut(indicator_entity) else { return };
 
-    // Use base weapon offset
-    let weapon_offset = Vec2::new(WEAPON_OFFSET.0, WEAPON_OFFSET.1);
-    indicator_transform.translation.x = weapon_offset.x;
-    indicator_transform.translation.y = weapon_offset.y;
+    // Center on player body for half-circle attacks
+    indicator_transform.translation.x = 0.0;
+    indicator_transform.translation.y = ATTACK_CENTER_OFFSET_Y;
 
-    // If weapon is swinging, use base_angle (stored aim direction)
+    // If weapon is swinging, use base_angle (already snapped to cardinal)
     if let Ok(swing) = swinging_weapon_query.single() {
         if let Some(base_angle) = swing.base_angle {
             indicator_transform.rotation = Quat::from_rotation_z(base_angle);
@@ -803,8 +814,7 @@ pub fn sync_range_indicator(
         }
     }
 
-    // Compute aim angle directly from mouse position (same as aim_weapon)
-    // This avoids timing issues with weapon tilt during blocking
+    // Compute aim angle from mouse position, snapped to cardinal
     let Ok(window) = windows.single() else { return };
     let Ok((camera, camera_transform)) = camera_query.single() else { return };
     let Some(cursor_pos) = window.cursor_position() else { return };
@@ -812,30 +822,100 @@ pub fn sync_range_indicator(
 
     let player_pos = player_transform.translation.truncate();
     let dir = world_pos - player_pos;
-    let aim_angle = dir.y.atan2(dir.x);
+    let raw_angle = dir.y.atan2(dir.x);
+    let aim_angle = snap_to_cardinal(raw_angle);
 
     indicator_transform.rotation = Quat::from_rotation_z(aim_angle);
 }
 
-/// Sync creature range indicators position/rotation toward player (matches hit detection)
+/// Updates goblin attack indicator (filled half-circle) visibility and color
+/// Hidden normally, visible during WindUp (orange), highlighted during Strike (bright red)
+pub fn update_goblin_attack_indicator(
+    mut commands: Commands,
+    assets: Res<CharacterAssets>,
+    creature_query: Query<(&Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>), (With<Goblin>, Without<Dead>, Without<GoblinAttackIndicator>)>,
+    player_query: Query<&Transform, (With<Player>, Without<Goblin>, Without<GoblinAttackIndicator>)>,
+    mut indicator_query: Query<(Entity, &GoblinAttackIndicator, &mut Transform, &mut Visibility, &mut MeshMaterial2d<ColorMaterial>), (Without<Goblin>, Without<Player>)>,
+) {
+    use crate::state_machine::AttackPhase;
+    use crate::creatures::CreatureState;
+
+    let Ok(player_transform) = player_query.single() else { return };
+    let player_pos = player_transform.translation.truncate();
+
+    // CircularSector points +Y by default, need -90° offset
+    let sector_offset = -std::f32::consts::FRAC_PI_2;
+
+    for (indicator_entity, link, mut transform, mut visibility, mut material) in &mut indicator_query {
+        if let Ok((creature_transform, state_machine)) = creature_query.get(link.0) {
+            let creature_pos = creature_transform.translation.truncate();
+
+            // Sync position
+            transform.translation.x = creature_pos.x;
+            transform.translation.y = creature_pos.y + ATTACK_CENTER_OFFSET_Y;
+
+            // Sync rotation (snapped to cardinal + sector offset)
+            let dir = player_pos - creature_pos;
+            let raw_angle = dir.y.atan2(dir.x);
+            let angle = snap_to_cardinal(raw_angle) + sector_offset;
+            transform.rotation = Quat::from_rotation_z(angle);
+
+            // Update visibility and color based on attack phase
+            match state_machine.current() {
+                CreatureState::Attack(AttackPhase::WindUp) => {
+                    // Orange during windup (preparation)
+                    *visibility = Visibility::Visible;
+                    material.0 = assets.attack_windup_material.clone();
+                }
+                CreatureState::Attack(AttackPhase::Strike) | CreatureState::Attack(AttackPhase::Recovery) => {
+                    // Bright red during strike AND recovery (so highlight is visible longer)
+                    *visibility = Visibility::Visible;
+                    material.0 = assets.attack_strike_material.clone();
+                }
+                _ => {
+                    *visibility = Visibility::Hidden;
+                }
+            }
+        } else {
+            // Goblin is dead or despawned, remove indicator
+            commands.entity(indicator_entity).despawn();
+        }
+    }
+}
+
+/// Sync creature range indicators (thin arc) position/rotation toward player
 pub fn sync_creature_range_indicators(
     mut commands: Commands,
     player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<CreatureRangeIndicator>)>,
-    creature_query: Query<&Transform, (With<Creature>, With<Hostile>, Without<Dead>, Without<CreatureRangeIndicator>)>,
+    creature_query: Query<(&Transform, Option<&Goblin>), (With<Creature>, With<Hostile>, Without<Dead>, Without<CreatureRangeIndicator>)>,
     mut indicator_query: Query<(Entity, &CreatureRangeIndicator, &mut Transform)>,
 ) {
     let Ok(player_transform) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
 
     for (indicator_entity, link, mut indicator_transform) in &mut indicator_query {
-        if let Ok(creature_transform) = creature_query.get(link.0) {
+        if let Ok((creature_transform, is_goblin)) = creature_query.get(link.0) {
             let creature_pos = creature_transform.translation.truncate();
-            // Sync position with creature
-            indicator_transform.translation.x = creature_pos.x;
-            indicator_transform.translation.y = creature_pos.y;
-            // Calculate direction toward player (same as hit detection in apply_creature_delayed_hits)
+
+            // Goblins: center on body (like player), others: center on feet
+            if is_goblin.is_some() {
+                indicator_transform.translation.x = creature_pos.x;
+                indicator_transform.translation.y = creature_pos.y + ATTACK_CENTER_OFFSET_Y;
+            } else {
+                indicator_transform.translation.x = creature_pos.x;
+                indicator_transform.translation.y = creature_pos.y;
+            }
+
+            // Calculate direction toward player
             let dir = player_pos - creature_pos;
-            let angle = dir.y.atan2(dir.x);
+            let raw_angle = dir.y.atan2(dir.x);
+
+            // Goblins: snap to cardinal (like player), others: direct angle
+            let angle = if is_goblin.is_some() {
+                snap_to_cardinal(raw_angle)
+            } else {
+                raw_angle
+            };
             indicator_transform.rotation = Quat::from_rotation_z(angle);
         } else {
             // Creature is dead or despawned, remove indicator

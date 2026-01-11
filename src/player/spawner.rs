@@ -9,6 +9,7 @@ use crate::effects::TargetOutline;
 use crate::inventory::{EquippedWeaponId, GroundItem, GroundItemBob, Inventory, ItemIcons, ItemId, ItemRegistry, Pickupable};
 use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
+use crate::levels::BoundToLevel;
 use super::{Player, PlayerAnimation, PlayerSpriteSheet, PlayerState, SpriteAnimation};
 
 pub fn spawn_ground_item(
@@ -65,6 +66,7 @@ pub fn spawn_player(
     sprite_sheet: &PlayerSpriteSheet,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
+    spawn_pos: Vec2,
 ) {
     // Player starts with fist, stick in inventory
     let weapon = weapon_catalog::fist(meshes, materials);
@@ -81,6 +83,7 @@ pub fn spawn_player(
 
     commands.spawn((
         Player,
+        BoundToLevel,
         StateMachine::<PlayerState>::default(),
         YSorted { base_offset: -24.0 },  // Feet position for 64x64 sprite
         WalkCollider { radius_x: 8.0, radius_y: 4.0, offset_y: -4.0 },  // At feet
@@ -98,7 +101,7 @@ pub fn spawn_player(
                 index: initial_anim.start_index,
             },
         ),
-        Transform::from_xyz(0.0, 0.0, 0.0),
+        Transform::from_xyz(spawn_pos.x, spawn_pos.y, 0.0),
     )).with_children(|parent| {
         // Shadow - right under feet
         parent.spawn((

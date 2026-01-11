@@ -16,6 +16,7 @@ use super::{
 use crate::inventory::AttackType;
 use crate::inventory::weapons::{Weapon, PlayerWeapon, Drawn, WeaponSwing, Fist};
 use crate::creatures::Creature;
+use crate::levels::CurrentLevel;
 
 pub fn move_player(
     mut commands: Commands,
@@ -580,6 +581,7 @@ pub fn camera_follow(
     mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
     mut camera_state: ResMut<CameraState>,
     screen_shake: Res<ScreenShake>,
+    current_level: Res<CurrentLevel>,
 ) {
     let Ok((player_transform, player_anim)) = player_query.single() else { return };
     let Ok(mut camera_transform) = camera_query.single_mut() else { return };
@@ -593,10 +595,36 @@ pub fn camera_follow(
     camera_state.current_scale = camera_state.current_scale
         + (camera_state.target_scale - camera_state.current_scale) * CAMERA_ZOOM_SPEED * dt;
 
+    // Calculate base camera position from player
+    let mut camera_x = player_transform.translation.x;
+    let mut camera_y = player_transform.translation.y;
+
+    // Clamp camera to level bounds if level is loaded
+    if let Some(bounds) = current_level.bounds() {
+        let half_view_x = 160.0 * camera_state.current_scale * 4.0;
+        let half_view_y = 120.0 * camera_state.current_scale * 4.0;
+
+        let min_x = bounds.min.x + half_view_x;
+        let max_x = bounds.max.x - half_view_x;
+        let min_y = bounds.min.y + half_view_y;
+        let max_y = bounds.max.y - half_view_y;
+
+        if min_x < max_x {
+            camera_x = camera_x.clamp(min_x, max_x);
+        } else {
+            camera_x = bounds.center().x;
+        }
+        if min_y < max_y {
+            camera_y = camera_y.clamp(min_y, max_y);
+        } else {
+            camera_y = bounds.center().y;
+        }
+    }
+
     // Apply position with shake
     let shake_offset = screen_shake.get_offset();
-    camera_transform.translation.x = player_transform.translation.x + shake_offset.x;
-    camera_transform.translation.y = player_transform.translation.y + shake_offset.y;
+    camera_transform.translation.x = camera_x + shake_offset.x;
+    camera_transform.translation.y = camera_y + shake_offset.y;
 
     // Apply zoom
     camera_transform.scale = Vec3::splat(camera_state.current_scale);

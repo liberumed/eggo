@@ -160,6 +160,15 @@ pub fn spawn_barrel(
     ));
 }
 
+pub fn spawn_pillar(
+    commands: &mut Commands,
+    registry: &PropRegistry,
+    position: Vec2,
+) {
+    let Some(definition) = registry.get(PropType::Pillar) else { return };
+    spawn_prop(commands, definition, position);
+}
+
 pub fn spawn_world_props(
     commands: &mut Commands,
     registry: &PropRegistry,

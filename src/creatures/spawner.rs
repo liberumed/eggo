@@ -9,6 +9,7 @@ use crate::effects::ResourceBall;
 use crate::player::{PlayerSpriteSheet, SpriteAnimation};
 use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
+use crate::levels::BoundToLevel;
 use super::{Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Goblin, Hostile, ProvokedSteering, creature_catalog};
 
 /// Spawn a creature's range indicator as an independent entity
@@ -317,6 +318,7 @@ pub fn spawn_goblin(
     let goblin_entity = commands.spawn((
         Goblin,
         Creature,
+        BoundToLevel,
         Hostile { speed: definition.speed },
         StateMachine::<CreatureState>::new(CreatureState::Chase),
         YSorted { base_offset: definition.base_offset },

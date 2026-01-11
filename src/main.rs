@@ -5,6 +5,7 @@ mod creatures;
 mod debug;
 mod effects;
 mod inventory;
+mod levels;
 mod player;
 mod props;
 mod state_machine;
@@ -15,6 +16,7 @@ use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use constants::*;
 
 use core::{CharacterAssets, CorePlugin, GameConfig, GameState, InputBindings};
+use levels::{CurrentLevel, EntityType, LevelBackground, LevelsPlugin, VoidBackground};
 use world::{NewGameRequested, WorldConfig};
 use creatures::{Creature, CreaturePlugin};
 use debug::{
@@ -86,6 +88,7 @@ fn main() {
             EffectsPlugin,
             UiPlugin,
             InventoryPlugin,
+            LevelsPlugin,
         ))
         .run();
 }
@@ -117,9 +120,6 @@ fn setup(
     let crate2_sprites = load_crate2_sprites(&asset_server, &mut texture_atlas_layouts);
     let barrel_sprites = load_barrel_sprites(&asset_server, &mut texture_atlas_layouts);
     let item_icons = load_item_icons(&asset_server);
-
-    // Spawn background (static, doesn't need reset)
-    player::spawn_background_grid(&mut commands, &mut meshes, &mut materials);
 
     // Insert resources
     commands.insert_resource(character_assets);
@@ -155,7 +155,7 @@ fn spawn_world(
     crate_sprites: Res<CrateSprites>,
     crate2_sprites: Res<Crate2Sprites>,
     barrel_sprites: Res<BarrelSprites>,
-    config: Res<WorldConfig>,
+    mut current_level: ResMut<CurrentLevel>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     player_query: Query<Entity, With<Player>>,
@@ -165,24 +165,47 @@ fn spawn_world(
         return;
     }
 
-    player::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials);
-    player::spawn_target_outline(&mut commands, &character_assets);
-    creatures::spawn_creatures(&mut commands, &character_assets, &mut meshes, &mut materials);
-    // Spawn 3 goblins at different positions
-    creatures::spawn_goblin(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, Vec2::new(100.0, 50.0));
-    creatures::spawn_goblin(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, Vec2::new(-80.0, 70.0));
-    creatures::spawn_goblin(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, Vec2::new(50.0, -90.0));
-    props::spawn_world_props(&mut commands, &prop_registry, &crate_sprites, &crate2_sprites, &barrel_sprites);
+    // Load level data
+    current_level.load("assets/levels/corridor.ron");
+    let level = current_level.data.as_ref().expect("Level should be loaded");
 
-    for (item_id, quantity, pos) in &config.starting_items {
-        player::spawn_ground_item(&mut commands, &character_assets, &item_registry, &item_icons, *item_id, *quantity, *pos);
+    // Spawn level background (void and corridor)
+    levels::spawn_level_background(&mut commands, level, &mut meshes, &mut materials);
+
+    // Spawn player at level's spawn position
+    player::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, level.player_spawn);
+    player::spawn_target_outline(&mut commands, &character_assets);
+
+    // Spawn entities from level data
+    for spawn in &level.spawns.clone() {
+        match &spawn.entity_type {
+            EntityType::Goblin => {
+                creatures::spawn_goblin(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, spawn.position);
+            }
+            EntityType::Pillar => {
+                props::spawn_pillar(&mut commands, &prop_registry, spawn.position);
+            }
+            EntityType::Barrel => {
+                props::spawn_barrel(&mut commands, &barrel_sprites, &prop_registry, spawn.position);
+            }
+            EntityType::Crate => {
+                props::spawn_crate(&mut commands, &crate_sprites, &prop_registry, spawn.position);
+            }
+            EntityType::Crate2 => {
+                props::spawn_crate2(&mut commands, &crate2_sprites, &prop_registry, spawn.position);
+            }
+            EntityType::Item { item_id, quantity } => {
+                player::spawn_ground_item(&mut commands, &character_assets, &item_registry, &item_icons, *item_id, *quantity, spawn.position);
+            }
+        }
     }
 }
 
 fn cleanup_world(
     mut commands: Commands,
-    query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>, With<GroundItem>, With<Prop>)>>,
+    query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>, With<GroundItem>, With<Prop>, With<LevelBackground>, With<VoidBackground>)>>,
     mut stats: ResMut<Stats>,
+    mut current_level: ResMut<CurrentLevel>,
 ) {
     for entity in &query {
         commands.entity(entity).despawn();
@@ -190,4 +213,5 @@ fn cleanup_world(
     stats.philosophy = 0;
     stats.nature_study = 0;
     stats.wisdom = 0;
+    current_level.data = None;
 }

@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
+use serde::Deserialize;
 
 use super::items::ConsumableEffect;
 use super::weapons::{Weapon, weapon_catalog};
@@ -17,7 +18,7 @@ pub enum Rarity {
     Legendary,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 pub enum ItemId {
     WoodenStick,
     RustyKnife,

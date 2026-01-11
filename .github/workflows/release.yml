@@ -68,6 +68,7 @@ jobs:
           mkdir -p eggo-windows
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} eggo-windows/
           cp -r assets eggo-windows/
+          cp config.ini eggo-windows/
           7z a eggo-windows-x86_64.zip eggo-windows/*
 
       - name: Upload artifact

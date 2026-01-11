@@ -79,6 +79,7 @@ pub const PUSH_STRENGTH: f32 = 100.0;                 // Push force multiplier
 pub const HOSTILE_SIGHT_RANGE: f32 = 200.0;
 
 // Combat - Visual Indicators
+pub const RANGE_INDICATOR_ANGLE: f32 = std::f32::consts::FRAC_PI_6 / 2.0;  // 15 degrees for range indicator
 pub const ARC_THICKNESS: f32 = 0.4;   // Thickness of range arc indicators
 pub const ARC_SEGMENTS: u32 = 16;     // Smoothness of arc mesh
 

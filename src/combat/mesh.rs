@@ -2,17 +2,17 @@ use bevy::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 
-use crate::constants::{ARC_SEGMENTS, ARC_THICKNESS};
+use crate::constants::{ARC_SEGMENTS, ARC_THICKNESS, RANGE_INDICATOR_ANGLE};
 use crate::inventory::Weapon;
 
-/// Create arc mesh for a weapon's range indicator
+/// Create arc mesh for a weapon's range indicator (narrow 30° arc showing direction)
 pub fn create_weapon_arc(meshes: &mut Assets<Mesh>, weapon: &Weapon) -> Handle<Mesh> {
-    meshes.add(create_arc_mesh(weapon.range(), weapon.cone_angle(), ARC_THICKNESS, ARC_SEGMENTS))
+    meshes.add(create_arc_mesh(weapon.range(), RANGE_INDICATOR_ANGLE, ARC_THICKNESS, ARC_SEGMENTS))
 }
 
-/// Create half-circle arc mesh for player attacks (180° = PI)
+/// Create arc mesh for range indicator (narrow 30° arc showing direction)
 pub fn create_half_circle_arc(meshes: &mut Assets<Mesh>, range: f32) -> Handle<Mesh> {
-    meshes.add(create_arc_mesh(range, std::f32::consts::PI, ARC_THICKNESS, ARC_SEGMENTS))
+    meshes.add(create_arc_mesh(range, RANGE_INDICATOR_ANGLE, ARC_THICKNESS, ARC_SEGMENTS))
 }
 
 /// Create filled half-circle mesh for attack indicators (like debug mode)

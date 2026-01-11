@@ -159,7 +159,7 @@ pub mod creature_catalog {
             },
             // Same colliders as player for sprite-based enemy
             walk_collider: ColliderDef::new(8.0, 4.0, -4.0),
-            hit_collider: ColliderDef::new(10.0, 14.0, 5.0),
+            hit_collider: ColliderDef::new(12.0, 18.0, 8.0),
             base_offset: -24.0,  // Same as player for 64x64 sprites
             scale: 1.0,
             // Goblins use flanking behavior

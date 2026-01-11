@@ -49,21 +49,38 @@ pub const SPRINT_MOMENTUM_FRICTION: f32 = 300.0; // Lower friction when slowing 
 pub const HITSTOP_DURATION: f32 = 0.15;       // 150ms freeze on hit (anime-style impact)
 pub const SCREEN_SHAKE_INTENSITY: f32 = 5.0;  // Pixels
 pub const SCREEN_SHAKE_DURATION: f32 = 0.15;
-pub const ATTACK_HIT_DELAY_PERCENT: f32 = 0.5;  // Hit at 50% into swing animation
-pub const HIT_HIGHLIGHT_DURATION: f32 = 0.15;   // Red flash duration
+pub const HIT_HIGHLIGHT_DURATION: f32 = 0.15; // Red flash duration
 
-// Combat
+// Combat - Attack Timing
+pub const ATTACK_HIT_DELAY_PERCENT: f32 = 0.5;  // Hit at 50% into swing animation
+pub const ATTACK_COOLDOWN_DURATION: f32 = 1.5;  // Creature wait time between attacks
+
+// Combat - Attack Geometry
 pub const WEAPON_OFFSET: (f32, f32) = (-4.0, 6.5);  // Weapon position relative to player
-pub const ATTACK_CENTER_OFFSET_Y: f32 = 6.5;  // Vertical offset to center attacks on player body
+pub const ATTACK_CENTER_OFFSET_Y: f32 = 6.5;        // Vertical offset to center attacks on body
+pub const CARDINAL_RIGHT: f32 = 0.0;
+pub const CARDINAL_UP: f32 = std::f32::consts::FRAC_PI_2;
+pub const CARDINAL_LEFT: f32 = std::f32::consts::PI;
+pub const CARDINAL_DOWN: f32 = -std::f32::consts::FRAC_PI_2;
+
+// Combat - Weapon Ranges
 pub const COLLISION_RADIUS: f32 = 14.0;
-pub const PUSH_RADIUS: f32 = COLLISION_RADIUS * 2.2;  // Larger than all collision checks (1.5 player, 1.8 creature)
-pub const PUSH_STRENGTH: f32 = 100.0;                  // Push force multiplier
-pub const HOSTILE_SIGHT_RANGE: f32 = 200.0;
+pub const FIST_RANGE: f32 = COLLISION_RADIUS * 1.8;
+pub const KNIFE_RANGE: f32 = COLLISION_RADIUS * 4.0;
+
+// Combat - Blocking
 pub const BLOCK_KNOCKBACK: f32 = 120.0;
 pub const BLOCK_FACING_OFFSET: f32 = 0.4;   // Radians offset for block facing direction
 pub const BLOCK_ANGLE_THRESHOLD: f32 = 0.5; // Dot product threshold for valid block
-pub const FIST_RANGE: f32 = COLLISION_RADIUS * 1.8;
-pub const KNIFE_RANGE: f32 = COLLISION_RADIUS * 4.0;
+
+// Combat - Physics
+pub const PUSH_RADIUS: f32 = COLLISION_RADIUS * 2.2;  // Larger than all collision checks
+pub const PUSH_STRENGTH: f32 = 100.0;                 // Push force multiplier
+pub const HOSTILE_SIGHT_RANGE: f32 = 200.0;
+
+// Combat - Visual Indicators
+pub const ARC_THICKNESS: f32 = 0.4;   // Thickness of range arc indicators
+pub const ARC_SEGMENTS: u32 = 16;     // Smoothness of arc mesh
 
 // Context Steering
 pub const OBSTACLE_LOOK_AHEAD: f32 = 50.0;            // How far to check for obstacles

@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::constants::{CARDINAL_DOWN, CARDINAL_LEFT, CARDINAL_RIGHT, CARDINAL_UP};
+
 /// Precomputed cone for efficient hit testing.
 /// Create once, test against many targets without expensive trig per-target.
 pub struct HitCone {
@@ -61,12 +63,6 @@ impl HitCone {
 pub fn angle_to_direction(angle: f32) -> Vec2 {
     Vec2::new(angle.cos(), angle.sin())
 }
-
-/// Cardinal direction angles in radians
-pub const CARDINAL_RIGHT: f32 = 0.0;
-pub const CARDINAL_UP: f32 = std::f32::consts::FRAC_PI_2;
-pub const CARDINAL_LEFT: f32 = std::f32::consts::PI;
-pub const CARDINAL_DOWN: f32 = -std::f32::consts::FRAC_PI_2;
 
 /// Snap angle to nearest cardinal direction (Right, Up, Left, Down)
 pub fn snap_to_cardinal(angle: f32) -> f32 {

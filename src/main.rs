@@ -14,7 +14,7 @@ mod world;
 use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use constants::*;
 
-use core::{CharacterAssets, CorePlugin, GameState, InputBindings};
+use core::{CharacterAssets, CorePlugin, GameConfig, GameState, InputBindings};
 use world::{NewGameRequested, WorldConfig};
 use creatures::{Creature, CreaturePlugin};
 use debug::{
@@ -98,6 +98,10 @@ fn setup(
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
+    // Load game config from INI file (with fallback to defaults)
+    let game_config = GameConfig::load_from_file("config.ini");
+    commands.insert_resource(game_config);
+
     // Camera
     commands.spawn((
         Camera2d,

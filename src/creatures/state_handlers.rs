@@ -2,14 +2,14 @@ use bevy::prelude::*;
 
 use crate::combat::snap_to_cardinal;
 use crate::inventory::weapons::{Fist, Weapon, WeaponSwing};
-use crate::constants::{ATTACK_CENTER_OFFSET_Y, ATTACK_HIT_DELAY_PERCENT};
-use crate::core::{Dead, DeathAnimation, HitCollider, Stunned};
+use crate::core::{Dead, DeathAnimation, GameConfig, HitCollider, Stunned};
 use crate::player::Player;
 use crate::state_machine::{AttackPhase, RequestTransition, StateEntered, StateExited, StateMachine};
 use super::{Creature, CreatureState, Goblin, Hostile, PlayerInRange};
 
 pub fn on_attack_windup_enter(
     mut commands: Commands,
+    config: Res<GameConfig>,
     mut events: MessageReader<StateEntered<CreatureState>>,
     player_query: Query<&Transform, With<Player>>,
     creature_query: Query<(&Transform, &Children, Option<&Goblin>)>,
@@ -46,7 +46,7 @@ pub fn on_attack_windup_enter(
                     duration,
                     base_angle,
                     attack_type: weapon.attack_type,
-                    hit_delay: duration * ATTACK_HIT_DELAY_PERCENT,
+                    hit_delay: duration * config.attack_hit_delay_percent,
                     hit_applied: false,
                 });
                 break;
@@ -101,6 +101,7 @@ pub fn on_creature_provoked(
 /// Detects when creatures in Chase state are within weapon range of the player.
 /// Emits PlayerInRange event for other systems to react to.
 pub fn detect_player_proximity(
+    config: Res<GameConfig>,
     mut events: MessageWriter<PlayerInRange>,
     player_query: Query<(&Transform, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
     creature_query: Query<(Entity, &Transform, &StateMachine<CreatureState>, &Children, Option<&Goblin>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
@@ -120,7 +121,7 @@ pub fn detect_player_proximity(
 
         // Goblins attack from body center (with Y offset), others from base position
         let attack_origin = if goblin.is_some() {
-            Vec2::new(creature_pos.x, creature_pos.y + ATTACK_CENTER_OFFSET_Y)
+            Vec2::new(creature_pos.x, creature_pos.y + config.attack_center_offset_y)
         } else {
             creature_pos
         };
@@ -200,17 +201,15 @@ pub fn advance_attack_phases(
     }
 }
 
-/// Cooldown duration in seconds before creature can attack again
-const ATTACK_COOLDOWN_DURATION: f32 = 1.5;
-
 /// Transitions creatures from Cooldown back to Chase after the cooldown expires
 pub fn advance_cooldown_state(
+    config: Res<GameConfig>,
     mut transitions: MessageWriter<RequestTransition<CreatureState>>,
     query: Query<(Entity, &StateMachine<CreatureState>), With<Hostile>>,
 ) {
     for (entity, state_machine) in &query {
         if *state_machine.current() == CreatureState::Cooldown {
-            if state_machine.time_in_state() >= ATTACK_COOLDOWN_DURATION {
+            if state_machine.time_in_state() >= config.attack_cooldown_duration {
                 transitions.write(RequestTransition::new(entity, CreatureState::Chase));
             }
         }

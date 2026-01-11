@@ -1,6 +1,7 @@
 pub mod assets;
 pub mod collisions;
 pub mod components;
+pub mod config;
 pub mod depth;
 pub mod input;
 pub mod state;
@@ -9,6 +10,7 @@ pub mod systems;
 pub use assets::*;
 pub use collisions::*;
 pub use components::*;
+pub use config::*;
 pub use depth::*;
 pub use input::*;
 pub use state::*;

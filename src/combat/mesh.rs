@@ -2,10 +2,8 @@ use bevy::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 
+use crate::constants::{ARC_SEGMENTS, ARC_THICKNESS};
 use crate::inventory::Weapon;
-
-const ARC_THICKNESS: f32 = 0.4;
-const ARC_SEGMENTS: u32 = 16;
 
 /// Create arc mesh for a weapon's range indicator
 pub fn create_weapon_arc(meshes: &mut Assets<Mesh>, weapon: &Weapon) -> Handle<Mesh> {

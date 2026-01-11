@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate::constants::*;
-use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, Health, HitCollider, InputBindings, Knockback, StaticCollider, Stunned};
+use crate::constants::{PROVOKED_SPEED, WEAPON_OFFSET, Z_BLOOD, Z_WEAPON};
+use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, GameConfig, Health, HitCollider, InputBindings, Knockback, StaticCollider, Stunned};
 use crate::creatures::{ContextMapCache, Creature, FlankPreference, Goblin, Hostile};
 use crate::player::{Player, PlayerSmashAttack, PlayerState};
 use crate::state_machine::StateMachine;
@@ -60,6 +60,7 @@ pub fn handle_block(
 
 pub fn apply_mesh_attack_hits(
     mut commands: Commands,
+    config: Res<GameConfig>,
     mut hitstop: ResMut<Hitstop>,
     mut screen_shake: ResMut<ScreenShake>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -86,7 +87,7 @@ pub fn apply_mesh_attack_hits(
     swing.hit_applied = true;
 
     // Attack origin: centered on player body for half-circle attacks
-    let attack_origin = player_transform.translation.truncate() + Vec2::new(0.0, ATTACK_CENTER_OFFSET_Y);
+    let attack_origin = player_transform.translation.truncate() + Vec2::new(0.0, config.attack_center_offset_y);
 
     // Attack direction from stored angle or current weapon rotation
     let attack_dir = if let Some(base_angle) = swing.base_angle {
@@ -118,7 +119,7 @@ pub fn apply_mesh_attack_hits(
             // Add hit highlight (red flash)
             commands.entity(entity).insert(HitHighlight {
                 timer: 0.0,
-                duration: HIT_HIGHLIGHT_DURATION,
+                duration: config.hit_highlight_duration,
                 original_material: None,
             });
 
@@ -207,13 +208,14 @@ pub fn apply_mesh_attack_hits(
         });
 
         // Trigger hitstop and screen shake
-        hitstop.trigger(HITSTOP_DURATION);
-        screen_shake.trigger(SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_DURATION);
+        hitstop.trigger(config.hitstop_duration);
+        screen_shake.trigger(config.screen_shake_intensity, config.screen_shake_duration);
     }
 }
 
 pub fn apply_smash_attack_hits(
     mut commands: Commands,
+    config: Res<GameConfig>,
     mut hitstop: ResMut<Hitstop>,
     mut screen_shake: ResMut<ScreenShake>,
     prop_registry: Res<PropRegistry>,
@@ -243,7 +245,7 @@ pub fn apply_smash_attack_hits(
     let attack_dir = angle_to_direction(smash.attack_angle);
 
     // Attack origin: centered on player body for half-circle attacks
-    let attack_origin = player_transform.translation.truncate() + Vec2::new(0.0, ATTACK_CENTER_OFFSET_Y);
+    let attack_origin = player_transform.translation.truncate() + Vec2::new(0.0, config.attack_center_offset_y);
     let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), std::f32::consts::PI);
 
     let mut rng = rand::rng();
@@ -262,7 +264,7 @@ pub fn apply_smash_attack_hits(
 
             commands.entity(entity).insert(HitHighlight {
                 timer: 0.0,
-                duration: HIT_HIGHLIGHT_DURATION,
+                duration: config.hit_highlight_duration,
                 original_material: None,
             });
 
@@ -388,8 +390,8 @@ pub fn apply_smash_attack_hits(
             timer: 0.0,
         });
 
-        hitstop.trigger(HITSTOP_DURATION);
-        screen_shake.trigger(SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_DURATION);
+        hitstop.trigger(config.hitstop_duration);
+        screen_shake.trigger(config.screen_shake_intensity, config.screen_shake_duration);
     }
 }
 
@@ -600,6 +602,8 @@ fn calculate_block(
     attacker_pos: Vec2,
     is_blocking: bool,
     player_weapon: Option<(&Weapon, &Transform)>,
+    block_facing_offset: f32,
+    block_angle_threshold: f32,
 ) -> (f32, f32, bool) {
     if !is_blocking {
         return (1.0, 1.0, false);
@@ -612,13 +616,13 @@ fn calculate_block(
     // Get facing direction from weapon angle
     let (_, angle) = transform.rotation.to_axis_angle();
     let visual_angle = if transform.rotation.z < 0.0 { -angle } else { angle };
-    let facing_dir = angle_to_direction(visual_angle - BLOCK_FACING_OFFSET);
+    let facing_dir = angle_to_direction(visual_angle - block_facing_offset);
 
     // Check if facing attacker
     let to_attacker = attacker_pos - player_pos;
     let to_attacker_len = to_attacker.length();
 
-    if to_attacker_len > 0.001 && facing_dir.dot(to_attacker) > BLOCK_ANGLE_THRESHOLD * to_attacker_len {
+    if to_attacker_len > 0.001 && facing_dir.dot(to_attacker) > block_angle_threshold * to_attacker_len {
         let dmg_mult = 1.0 - weapon.block_damage_reduction();
         let kb_mult = 1.0 - weapon.block_knockback_reduction();
         (dmg_mult, kb_mult, true)
@@ -641,6 +645,7 @@ fn apply_attack_to_player(
     player_health: &mut Health,
     hitstop: &mut Hitstop,
     screen_shake: &mut ScreenShake,
+    config: &GameConfig,
 ) {
     // Apply damage
     let final_damage = ((weapon.damage as f32) * damage_mult).floor() as i32;
@@ -656,18 +661,18 @@ fn apply_attack_to_player(
     // Knockback attacker if blocked
     if blocked {
         commands.entity(attacker_entity).insert(Knockback {
-            velocity: -knockback_dir * BLOCK_KNOCKBACK,
+            velocity: -knockback_dir * config.block_knockback,
             timer: 0.0,
         });
     }
 
     // Effects
-    hitstop.trigger(HITSTOP_DURATION);
-    screen_shake.trigger(SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_DURATION);
+    hitstop.trigger(config.hitstop_duration);
+    screen_shake.trigger(config.screen_shake_intensity, config.screen_shake_duration);
 
     commands.entity(player_entity).insert(HitHighlight {
         timer: 0.0,
-        duration: HIT_HIGHLIGHT_DURATION,
+        duration: config.hit_highlight_duration,
         original_material: None,
     });
 }
@@ -677,6 +682,7 @@ fn apply_attack_to_player(
 /// Only applies hits during Attack(Strike) phase
 pub fn process_creature_attacks(
     mut commands: Commands,
+    config: Res<GameConfig>,
     mut hitstop: ResMut<Hitstop>,
     mut screen_shake: ResMut<ScreenShake>,
     mut player_query: Query<(Entity, &Transform, &mut Health, Option<&HitCollider>, &StateMachine<PlayerState>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
@@ -740,7 +746,7 @@ pub fn process_creature_attacks(
 
         // Attack origin: centered on body for goblins (like player)
         let attack_origin = if is_goblin.is_some() {
-            attacker_pos + Vec2::new(0.0, ATTACK_CENTER_OFFSET_Y)
+            attacker_pos + Vec2::new(0.0, config.attack_center_offset_y)
         } else {
             attacker_pos
         };
@@ -757,6 +763,8 @@ pub fn process_creature_attacks(
             attacker_pos,
             is_blocking,
             player_weapon,
+            config.block_facing_offset,
+            config.block_angle_threshold,
         );
 
         // Apply damage and effects
@@ -773,6 +781,7 @@ pub fn process_creature_attacks(
             &mut player_health,
             &mut hitstop,
             &mut screen_shake,
+            &config,
         );
 
         // Only one hit per frame
@@ -783,6 +792,7 @@ pub fn process_creature_attacks(
 /// Sync player range indicator position and rotation with weapon aim
 /// Computes aim angle directly from mouse position to avoid timing issues
 pub fn sync_range_indicator(
+    config: Res<GameConfig>,
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     player_query: Query<(&Transform, &Children), With<Player>>,
@@ -804,7 +814,7 @@ pub fn sync_range_indicator(
 
     // Center on player body for half-circle attacks
     indicator_transform.translation.x = 0.0;
-    indicator_transform.translation.y = ATTACK_CENTER_OFFSET_Y;
+    indicator_transform.translation.y = config.attack_center_offset_y;
 
     // If weapon is swinging, use base_angle (already snapped to cardinal)
     if let Ok(swing) = swinging_weapon_query.single() {
@@ -832,6 +842,7 @@ pub fn sync_range_indicator(
 /// Hidden normally, visible during WindUp (orange), highlighted during Strike (bright red)
 pub fn update_goblin_attack_indicator(
     mut commands: Commands,
+    config: Res<GameConfig>,
     assets: Res<CharacterAssets>,
     creature_query: Query<(&Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>), (With<Goblin>, Without<Dead>, Without<GoblinAttackIndicator>)>,
     player_query: Query<&Transform, (With<Player>, Without<Goblin>, Without<GoblinAttackIndicator>)>,
@@ -852,7 +863,7 @@ pub fn update_goblin_attack_indicator(
 
             // Sync position
             transform.translation.x = creature_pos.x;
-            transform.translation.y = creature_pos.y + ATTACK_CENTER_OFFSET_Y;
+            transform.translation.y = creature_pos.y + config.attack_center_offset_y;
 
             // Sync rotation (snapped to cardinal + sector offset)
             let dir = player_pos - creature_pos;
@@ -886,6 +897,7 @@ pub fn update_goblin_attack_indicator(
 /// Sync creature range indicators (thin arc) position/rotation toward player
 pub fn sync_creature_range_indicators(
     mut commands: Commands,
+    config: Res<GameConfig>,
     player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<CreatureRangeIndicator>)>,
     creature_query: Query<(&Transform, Option<&Goblin>), (With<Creature>, With<Hostile>, Without<Dead>, Without<CreatureRangeIndicator>)>,
     mut indicator_query: Query<(Entity, &CreatureRangeIndicator, &mut Transform)>,
@@ -900,7 +912,7 @@ pub fn sync_creature_range_indicators(
             // Goblins: center on body (like player), others: center on feet
             if is_goblin.is_some() {
                 indicator_transform.translation.x = creature_pos.x;
-                indicator_transform.translation.y = creature_pos.y + ATTACK_CENTER_OFFSET_Y;
+                indicator_transform.translation.y = creature_pos.y + config.attack_center_offset_y;
             } else {
                 indicator_transform.translation.x = creature_pos.x;
                 indicator_transform.translation.y = creature_pos.y;

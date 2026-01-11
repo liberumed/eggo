@@ -1,12 +1,9 @@
 use bevy::prelude::*;
 
 use crate::constants::{
-    CAMERA_ZOOM_SPEED, DASH_SPEED, DEATH_COLLAPSE_DURATION, DEATH_EXPAND_DURATION,
-    PLAYER_ACCELERATION, PLAYER_FRICTION, PLAYER_SPEED, SPRINT_MAX_MULTIPLIER,
-    SPRINT_MIN_MULTIPLIER, SPRINT_MOMENTUM_FRICTION, SPRINT_RAMP_TIME, Z_DEAD,
-    ATTACK_HIT_DELAY_PERCENT,
+    CAMERA_ZOOM_SPEED, DEATH_COLLAPSE_DURATION, DEATH_EXPAND_DURATION, Z_DEAD,
 };
-use crate::core::{Blocking, Dead, DeathAnimation, WalkCollider, StaticCollider, ellipses_overlap, ellipse_push, Health, Knockback};
+use crate::core::{Blocking, Dead, DeathAnimation, GameConfig, WalkCollider, StaticCollider, ellipses_overlap, ellipse_push, Health, Knockback};
 use crate::effects::{Hitstop, ScreenShake};
 use crate::core::{GameAction, InputBindings};
 use crate::core::CharacterAssets;
@@ -22,6 +19,7 @@ use crate::creatures::Creature;
 
 pub fn move_player(
     mut commands: Commands,
+    config: Res<GameConfig>,
     mut transitions: MessageWriter<RequestTransition<PlayerState>>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
@@ -75,17 +73,17 @@ pub fn move_player(
                 commands.entity(entity).insert(Sprinting { duration: 0.0 });
                 0.0
             };
-            let t = (sprint_duration / SPRINT_RAMP_TIME).min(1.0);
-            SPRINT_MIN_MULTIPLIER + t * (SPRINT_MAX_MULTIPLIER - SPRINT_MIN_MULTIPLIER)
+            let t = (sprint_duration / config.sprint_ramp_time).min(1.0);
+            config.sprint_min_multiplier + t * (config.sprint_max_multiplier - config.sprint_min_multiplier)
         } else {
             commands.entity(entity).remove::<Sprinting>();
             1.0
         };
 
         let speed = if is_blocking {
-            PLAYER_SPEED * 0.4
+            config.player_speed * 0.4
         } else {
-            PLAYER_SPEED * sprint_multiplier
+            config.player_speed * sprint_multiplier
         };
 
         if input_dir != Vec2::ZERO {
@@ -94,10 +92,10 @@ pub fn move_player(
             let current_speed = anim.velocity.length();
 
             let is_decelerating = current_speed > speed;
-            let accel_amount = if is_decelerating && current_speed > PLAYER_SPEED * 1.1 {
-                SPRINT_MOMENTUM_FRICTION
+            let accel_amount = if is_decelerating && current_speed > config.player_speed * 1.1 {
+                config.sprint_momentum_friction
             } else {
-                PLAYER_ACCELERATION
+                config.player_acceleration
             };
 
             let accel = diff.normalize_or_zero() * accel_amount * dt;
@@ -112,10 +110,10 @@ pub fn move_player(
             }
         } else if anim.velocity != Vec2::ZERO {
             let current_speed = anim.velocity.length();
-            let friction_amount = if current_speed > PLAYER_SPEED * 1.1 {
-                SPRINT_MOMENTUM_FRICTION
+            let friction_amount = if current_speed > config.player_speed * 1.1 {
+                config.sprint_momentum_friction
             } else {
-                PLAYER_FRICTION
+                config.player_friction
             };
             let friction = anim.velocity.normalize() * friction_amount * dt;
             if friction.length() >= anim.velocity.length() {
@@ -198,6 +196,7 @@ pub fn move_player(
 }
 
 pub fn apply_dash_state(
+    config: Res<GameConfig>,
     mut transitions: MessageWriter<RequestTransition<PlayerState>>,
     time: Res<Time>,
     hitstop: Res<Hitstop>,
@@ -216,11 +215,11 @@ pub fn apply_dash_state(
 
         dash.timer -= dt;
 
-        let movement = dash.direction * DASH_SPEED * dt;
+        let movement = dash.direction * config.dash_speed * dt;
         transform.translation.x += movement.x;
         transform.translation.y += movement.y;
 
-        anim.velocity = dash.direction * PLAYER_SPEED;
+        anim.velocity = dash.direction * config.player_speed;
 
         if dash.timer <= 0.0 {
             transitions.write(RequestTransition::new(entity, PlayerState::Moving));
@@ -409,6 +408,7 @@ pub fn animate_player_death(
 }
 
 pub fn advance_player_attack_phases(
+    config: Res<GameConfig>,
     mut transitions: MessageWriter<RequestTransition<PlayerState>>,
     time: Res<Time>,
     hitstop: Res<Hitstop>,
@@ -429,7 +429,7 @@ pub fn advance_player_attack_phases(
 
         match current_phase {
             AttackPhase::WindUp => {
-                let hit_delay = smash.duration * ATTACK_HIT_DELAY_PERCENT;
+                let hit_delay = smash.duration * config.attack_hit_delay_percent;
                 if smash.timer >= hit_delay {
                     transitions.write(RequestTransition::new(
                         entity,
@@ -484,6 +484,7 @@ pub fn advance_player_attack_phases(
 }
 
 pub fn update_player_sprite_animation(
+    config: Res<GameConfig>,
     mut query: Query<(&PlayerAnimation, &mut SpriteAnimation, &StateMachine<PlayerState>, Option<&PlayerAttacking>), With<Player>>,
     weapon_query: Query<(&Weapon, Option<&Drawn>), With<PlayerWeapon>>,
 ) {
@@ -505,7 +506,7 @@ pub fn update_player_sprite_animation(
 
         let velocity = player_anim.velocity.length();
 
-        let (new_animation, anim_speed) = if velocity > PLAYER_SPEED * 1.2 {
+        let (new_animation, anim_speed) = if velocity > config.player_speed * 1.2 {
             ("run", 1.0)
         } else if velocity > 0.1 {
             let vx = player_anim.velocity.x.abs();

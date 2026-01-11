@@ -16,7 +16,7 @@ use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use constants::*;
 
 use core::{CharacterAssets, CorePlugin, GameConfig, GameState, InputBindings};
-use levels::{CurrentLevel, EntityType, LevelBackground, LevelsPlugin, VoidBackground};
+use levels::{CurrentLevel, EntityType, LevelBackground, LevelsPlugin, VoidBackground, WinZone, WinZoneTimer};
 use world::{NewGameRequested, WorldConfig};
 use creatures::{Creature, CreaturePlugin};
 use debug::{
@@ -32,7 +32,7 @@ use player::{
 };
 use props::{build_prop_registry, load_barrel_sprites, load_crate_sprites, load_crate2_sprites, BarrelSprites, CrateSprites, Crate2Sprites, Prop, PropRegistry};
 use ui::{
-    auto_start_new_game, hide_pause_menu, setup_ui, show_pause_menu,
+    auto_start_new_game, hide_pause_menu, setup_ui, show_pause_menu, show_victory_menu,
     spawn_key_bindings_panel, toggle_pause_menu, UiPlugin,
 };
 
@@ -58,6 +58,7 @@ fn main() {
         .init_resource::<Hitstop>()
         .init_resource::<ScreenShake>()
         .init_resource::<DebugConfig>()
+        .init_resource::<WinZoneTimer>()
         .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
         .add_systems(Startup, (setup, setup_ui, spawn_key_bindings_panel))
@@ -80,6 +81,9 @@ fn main() {
         .add_systems(OnExit(GameState::Paused), hide_pause_menu)
         .add_systems(OnEnter(GameState::Dead), auto_start_new_game)
         .add_systems(OnExit(GameState::Dead), (hide_pause_menu, cleanup_world).chain())
+        .add_systems(OnEnter(GameState::Victory), show_victory_menu)
+        .add_systems(OnExit(GameState::Victory), (hide_pause_menu, cleanup_world).chain())
+        .add_systems(Update, levels::systems::check_win_zone.run_if(in_state(GameState::Playing)))
         .add_plugins((
             state_machine::StateMachinePlugin,
             CorePlugin,
@@ -172,6 +176,11 @@ fn spawn_world(
     // Spawn level background (void and corridor)
     levels::spawn_level_background(&mut commands, level, &mut meshes, &mut materials);
 
+    // Spawn win zone if level has one
+    if let Some(win_zone) = &level.win_zone {
+        levels::spawn_win_zone(&mut commands, win_zone.position, win_zone.radius, &mut meshes, &mut materials);
+    }
+
     // Spawn player at level's spawn position
     player::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, level.player_spawn);
     player::spawn_target_outline(&mut commands, &character_assets);
@@ -203,9 +212,10 @@ fn spawn_world(
 
 fn cleanup_world(
     mut commands: Commands,
-    query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>, With<GroundItem>, With<Prop>, With<LevelBackground>, With<VoidBackground>)>>,
+    query: Query<Entity, Or<(With<Player>, With<Creature>, With<BloodParticle>, With<TargetOutline>, With<GroundItem>, With<Prop>, With<LevelBackground>, With<VoidBackground>, With<WinZone>)>>,
     mut stats: ResMut<Stats>,
     mut current_level: ResMut<CurrentLevel>,
+    mut win_zone_timer: ResMut<WinZoneTimer>,
 ) {
     for entity in &query {
         commands.entity(entity).despawn();
@@ -214,4 +224,5 @@ fn cleanup_world(
     stats.nature_study = 0;
     stats.wisdom = 0;
     current_level.data = None;
+    win_zone_timer.0 = 0.0;
 }

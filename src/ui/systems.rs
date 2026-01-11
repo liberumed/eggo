@@ -153,6 +153,27 @@ pub fn show_death_menu(
     }
 }
 
+// Show victory menu when entering Victory state
+pub fn show_victory_menu(
+    mut menu_query: Query<&mut Visibility, With<GameMenu>>,
+    mut title_query: Query<&mut Text, With<MenuTitle>>,
+    mut title_color_query: Query<&mut TextColor, With<MenuTitle>>,
+    mut resume_query: Query<&mut Visibility, (With<ResumeButton>, Without<GameMenu>)>,
+) {
+    if let Ok(mut visibility) = menu_query.single_mut() {
+        *visibility = Visibility::Inherited;
+    }
+    if let Ok(mut text) = title_query.single_mut() {
+        **text = "YOU WON!".to_string();
+    }
+    if let Ok(mut color) = title_color_query.single_mut() {
+        *color = TextColor(Color::srgb(0.2, 0.9, 0.3));
+    }
+    if let Ok(mut visibility) = resume_query.single_mut() {
+        *visibility = Visibility::Hidden;
+    }
+}
+
 pub fn update_weapon_info(
     weapon_query: Query<&Weapon, With<PlayerWeapon>>,
     mut name_query: Query<&mut Text, (With<WeaponNameText>, Without<WeaponDamageText>, Without<WeaponSpeedText>, Without<WeaponRangeText>, Without<WeaponConeText>, Without<WeaponKnockbackText>, Without<WeaponTypeText>)>,
@@ -215,7 +236,7 @@ pub fn handle_menu_new_game_button(
                     new_game_requested.0 = true;
                     next_state.set(GameState::Dead);
                 }
-                GameState::Dead => {
+                GameState::Dead | GameState::Victory => {
                     next_state.set(GameState::Playing);
                 }
                 _ => {}

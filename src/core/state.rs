@@ -7,4 +7,5 @@ pub enum GameState {
     Playing,
     Paused,
     Dead,
+    Victory,
 }

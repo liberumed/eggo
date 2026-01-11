@@ -79,12 +79,20 @@ pub struct SpawnEntry {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct WinZoneData {
+    pub position: Vec2,
+    pub radius: f32,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct LevelData {
     pub name: String,
     pub bounds: LevelBounds,
     pub walkable: Vec<WalkableRect>,
     pub player_spawn: Vec2,
     pub spawns: Vec<SpawnEntry>,
+    #[serde(default)]
+    pub win_zone: Option<WinZoneData>,
 }
 
 impl LevelData {
@@ -143,5 +151,9 @@ impl CurrentLevel {
 
     pub fn is_walkable(&self, point: Vec2) -> bool {
         self.data.as_ref().map(|d| d.is_walkable(point)).unwrap_or(true)
+    }
+
+    pub fn win_zone(&self) -> Option<&WinZoneData> {
+        self.data.as_ref().and_then(|d| d.win_zone.as_ref())
     }
 }

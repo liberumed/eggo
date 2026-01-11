@@ -22,4 +22,8 @@
         (entity_type: Goblin, position: (-60.0, 350.0)),
         (entity_type: Goblin, position: (50.0, 500.0)),
     ],
+    win_zone: Some((
+        position: (0.0, 580.0),
+        radius: 25.0,
+    )),
 )

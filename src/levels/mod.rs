@@ -1,9 +1,9 @@
 mod data;
 mod spawner;
-mod systems;
+pub mod systems;
 
 pub use data::{CurrentLevel, EntityType, LevelData};
-pub use spawner::{spawn_level_background, LevelBackground, VoidBackground};
+pub use spawner::{spawn_level_background, spawn_win_zone, LevelBackground, VoidBackground, WinZone, WinZoneTimer, WinZoneTimerText};
 pub use systems::BoundToLevel;
 
 use bevy::prelude::*;

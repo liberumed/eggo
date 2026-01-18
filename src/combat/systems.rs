@@ -15,6 +15,63 @@ use crate::creatures::spawn_creature_range_indicator;
 use super::hit_detection::{HitCone, angle_to_direction, snap_to_cardinal};
 use super::mesh::create_weapon_arc;
 
+// Blood particle constants
+const BLOOD_PARTICLE_COUNT_KILL: usize = 25;
+const BLOOD_PARTICLE_COUNT_HIT: usize = 12;
+const BLOOD_SPREAD_RANGE: std::ops::Range<f32> = -0.8..0.8;
+const BLOOD_SPEED_RANGE: std::ops::Range<f32> = 80.0..200.0;
+const BLOOD_OFFSET_RANGE: std::ops::Range<f32> = -5.0..5.0;
+const BLOOD_LIFETIME_RANGE: std::ops::Range<f32> = 0.4..1.2;
+const RECOIL_MULTIPLIER: f32 = 0.15;
+
+fn spawn_blood_particles(
+    commands: &mut Commands,
+    assets: &CharacterAssets,
+    origin: Vec2,
+    attack_dir: Vec2,
+    is_kill: bool,
+) {
+    let mut rng = rand::rng();
+    let particle_count = if is_kill { BLOOD_PARTICLE_COUNT_KILL } else { BLOOD_PARTICLE_COUNT_HIT };
+    let base_angle = attack_dir.y.atan2(attack_dir.x);
+
+    for i in 0..particle_count {
+        let angle = base_angle + rng.random_range(BLOOD_SPREAD_RANGE);
+        let speed = rng.random_range(BLOOD_SPEED_RANGE);
+        let vel = Vec2::from_angle(angle) * speed;
+
+        let (mesh, material) = if i % 3 == 0 {
+            (assets.blood_splat_mesh.clone(), assets.blood_splat_material.clone())
+        } else {
+            (assets.blood_droplet_mesh.clone(), assets.blood_droplet_material.clone())
+        };
+
+        let offset = Vec2::new(
+            rng.random_range(BLOOD_OFFSET_RANGE),
+            rng.random_range(BLOOD_OFFSET_RANGE),
+        );
+
+        commands.spawn((
+            BloodParticle {
+                velocity: vel,
+                lifetime: rng.random_range(BLOOD_LIFETIME_RANGE),
+            },
+            Mesh2d(mesh),
+            MeshMaterial2d(material),
+            Transform::from_xyz(origin.x + offset.x, origin.y + offset.y, Z_BLOOD)
+                .with_rotation(Quat::from_rotation_z(rng.random_range(0.0..std::f32::consts::TAU))),
+        ));
+    }
+}
+
+fn mark_prop_damaged(sprite: &mut Sprite, damaged: &mut bool) {
+    if *damaged { return; }
+    *damaged = true;
+    if let Some(atlas) = &mut sprite.texture_atlas {
+        atlas.index = 1;
+    }
+}
+
 pub fn toggle_weapon(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -100,8 +157,6 @@ pub fn apply_mesh_attack_hits(
 
     // Create hit half-circle (precomputes trig once)
     let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), std::f32::consts::PI);
-
-    let mut rng = rand::rng();
     let mut hit_any = false;
 
     for (entity, creature_transform, mut health, hostile, hit_collider, provoked_steering) in &mut creatures_query {
@@ -126,38 +181,10 @@ pub fn apply_mesh_attack_hits(
                 original_material: None,
             });
 
-            let particle_count = if health.0 <= 0 { 25 } else { 12 };
-            for i in 0..particle_count {
-                let spread = rng.random_range(-0.8..0.8);
-                let speed = rng.random_range(80.0..200.0);
-                let angle = attack_dir.y.atan2(attack_dir.x) + spread;
-                let vel = Vec2::new(angle.cos() * speed, angle.sin() * speed);
+            let is_kill = health.0 <= 0;
+            spawn_blood_particles(&mut commands, &assets, creature_pos, attack_dir, is_kill);
 
-                let is_splat = i % 3 == 0;
-                let (mesh, material) = if is_splat {
-                    (assets.blood_splat_mesh.clone(), assets.blood_splat_material.clone())
-                } else {
-                    (assets.blood_droplet_mesh.clone(), assets.blood_droplet_material.clone())
-                };
-
-                let offset = Vec2::new(
-                    rng.random_range(-5.0..5.0),
-                    rng.random_range(-5.0..5.0),
-                );
-
-                commands.spawn((
-                    BloodParticle {
-                        velocity: vel,
-                        lifetime: rng.random_range(0.4..1.2),
-                    },
-                    Mesh2d(mesh),
-                    MeshMaterial2d(material),
-                    Transform::from_xyz(creature_pos.x + offset.x, creature_pos.y + offset.y, Z_BLOOD)
-                        .with_rotation(Quat::from_rotation_z(rng.random_range(0.0..std::f32::consts::TAU))),
-                ));
-            }
-
-            if health.0 <= 0 {
+            if is_kill {
                 commands.entity(entity).insert(DeathAnimation {
                     timer: 0.0,
                     stage: 0,
@@ -204,7 +231,7 @@ pub fn apply_mesh_attack_hits(
 
     // Apply recoil and game feel effects when hitting
     if hit_any {
-        let recoil_force = weapon.knockback_force() * 0.15;
+        let recoil_force = weapon.knockback_force() * RECOIL_MULTIPLIER;
         commands.entity(player_entity).insert(Knockback {
             velocity: -attack_dir * recoil_force,
             timer: 0.0,
@@ -250,8 +277,6 @@ pub fn apply_smash_attack_hits(
     // Attack origin: centered on player body for half-circle attacks
     let attack_origin = player_transform.translation.truncate() + Vec2::new(0.0, config.attack_center_offset_y);
     let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), std::f32::consts::PI);
-
-    let mut rng = rand::rng();
     let mut hit_any = false;
 
     for (entity, creature_transform, mut health, hostile, hit_collider, provoked_steering) in &mut creatures_query {
@@ -274,38 +299,10 @@ pub fn apply_smash_attack_hits(
                 original_material: None,
             });
 
-            let particle_count = if health.0 <= 0 { 25 } else { 12 };
-            for i in 0..particle_count {
-                let spread = rng.random_range(-0.8..0.8);
-                let speed = rng.random_range(80.0..200.0);
-                let angle = attack_dir.y.atan2(attack_dir.x) + spread;
-                let vel = Vec2::new(angle.cos() * speed, angle.sin() * speed);
+            let is_kill = health.0 <= 0;
+            spawn_blood_particles(&mut commands, &assets, creature_pos, attack_dir, is_kill);
 
-                let is_splat = i % 3 == 0;
-                let (mesh, material) = if is_splat {
-                    (assets.blood_splat_mesh.clone(), assets.blood_splat_material.clone())
-                } else {
-                    (assets.blood_droplet_mesh.clone(), assets.blood_droplet_material.clone())
-                };
-
-                let offset = Vec2::new(
-                    rng.random_range(-5.0..5.0),
-                    rng.random_range(-5.0..5.0),
-                );
-
-                commands.spawn((
-                    BloodParticle {
-                        velocity: vel,
-                        lifetime: rng.random_range(0.4..1.2),
-                    },
-                    Mesh2d(mesh),
-                    MeshMaterial2d(material),
-                    Transform::from_xyz(creature_pos.x + offset.x, creature_pos.y + offset.y, Z_BLOOD)
-                        .with_rotation(Quat::from_rotation_z(rng.random_range(0.0..std::f32::consts::TAU))),
-                ));
-            }
-
-            if health.0 <= 0 {
+            if is_kill {
                 commands.entity(entity).insert(DeathAnimation {
                     timer: 0.0,
                     stage: 0,
@@ -358,39 +355,20 @@ pub fn apply_smash_attack_hits(
 
             if destructible.health <= 0 {
                 commands.entity(entity).despawn();
-            } else if prop.prop_type == PropType::Crate {
-                if let (Some(mut crate_state), Some(mut sprite)) = (crate_sprite, sprite) {
-                    if !crate_state.damaged {
-                        crate_state.damaged = true;
-                        if let Some(atlas) = &mut sprite.texture_atlas {
-                            atlas.index = 1;
-                        }
-                    }
-                }
-            } else if prop.prop_type == PropType::Crate2 {
-                if let (Some(mut crate2_state), Some(mut sprite)) = (crate2_sprite, sprite) {
-                    if !crate2_state.damaged {
-                        crate2_state.damaged = true;
-                        if let Some(atlas) = &mut sprite.texture_atlas {
-                            atlas.index = 1;
-                        }
-                    }
-                }
-            } else if prop.prop_type == PropType::Barrel {
-                if let (Some(mut barrel_state), Some(mut sprite)) = (barrel_sprite, sprite) {
-                    if !barrel_state.damaged {
-                        barrel_state.damaged = true;
-                        if let Some(atlas) = &mut sprite.texture_atlas {
-                            atlas.index = 1;
-                        }
-                    }
+            } else if let Some(mut sprite) = sprite {
+                // Mark prop as damaged (changes sprite to damaged variant)
+                match prop.prop_type {
+                    PropType::Crate => if let Some(mut s) = crate_sprite { mark_prop_damaged(&mut sprite, &mut s.damaged); }
+                    PropType::Crate2 => if let Some(mut s) = crate2_sprite { mark_prop_damaged(&mut sprite, &mut s.damaged); }
+                    PropType::Barrel => if let Some(mut s) = barrel_sprite { mark_prop_damaged(&mut sprite, &mut s.damaged); }
+                    _ => {}
                 }
             }
         }
     }
 
     if hit_any {
-        let recoil_force = weapon.knockback_force() * 0.15;
+        let recoil_force = weapon.knockback_force() * RECOIL_MULTIPLIER;
         commands.entity(player_entity).insert(Knockback {
             velocity: -attack_dir * recoil_force,
             timer: 0.0,

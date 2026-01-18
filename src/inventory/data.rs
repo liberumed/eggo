@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use serde::Deserialize;
 
+use crate::core::GameConfig;
 use super::items::ConsumableEffect;
 use super::weapons::{Weapon, weapon_catalog};
 
@@ -131,30 +132,29 @@ pub fn get_item_data(id: ItemId) -> ItemData {
     }
 }
 
-/// Returns weapon stats for a weapon ItemId, or None if not a weapon
 pub fn get_weapon_stats(
     id: ItemId,
+    config: &GameConfig,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) -> Option<Weapon> {
     match id {
-        ItemId::WoodenStick => Some(weapon_catalog::wooden_stick(meshes, materials)),
-        ItemId::RustyKnife => Some(weapon_catalog::rusty_knife(meshes, materials)),
-        ItemId::Sword => Some(weapon_catalog::sword(meshes, materials)),
-        ItemId::Fist => Some(weapon_catalog::fist(meshes, materials)),
+        ItemId::WoodenStick => Some(weapon_catalog::wooden_stick(config, meshes, materials)),
+        ItemId::RustyKnife => Some(weapon_catalog::rusty_knife(config, meshes, materials)),
+        ItemId::Sword => Some(weapon_catalog::sword(config, meshes, materials)),
+        ItemId::Fist => Some(weapon_catalog::fist(config, meshes, materials)),
         _ => None,
     }
 }
 
-/// Builds the item registry with all item definitions
 pub fn build_item_registry(
+    config: &GameConfig,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) -> ItemRegistry {
     let mut items = HashMap::new();
 
-    // Wooden Stick
-    let stick_weapon = weapon_catalog::wooden_stick(meshes, materials);
+    let stick_weapon = weapon_catalog::wooden_stick(config, meshes, materials);
     items.insert(
         ItemId::WoodenStick,
         ItemDefinition {
@@ -173,8 +173,7 @@ pub fn build_item_registry(
         },
     );
 
-    // Rusty Knife
-    let knife_weapon = weapon_catalog::rusty_knife(meshes, materials);
+    let knife_weapon = weapon_catalog::rusty_knife(config, meshes, materials);
     items.insert(
         ItemId::RustyKnife,
         ItemDefinition {
@@ -200,8 +199,7 @@ pub fn build_item_registry(
         },
     );
 
-    // Sword
-    let sword_weapon = weapon_catalog::sword(meshes, materials);
+    let sword_weapon = weapon_catalog::sword(config, meshes, materials);
     items.insert(
         ItemId::Sword,
         ItemDefinition {
@@ -227,8 +225,7 @@ pub fn build_item_registry(
         },
     );
 
-    // Fist
-    let fist_weapon = weapon_catalog::fist(meshes, materials);
+    let fist_weapon = weapon_catalog::fist(config, meshes, materials);
     items.insert(
         ItemId::Fist,
         ItemDefinition {

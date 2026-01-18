@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::core::{Knockback, Stunned};
+use crate::core::{GameConfig, Knockback, Stunned};
 use super::super::Rarity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
@@ -59,8 +59,8 @@ pub struct Weapon {
     pub damage: i32,
     /// Attack speed tier: 1=slow, 5=fast
     pub speed: i32,
-    /// Range tier: 1=short, 5=long
-    pub reach: i32,
+    /// Weapon range in pixels
+    pub reach: f32,
     /// Attack cone tier: 1=narrow, 5=wide
     pub arc: i32,
     pub attack_type: AttackType,
@@ -84,7 +84,7 @@ impl Weapon {
     }
 
     pub fn range(&self) -> f32 {
-        20.0 + self.reach as f32 * 10.0
+        self.reach
     }
 
     pub fn cone_angle(&self) -> f32 {
@@ -120,6 +120,7 @@ pub mod weapon_catalog {
     use super::*;
 
     pub fn wooden_stick(
+        config: &GameConfig,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<ColorMaterial>,
     ) -> Weapon {
@@ -132,7 +133,7 @@ pub mod weapon_catalog {
             },
             damage: 1,
             speed: 1,
-            reach: 3,
+            reach: config.stick_range,
             arc: 2,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
@@ -147,6 +148,7 @@ pub mod weapon_catalog {
     }
 
     pub fn rusty_knife(
+        config: &GameConfig,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<ColorMaterial>,
     ) -> Weapon {
@@ -163,7 +165,7 @@ pub mod weapon_catalog {
             },
             damage: 2,
             speed: 4,
-            reach: 2,
+            reach: config.knife_range,
             arc: 1,
             attack_type: AttackType::Slash,
             damage_type: DamageType::Physical,
@@ -178,23 +180,23 @@ pub mod weapon_catalog {
         }
     }
 
-    /// Fast sword for satisfying combo attacks (uses sprite animations)
     pub fn sword(
+        config: &GameConfig,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<ColorMaterial>,
     ) -> Weapon {
         Weapon {
             name: "Sword".to_string(),
             visual: WeaponVisual {
-                mesh: meshes.add(Circle::new(1.0)),  // Minimal mesh (not displayed for Smash)
+                mesh: meshes.add(Circle::new(1.0)),
                 material: materials.add(Color::NONE),
                 offset: 0.0,
             },
             damage: 2,
-            speed: 5,      // Fast swings for good combo feel
-            reach: 3,      // Medium-long reach
-            arc: 2,        // Medium arc
-            attack_type: AttackType::Smash,  // Uses sprite animation for combos
+            speed: 5,
+            reach: config.sword_range,
+            arc: 2,
+            attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
             rarity: Rarity::Uncommon,
             cost: 25,
@@ -208,6 +210,7 @@ pub mod weapon_catalog {
     }
 
     pub fn fist(
+        config: &GameConfig,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<ColorMaterial>,
     ) -> Weapon {
@@ -220,7 +223,7 @@ pub mod weapon_catalog {
             },
             damage: 1,
             speed: 2,
-            reach: 1,
+            reach: config.fist_range,
             arc: 1,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,
@@ -235,8 +238,8 @@ pub mod weapon_catalog {
         }
     }
 
-    /// Club weapon for Goblins - slower but stronger than fist
     pub fn club(
+        config: &GameConfig,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<ColorMaterial>,
     ) -> Weapon {
@@ -249,7 +252,7 @@ pub mod weapon_catalog {
             },
             damage: 2,
             speed: 2,
-            reach: 2,
+            reach: config.club_range,
             arc: 2,
             attack_type: AttackType::Smash,
             damage_type: DamageType::Physical,

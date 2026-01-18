@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::weapons::{PlayerWeapon, Weapon};
-use crate::core::{GameAction, Health, InputBindings};
+use crate::core::{GameAction, GameConfig, Health, InputBindings};
 use crate::player::Player;
 use super::{get_weapon_stats, ConsumableEffect, EquippedWeaponId, GroundItem, GroundItemBob, Inventory, InventorySlot, ItemCategory, ItemIcons, ItemId, ItemRegistry, Pickupable};
 use crate::ui::{
@@ -299,6 +299,7 @@ pub fn pickup_ground_items(
 
 pub fn handle_inventory_right_click(
     ui_state: Res<InventoryUIState>,
+    config: Res<GameConfig>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     bindings: Res<InputBindings>,
@@ -336,8 +337,7 @@ pub fn handle_inventory_right_click(
                     }
                 }
                 ItemCategory::Weapon => {
-                    // Equip weapon: swap with currently equipped
-                    if let Some(new_weapon_stats) = get_weapon_stats(slot.item_id, &mut meshes, &mut materials) {
+                    if let Some(new_weapon_stats) = get_weapon_stats(slot.item_id, &config, &mut meshes, &mut materials) {
                         let old_weapon_id = equipped.0;
 
                         // Update weapon entity stats
@@ -404,9 +404,9 @@ pub fn use_hotbar_keys(
     }
 }
 
-/// Syncs weapon stats based on selected hotbar slot (or fists if none selected)
 pub fn sync_selected_weapon(
     selected_slot: Res<SelectedHotbarSlot>,
+    config: Res<GameConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     inventory_query: Query<&Inventory, With<Player>>,
@@ -425,15 +425,14 @@ pub fn sync_selected_weapon(
         Some(slot_index) => {
             // Get weapon from selected slot
             if let Some(slot) = inventory.get(slot_index) {
-                if let Some(new_weapon) = get_weapon_stats(slot.item_id, &mut meshes, &mut materials) {
+                if let Some(new_weapon) = get_weapon_stats(slot.item_id, &config, &mut meshes, &mut materials) {
                     *weapon = new_weapon;
                     equipped.0 = slot.item_id;
                 }
             }
         }
         None => {
-            // Use fists
-            if let Some(fist_weapon) = get_weapon_stats(ItemId::Fist, &mut meshes, &mut materials) {
+            if let Some(fist_weapon) = get_weapon_stats(ItemId::Fist, &config, &mut meshes, &mut materials) {
                 *weapon = fist_weapon;
                 equipped.0 = ItemId::Fist;
             }

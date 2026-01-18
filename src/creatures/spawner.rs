@@ -32,6 +32,7 @@ pub fn spawn_creature_range_indicator(
 
 pub fn spawn_creatures(
     commands: &mut Commands,
+    config: &GameConfig,
     assets: &CharacterAssets,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
@@ -70,14 +71,14 @@ pub fn spawn_creatures(
 
             positions.push(pos);
 
-            // Only spawn neutral blobs (no hostile red eggs for now)
-            spawn_creature(commands, assets, meshes, materials, &mut rng, &blob, x, y);
+            spawn_creature(commands, config, assets, meshes, materials, &mut rng, &blob, x, y);
         }
     }
 }
 
 fn spawn_creature(
     commands: &mut Commands,
+    config: &GameConfig,
     assets: &CharacterAssets,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
@@ -113,9 +114,8 @@ fn spawn_creature(
         }
     };
 
-    // Pre-create fist weapon if hostile (before entering closure)
     let fist_data = if is_hostile {
-        let fist = weapon_catalog::fist(meshes, materials);
+        let fist = weapon_catalog::fist(config, meshes, materials);
         let arc_mesh = create_weapon_arc(meshes, &fist);
         Some((fist.visual.clone(), fist, arc_mesh))
     } else {
@@ -298,7 +298,7 @@ pub fn spawn_goblin(
 ) {
     let mut definition = creature_catalog::goblin();
     definition.steering.sight_range = config.goblin_sight_range;
-    let club = weapon_catalog::club(meshes, materials);
+    let club = weapon_catalog::club(config, meshes, materials);
     let club_visual = club.visual.clone();
     // Thin arc (always visible)
     let arc_mesh = create_half_circle_arc(meshes, club.range());

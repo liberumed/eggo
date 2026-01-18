@@ -4,7 +4,7 @@ use rand::Rng;
 use crate::combat::{create_half_circle_arc, Equipment, PlayerRangeIndicator, WeaponRangeIndicator};
 use crate::inventory::weapons::{Drawn, PlayerWeapon, WeaponVisualMesh, weapon_catalog};
 use crate::constants::*;
-use crate::core::{CharacterAssets, Health, Shadow, WalkCollider, HitCollider, YSorted};
+use crate::core::{CharacterAssets, GameConfig, Health, Shadow, WalkCollider, HitCollider, YSorted};
 use crate::effects::TargetOutline;
 use crate::inventory::{EquippedWeaponId, GroundItem, GroundItemBob, Inventory, ItemIcons, ItemId, ItemRegistry, Pickupable};
 use crate::state_machine::StateMachine;
@@ -62,14 +62,14 @@ pub fn spawn_ground_item(
 
 pub fn spawn_player(
     commands: &mut Commands,
+    config: &GameConfig,
     assets: &CharacterAssets,
     sprite_sheet: &PlayerSpriteSheet,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
     spawn_pos: Vec2,
 ) {
-    // Player starts with sword
-    let weapon = weapon_catalog::sword(meshes, materials);
+    let weapon = weapon_catalog::sword(config, meshes, materials);
     let weapon_visual = weapon.visual.clone();
 
     // Create inventory with sword and stick

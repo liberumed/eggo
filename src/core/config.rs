@@ -46,6 +46,13 @@ pub struct GameConfig {
     pub screen_shake_intensity: f32,
     pub screen_shake_duration: f32,
     pub hit_highlight_duration: f32,
+
+    // === WEAPON RANGES ===
+    pub fist_range: f32,
+    pub knife_range: f32,
+    pub club_range: f32,
+    pub stick_range: f32,
+    pub sword_range: f32,
 }
 
 impl Default for GameConfig {
@@ -86,6 +93,12 @@ impl Default for GameConfig {
             screen_shake_intensity: SCREEN_SHAKE_INTENSITY,
             screen_shake_duration: SCREEN_SHAKE_DURATION,
             hit_highlight_duration: HIT_HIGHLIGHT_DURATION,
+            // Weapon Ranges
+            fist_range: FIST_RANGE,
+            knife_range: KNIFE_RANGE,
+            club_range: CLUB_RANGE,
+            stick_range: STICK_RANGE,
+            sword_range: SWORD_RANGE,
         }
     }
 }
@@ -158,6 +171,13 @@ impl GameConfig {
         load_float!("game_feel", "screen_shake_intensity", screen_shake_intensity);
         load_float!("game_feel", "screen_shake_duration", screen_shake_duration);
         load_float!("game_feel", "hit_highlight_duration", hit_highlight_duration);
+
+        // Weapon Ranges
+        load_float!("weapon", "fist_range", fist_range);
+        load_float!("weapon", "knife_range", knife_range);
+        load_float!("weapon", "club_range", club_range);
+        load_float!("weapon", "stick_range", stick_range);
+        load_float!("weapon", "sword_range", sword_range);
 
         config
     }

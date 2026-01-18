@@ -201,8 +201,7 @@ pub fn apply_mesh_attack_hits(
                     commands.entity(entity).insert(CreatureSteering(provoked_config.0.clone()));
                 }
 
-                // Spawn a fist for the newly hostile creature
-                let fist_weapon = weapon_catalog::fist(&mut meshes, &mut materials);
+                let fist_weapon = weapon_catalog::fist(&config, &mut meshes, &mut materials);
                 let fist_visual = fist_weapon.visual.clone();
                 let arc_mesh = create_weapon_arc(&mut meshes, &fist_weapon);
                 let fist_entity = commands.spawn((
@@ -320,7 +319,7 @@ pub fn apply_smash_attack_hits(
                     commands.entity(entity).insert(CreatureSteering(provoked_config.0.clone()));
                 }
 
-                let fist_weapon = weapon_catalog::fist(&mut meshes, &mut materials);
+                let fist_weapon = weapon_catalog::fist(&config, &mut meshes, &mut materials);
                 let fist_visual = fist_weapon.visual.clone();
                 let arc_mesh = create_weapon_arc(&mut meshes, &fist_weapon);
                 let fist_entity = commands.spawn((

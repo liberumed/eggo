@@ -66,8 +66,11 @@ pub const CARDINAL_DOWN: f32 = -std::f32::consts::FRAC_PI_2;
 
 // Combat - Weapon Ranges
 pub const COLLISION_RADIUS: f32 = 14.0;
-pub const FIST_RANGE: f32 = COLLISION_RADIUS * 1.8;
-pub const KNIFE_RANGE: f32 = COLLISION_RADIUS * 4.0;
+pub const FIST_RANGE: f32 = 30.0;
+pub const KNIFE_RANGE: f32 = 40.0;
+pub const CLUB_RANGE: f32 = 40.0;
+pub const STICK_RANGE: f32 = 50.0;
+pub const SWORD_RANGE: f32 = 50.0;
 
 // Combat - Blocking
 pub const BLOCK_KNOCKBACK: f32 = 120.0;

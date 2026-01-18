@@ -134,11 +134,11 @@ fn spawn_creature(
             radius_y: definition.walk_collider.radius_y,
             offset_y: definition.walk_collider.offset_y,
         },
-        HitCollider {
-            radius_x: definition.hit_collider.radius_x,
-            radius_y: definition.hit_collider.radius_y,
-            offset_y: definition.hit_collider.offset_y,
-        },
+        HitCollider::ellipse_vertical(
+            definition.hit_collider.offset_y,
+            definition.hit_collider.radius_x,
+            definition.hit_collider.radius_y,
+        ),
         anim,
         Health(definition.health),
         loot,
@@ -327,11 +327,11 @@ pub fn spawn_goblin(
             radius_y: definition.walk_collider.radius_y,
             offset_y: definition.walk_collider.offset_y,
         },
-        HitCollider {
-            radius_x: definition.hit_collider.radius_x,
-            radius_y: definition.hit_collider.radius_y,
-            offset_y: definition.hit_collider.offset_y,
-        },
+        HitCollider::ellipse_vertical(
+            definition.hit_collider.offset_y,
+            definition.hit_collider.radius_x,
+            definition.hit_collider.radius_y,
+        ),
         Health(definition.health),
         loot,
         CreatureSteering(definition.steering.clone()),

@@ -109,7 +109,10 @@ pub fn detect_player_proximity(
 ) {
     let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
-    let player_hit_radius = player_hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
+    // Effective range bonus = radius minus offset (offset adds distance to circle centers)
+    let player_range_bonus = player_hit_collider
+        .map(|h| (h.max_radius() - h.max_offset()).max(0.0))
+        .unwrap_or(0.0);
 
     for (entity, creature_transform, state_machine, children, goblin) in &creature_query {
         // Only detect from Chase state
@@ -130,7 +133,7 @@ pub fn detect_player_proximity(
         // Check if within weapon range
         for child in children.iter() {
             if let Ok(weapon) = fist_query.get(child) {
-                if distance < weapon.range() + player_hit_radius {
+                if distance < weapon.range() + player_range_bonus {
                     events.write(PlayerInRange {
                         creature: entity,
                         distance,

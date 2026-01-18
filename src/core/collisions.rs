@@ -17,12 +17,72 @@ pub struct WalkCollider {
     pub offset_y: f32,
 }
 
-/// Hit collision (hurtbox) - used for taking damage (ellipse)
-#[derive(Component)]
+/// Single circle in a compound hit collider
+#[derive(Clone, Debug)]
+pub struct HitCircle {
+    pub offset: Vec2,   // Relative to entity position
+    pub radius: f32,
+}
+
+impl HitCircle {
+    pub fn new(offset_x: f32, offset_y: f32, radius: f32) -> Self {
+        Self { offset: Vec2::new(offset_x, offset_y), radius }
+    }
+}
+
+/// Hit collision (hurtbox) - compound collider with multiple circles
+/// Allows accurate hit detection for any shape (ellipse approximation, boss body parts, etc.)
+#[derive(Component, Clone)]
 pub struct HitCollider {
-    pub radius_x: f32,
-    pub radius_y: f32,
-    pub offset_y: f32,
+    pub circles: Vec<HitCircle>,
+}
+
+impl HitCollider {
+    /// Create from a list of circles
+    pub fn new(circles: Vec<HitCircle>) -> Self {
+        Self { circles }
+    }
+
+    /// Convenience: single circle collider
+    pub fn circle(offset_x: f32, offset_y: f32, radius: f32) -> Self {
+        Self { circles: vec![HitCircle::new(offset_x, offset_y, radius)] }
+    }
+
+    /// Convenience: approximate ellipse with 2 overlapping circles (vertical ellipse)
+    pub fn ellipse_vertical(offset_y: f32, radius_x: f32, radius_y: f32) -> Self {
+        let r = radius_x;
+        let stretch = radius_y - radius_x;
+        if stretch <= 0.0 {
+            return Self::circle(0.0, offset_y, radius_x);
+        }
+        Self {
+            circles: vec![
+                HitCircle::new(0.0, offset_y - stretch * 0.5, r),
+                HitCircle::new(0.0, offset_y + stretch * 0.5, r),
+            ],
+        }
+    }
+
+    /// Get bounding radius for broad-phase checks (includes offset distance)
+    pub fn bounding_radius(&self) -> f32 {
+        self.circles.iter()
+            .map(|c| c.offset.length() + c.radius)
+            .fold(0.0_f32, |a, b| a.max(b))
+    }
+
+    /// Get largest circle radius (for range checks - offset doesn't extend attack range)
+    pub fn max_radius(&self) -> f32 {
+        self.circles.iter()
+            .map(|c| c.radius)
+            .fold(0.0_f32, |a, b| a.max(b))
+    }
+
+    /// Get max offset length (how far circles are from entity center)
+    pub fn max_offset(&self) -> f32 {
+        self.circles.iter()
+            .map(|c| c.offset.length())
+            .fold(0.0_f32, |a, b| a.max(b))
+    }
 }
 
 /// Check if two ellipses overlap (simplified axis-aligned)

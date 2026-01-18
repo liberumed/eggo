@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::constants::{CARDINAL_DOWN, CARDINAL_LEFT, CARDINAL_RIGHT, CARDINAL_UP};
+use crate::core::HitCollider;
 
 /// Precomputed cone for efficient hit testing.
 /// Create once, test against many targets without expensive trig per-target.
@@ -26,35 +27,38 @@ impl HitCone {
         }
     }
 
-    /// Check if target hitbox intersects cone.
-    /// Uses only: sqrt (for distance), dot product, multiply, subtract.
-    /// No trig functions called - all precomputed in new().
-    pub fn hits(&self, target_pos: Vec2, target_radius: f32) -> bool {
-        let to_target = target_pos - self.origin;
+    /// Check if a single circle intersects the cone.
+    fn hits_circle(&self, center: Vec2, radius: f32) -> bool {
+        let to_target = center - self.origin;
         let distance = to_target.length();
 
-        // Skip zero distance (target at origin)
         if distance < 0.001 {
             return false;
         }
 
-        // Range check: hit if any part of hitbox is within range
-        let in_range = distance - target_radius < self.range;
+        let in_range = distance - radius < self.range;
 
-        // Cone check with hitbox expansion
-        // Math derivation:
-        //   Want: angle_to_target < half_angle + target_angular_size
-        //   Where: target_angular_size ≈ atan(radius/distance) ≈ radius/distance (small angle)
-        //   Using: cos(a+b) ≈ cos(a) - b*sin(a) for small b
-        //   So: dot/distance > cos(half) - (radius/distance)*sin(half)
-        //   Multiply both sides by distance to avoid division:
-        //   dot > distance * cos_half - radius * sin_half
         let dot = to_target.dot(self.direction);
-        let in_cone = dot > distance * self.cos_half - target_radius * self.sin_half;
+        let in_cone = dot > distance * self.cos_half - radius * self.sin_half;
 
         in_range && in_cone
     }
 
+    /// Check if any circle in the compound collider intersects the cone.
+    pub fn hits_collider(&self, entity_pos: Vec2, collider: &HitCollider) -> bool {
+        for circle in &collider.circles {
+            let center = entity_pos + circle.offset;
+            if self.hits_circle(center, circle.radius) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Check if target hitbox intersects cone (single circle, for simple cases).
+    pub fn hits(&self, target_pos: Vec2, target_radius: f32) -> bool {
+        self.hits_circle(target_pos, target_radius)
+    }
 }
 
 /// Convert angle (radians) to unit direction vector.

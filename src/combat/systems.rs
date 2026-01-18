@@ -106,9 +106,12 @@ pub fn apply_mesh_attack_hits(
 
     for (entity, creature_transform, mut health, hostile, hit_collider, provoked_steering) in &mut creatures_query {
         let creature_pos = creature_transform.translation.truncate();
-        let hit_radius = hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
 
-        if hit_cone.hits(creature_pos, hit_radius) {
+        let hits = match hit_collider {
+            Some(collider) => hit_cone.hits_collider(creature_pos, collider),
+            None => hit_cone.hits(creature_pos, 0.0),
+        };
+        if hits {
             hit_any = true;
             health.0 -= weapon.damage;
 
@@ -253,9 +256,12 @@ pub fn apply_smash_attack_hits(
 
     for (entity, creature_transform, mut health, hostile, hit_collider, provoked_steering) in &mut creatures_query {
         let creature_pos = creature_transform.translation.truncate();
-        let hit_radius = hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
 
-        if hit_cone.hits(creature_pos, hit_radius) {
+        let hits = match hit_collider {
+            Some(collider) => hit_cone.hits_collider(creature_pos, collider),
+            None => hit_cone.hits(creature_pos, 0.0),
+        };
+        if hits {
             hit_any = true;
             health.0 -= weapon.damage;
 
@@ -450,7 +456,7 @@ pub fn aim_weapon(
 pub fn hostile_ai(
     mut commands: Commands,
     time: Res<Time>,
-    player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<StaticCollider>)>,
+    player_query: Query<(&Transform, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<StaticCollider>)>,
     collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
     mut creature_queries: ParamSet<(
         Query<(Entity, &Transform), (With<Creature>, Without<Dead>, Without<StaticCollider>)>,
@@ -460,8 +466,12 @@ pub fn hostile_ai(
     use crate::creatures::{ContextMap, ContextMapCache, CreatureState, FlankPreference, SteeringStrategy, seek_interest, seek_with_flank, obstacle_danger, separation_danger, player_proximity_danger, occupied_angle_danger};
     use rand::Rng;
 
-    let Ok(player_transform) = player_query.single() else { return };
+    let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
+    // Effective range bonus = radius minus offset (offset adds distance to circle centers)
+    let player_range_bonus = player_hit_collider
+        .map(|h| (h.max_radius() - h.max_offset()).max(0.0))
+        .unwrap_or(0.0);
 
     // Gather all creature positions for separation behavior
     let creature_positions: Vec<(Entity, Vec2)> = creature_queries
@@ -486,7 +496,10 @@ pub fn hostile_ai(
         let creature_pos = transform.translation.truncate();
         let distance = player_pos.distance(creature_pos);
 
-        if distance > config.min_player_distance {
+        // Adjust min distance to account for player's hit collider size
+        let effective_min_distance = (config.min_player_distance - player_range_bonus).max(5.0);
+
+        if distance > effective_min_distance {
             // Build context map
             let mut context = ContextMap::new();
 
@@ -524,8 +537,8 @@ pub fn hostile_ai(
             // Danger: avoid approaching from same angle as other creatures (forces spreading)
             occupied_angle_danger(&mut context, creature_pos, player_pos, &others, config.occupied_angle_spread);
 
-            // Danger: don't get too close to player
-            player_proximity_danger(&mut context, creature_pos, player_pos, config.min_player_distance);
+            // Danger: don't get too close to player (adjusted for player's collider size)
+            player_proximity_danger(&mut context, creature_pos, player_pos, effective_min_distance);
 
             // Resolve and move
             let (direction, strength) = context.resolve();
@@ -697,7 +710,6 @@ pub fn process_creature_attacks(
 
     let Ok((player_entity, player_transform, mut player_health, player_hit_collider, player_state)) = player_query.single_mut() else { return };
     let player_pos = player_transform.translation.truncate();
-    let player_hit_radius = player_hit_collider.map(|h| h.radius_x.max(h.radius_y)).unwrap_or(0.0);
 
     // Player invincible during dash or knockback
     if *player_state.current() == PlayerState::Dashing || knockback_query.get(player_entity).is_ok() {
@@ -753,7 +765,11 @@ pub fn process_creature_attacks(
 
         let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), cone_angle);
 
-        if !hit_cone.hits(player_pos, player_hit_radius) {
+        let player_hit = match player_hit_collider {
+            Some(collider) => hit_cone.hits_collider(player_pos, collider),
+            None => hit_cone.hits(player_pos, 0.0),
+        };
+        if !player_hit {
             continue;
         }
 

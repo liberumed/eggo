@@ -105,20 +105,22 @@ pub fn spawn_debug_circles(
                 MeshMaterial2d(walk_color.clone()),
                 Transform::from_xyz(0.0, offset_y, 10.0),
             ));
-            // Hit collision (outer ellipse) - higher Z to be visible above walk
+            // Hit collision (compound circles)
             if let Some(hit) = hit_collider {
-                let hit_mesh = meshes.add(Ellipse::new(hit.radius_x, hit.radius_y));
-                parent.spawn((
-                    HitDebugCircle,
-                    Mesh2d(hit_mesh),
-                    MeshMaterial2d(hit_color.clone()),
-                    Transform::from_xyz(0.0, hit.offset_y, 10.1),
-                ));
+                for circle in &hit.circles {
+                    let hit_mesh = meshes.add(Circle::new(circle.radius));
+                    parent.spawn((
+                        HitDebugCircle,
+                        Mesh2d(hit_mesh),
+                        MeshMaterial2d(hit_color.clone()),
+                        Transform::from_xyz(circle.offset.x, circle.offset.y, 10.1),
+                    ));
+                }
             }
         });
     }
 
-    // Creature debug ellipses
+    // Creature debug circles
     for (entity, walk_collider, hit_collider) in &creature_query {
         let (radius_x, radius_y, offset_y) = walk_collider
             .map(|w| (w.radius_x, w.radius_y, w.offset_y))
@@ -132,15 +134,17 @@ pub fn spawn_debug_circles(
                 MeshMaterial2d(walk_color.clone()),
                 Transform::from_xyz(0.0, offset_y, 10.0),
             ));
-            // Hit collision (outer ellipse)
+            // Hit collision (compound circles)
             if let Some(hit) = hit_collider {
-                let hit_mesh = meshes.add(Ellipse::new(hit.radius_x, hit.radius_y));
-                parent.spawn((
-                    HitDebugCircle,
-                    Mesh2d(hit_mesh),
-                    MeshMaterial2d(hit_color.clone()),
-                    Transform::from_xyz(0.0, hit.offset_y, 10.1),
-                ));
+                for circle in &hit.circles {
+                    let hit_mesh = meshes.add(Circle::new(circle.radius));
+                    parent.spawn((
+                        HitDebugCircle,
+                        Mesh2d(hit_mesh),
+                        MeshMaterial2d(hit_color.clone()),
+                        Transform::from_xyz(circle.offset.x, circle.offset.y, 10.1),
+                    ));
+                }
             }
         });
     }

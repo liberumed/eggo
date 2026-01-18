@@ -87,7 +87,7 @@ pub fn spawn_player(
         StateMachine::<PlayerState>::default(),
         YSorted { base_offset: -24.0 },  // Feet position for 64x64 sprite
         WalkCollider { radius_x: 8.0, radius_y: 4.0, offset_y: -4.0 },  // At feet
-        HitCollider { radius_x: 10.0, radius_y: 14.0, offset_y: 5.0 },  // Centered on body
+        HitCollider::ellipse_vertical(5.0, 10.0, 14.0),  // Centered on body
         PlayerAnimation::default(),
         SpriteAnimation::new("idle", initial_anim.frame_duration_ms),
         Health(10),

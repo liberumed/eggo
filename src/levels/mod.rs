@@ -2,7 +2,7 @@ mod data;
 mod spawner;
 pub mod systems;
 
-pub use data::{CurrentLevel, EntityType, LevelData};
+pub use data::{CreatureType, CurrentLevel, LevelData, PropType};
 pub use spawner::{spawn_level_background, spawn_win_zone, LevelBackground, VoidBackground, WinZone, WinZoneTimer, WinZoneTimerText};
 pub use systems::BoundToLevel;
 

@@ -16,7 +16,7 @@ use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use constants::*;
 
 use core::{CharacterAssets, CorePlugin, GameConfig, GameState, InputBindings};
-use levels::{CurrentLevel, EntityType, LevelBackground, LevelsPlugin, VoidBackground, WinZone, WinZoneTimer};
+use levels::{CreatureType, CurrentLevel, LevelBackground, LevelsPlugin, PropType, VoidBackground, WinZone, WinZoneTimer};
 use world::{NewGameRequested, WorldConfig};
 use creatures::{Creature, CreaturePlugin};
 use debug::{
@@ -185,27 +185,24 @@ fn spawn_world(
     player::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, level.player_spawn);
     player::spawn_target_outline(&mut commands, &character_assets);
 
-    // Spawn entities from level data
-    for spawn in &level.spawns.clone() {
-        match &spawn.entity_type {
-            EntityType::Goblin => {
+    for spawn in &level.items {
+        player::spawn_ground_item(&mut commands, &character_assets, &item_registry, &item_icons, spawn.item_id, spawn.quantity, spawn.position);
+    }
+
+    for spawn in &level.creatures {
+        match spawn.creature {
+            CreatureType::Goblin => {
                 creatures::spawn_goblin(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, spawn.position);
             }
-            EntityType::Pillar => {
-                props::spawn_pillar(&mut commands, &prop_registry, spawn.position);
-            }
-            EntityType::Barrel => {
-                props::spawn_barrel(&mut commands, &barrel_sprites, &prop_registry, spawn.position);
-            }
-            EntityType::Crate => {
-                props::spawn_crate(&mut commands, &crate_sprites, &prop_registry, spawn.position);
-            }
-            EntityType::Crate2 => {
-                props::spawn_crate2(&mut commands, &crate2_sprites, &prop_registry, spawn.position);
-            }
-            EntityType::Item { item_id, quantity } => {
-                player::spawn_ground_item(&mut commands, &character_assets, &item_registry, &item_icons, *item_id, *quantity, spawn.position);
-            }
+        }
+    }
+
+    for spawn in &level.props {
+        match spawn.prop {
+            PropType::Pillar => props::spawn_pillar(&mut commands, &prop_registry, spawn.position),
+            PropType::Barrel => props::spawn_barrel(&mut commands, &barrel_sprites, &prop_registry, spawn.position),
+            PropType::Crate => props::spawn_crate(&mut commands, &crate_sprites, &prop_registry, spawn.position),
+            PropType::Crate2 => props::spawn_crate2(&mut commands, &crate2_sprites, &prop_registry, spawn.position),
         }
     }
 }

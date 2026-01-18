@@ -1,29 +1,56 @@
 (
     name: "Corridor",
     bounds: (
-        min: (-140.0, -100.0),
-        max: (140.0, 620.0),
+        min: (-210.0, -100.0),
+        max: (210.0, 1110.0),
     ),
     walkable: [
         (
             min: (-130.0, -90.0),
-            max: (130.0, 610.0),
+            max: (130.0, 800.0),
+        ),
+        (
+            min: (-200.0, 800.0),
+            max: (200.0, 1100.0),
         ),
     ],
     player_spawn: (0.0, -60.0),
-    spawns: [
-        (entity_type: Item(item_id: RustyKnife, quantity: 1), position: (30.0, -40.0)),
-        (entity_type: Item(item_id: Mushroom, quantity: 2), position: (-40.0, -30.0)),
-        (entity_type: Pillar, position: (-80.0, 100.0)),
-        (entity_type: Pillar, position: (80.0, 250.0)),
-        (entity_type: Barrel, position: (60.0, 50.0)),
-        (entity_type: Crate, position: (-50.0, 180.0)),
-        (entity_type: Goblin, position: (0.0, 200.0)),
-        (entity_type: Goblin, position: (-60.0, 350.0)),
-        (entity_type: Goblin, position: (50.0, 500.0)),
+
+    items: [
+        (item_id: RustyKnife, quantity: 1, position: (30.0, -40.0)),
+        (item_id: Mushroom, quantity: 2, position: (-40.0, -30.0)),
     ],
+
+    creatures: [
+        (creature: Goblin, position: (-30.0, 300.0)),
+        (creature: Goblin, position: (30.0, 340.0)),
+        (creature: Goblin, position: (0.0, 650.0)),
+        (creature: Goblin, position: (-50.0, 690.0)),
+        (creature: Goblin, position: (50.0, 720.0)),
+    ],
+
+    props: [
+        (prop: Barrel, position: (60.0, 50.0)),
+        (prop: Crate, position: (-50.0, 180.0)),
+
+        (prop: Pillar, position: (-100.0, 250.0)),
+        (prop: Pillar, position: (100.0, 250.0)),
+        (prop: Pillar, position: (-100.0, 400.0)),
+        (prop: Pillar, position: (100.0, 400.0)),
+
+        (prop: Pillar, position: (-100.0, 600.0)),
+        (prop: Pillar, position: (100.0, 600.0)),
+        (prop: Pillar, position: (-100.0, 750.0)),
+        (prop: Pillar, position: (100.0, 750.0)),
+
+        (prop: Pillar, position: (-180.0, 830.0)),
+        (prop: Pillar, position: (180.0, 830.0)),
+        (prop: Pillar, position: (-180.0, 1070.0)),
+        (prop: Pillar, position: (180.0, 1070.0)),
+    ],
+
     win_zone: Some((
-        position: (0.0, 580.0),
-        radius: 25.0,
+        position: (0.0, 1050.0),
+        radius: 30.0,
     )),
 )

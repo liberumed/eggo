@@ -63,19 +63,40 @@ impl WalkableRect {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub enum EntityType {
+pub enum CreatureType {
     Goblin,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub enum PropType {
     Pillar,
     Barrel,
     Crate,
     Crate2,
-    Item { item_id: ItemId, quantity: u32 },
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct SpawnEntry {
-    pub entity_type: EntityType,
+pub struct CreatureSpawn {
+    pub creature: CreatureType,
     pub position: Vec2,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct PropSpawn {
+    pub prop: PropType,
+    pub position: Vec2,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ItemSpawn {
+    pub item_id: ItemId,
+    #[serde(default = "default_quantity")]
+    pub quantity: u32,
+    pub position: Vec2,
+}
+
+fn default_quantity() -> u32 {
+    1
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -90,7 +111,12 @@ pub struct LevelData {
     pub bounds: LevelBounds,
     pub walkable: Vec<WalkableRect>,
     pub player_spawn: Vec2,
-    pub spawns: Vec<SpawnEntry>,
+    #[serde(default)]
+    pub items: Vec<ItemSpawn>,
+    #[serde(default)]
+    pub creatures: Vec<CreatureSpawn>,
+    #[serde(default)]
+    pub props: Vec<PropSpawn>,
     #[serde(default)]
     pub win_zone: Option<WinZoneData>,
 }

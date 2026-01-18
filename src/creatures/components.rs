@@ -39,3 +39,7 @@ pub struct ProvokedSteering(pub SteeringConfig);
 /// Marker for Goblin enemies (use player sprites, half-circle attacks)
 #[derive(Component)]
 pub struct Goblin;
+
+/// Marker for creatures that have spotted the player and are actively pursuing
+#[derive(Component)]
+pub struct Activated;

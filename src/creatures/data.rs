@@ -12,26 +12,28 @@ pub enum SteeringStrategy {
 #[derive(Clone, Debug)]
 pub struct SteeringConfig {
     pub strategy: SteeringStrategy,
-    pub sight_range: f32,           // How far can see player
-    pub obstacle_look_ahead: f32,   // Obstacle avoidance distance
-    pub separation_radius: f32,     // Distance from other creatures
-    pub min_player_distance: f32,   // Don't get closer than this
-    pub flank_angle_min: f32,       // Min flank angle (radians)
-    pub flank_angle_max: f32,       // Max flank angle (radians)
-    pub occupied_angle_spread: f32, // Angle spread for occupied_angle_danger
+    pub sight_range: f32,
+    pub chase_range: f32,
+    pub obstacle_look_ahead: f32,
+    pub separation_radius: f32,
+    pub min_player_distance: f32,
+    pub flank_angle_min: f32,
+    pub flank_angle_max: f32,
+    pub occupied_angle_spread: f32,
 }
 
 impl Default for SteeringConfig {
     fn default() -> Self {
         Self {
             strategy: SteeringStrategy::Direct,
-            sight_range: 200.0,
+            sight_range: 150.0,
+            chase_range: 300.0,
             obstacle_look_ahead: 50.0,
             separation_radius: 35.0,
             min_player_distance: 25.0,
-            flank_angle_min: 0.5,       // ~30°
-            flank_angle_max: 1.0,       // ~60°
-            occupied_angle_spread: 0.6, // ~35°
+            flank_angle_min: 0.5,
+            flank_angle_max: 1.0,
+            occupied_angle_spread: 0.6,
         }
     }
 }
@@ -108,7 +110,8 @@ pub mod creature_catalog {
             steering: SteeringConfig::default(),
             provoked_steering: SteeringConfig {
                 strategy: SteeringStrategy::Direct,
-                sight_range: 300.0, // Longer range when angry
+                sight_range: 300.0,
+                chase_range: 450.0,
                 ..Default::default()
             },
         }
@@ -134,7 +137,6 @@ pub mod creature_catalog {
             // Hostile blobs use flanking behavior
             steering: SteeringConfig {
                 strategy: SteeringStrategy::Flanking,
-                sight_range: 200.0,
                 flank_angle_min: 0.5,
                 flank_angle_max: 1.0,
                 ..Default::default()
@@ -165,7 +167,6 @@ pub mod creature_catalog {
             // Goblins use flanking behavior
             steering: SteeringConfig {
                 strategy: SteeringStrategy::Flanking,
-                sight_range: 200.0,
                 flank_angle_min: 0.3,
                 flank_angle_max: 0.8,
                 ..Default::default()

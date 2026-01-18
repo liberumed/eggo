@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::constants::{PROVOKED_SPEED, WEAPON_OFFSET, Z_BLOOD, Z_WEAPON};
 use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, GameConfig, Health, HitCollider, InputBindings, Knockback, StaticCollider, Stunned};
-use crate::creatures::{ContextMapCache, Creature, FlankPreference, Goblin, Hostile};
+use crate::creatures::{Activated, ContextMapCache, Creature, FlankPreference, Goblin, Hostile};
 use crate::player::{Player, PlayerSmashAttack, PlayerState};
 use crate::state_machine::StateMachine;
 use crate::props::{BarrelSprite, CrateSprite, Crate2Sprite, Destructible, Prop, PropRegistry, PropType};
@@ -438,7 +438,7 @@ pub fn hostile_ai(
     collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
     mut creature_queries: ParamSet<(
         Query<(Entity, &Transform), (With<Creature>, Without<Dead>, Without<StaticCollider>)>,
-        Query<(Entity, &mut Transform, &Hostile, &crate::creatures::CreatureSteering, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&mut ContextMapCache>, Option<&FlankPreference>), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
+        Query<(Entity, &mut Transform, &Hostile, &crate::creatures::CreatureSteering, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&mut ContextMapCache>, Option<&FlankPreference>, Option<&Activated>), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
     )>,
 ) {
     use crate::creatures::{ContextMap, ContextMapCache, CreatureState, FlankPreference, SteeringStrategy, seek_interest, seek_with_flank, obstacle_danger, separation_danger, player_proximity_danger, occupied_angle_danger};
@@ -464,7 +464,7 @@ pub fn hostile_ai(
         .map(|(t, c)| (Vec2::new(t.translation.x, t.translation.y + c.offset_y), Vec2::new(c.radius_x, c.radius_y)))
         .collect();
 
-    for (entity, mut transform, hostile, steering, state_machine, context_cache, flank_pref) in creature_queries.p1().iter_mut() {
+    for (entity, mut transform, hostile, steering, state_machine, context_cache, flank_pref, activated) in creature_queries.p1().iter_mut() {
         // Only process creatures in Chase state
         if *state_machine.current() != CreatureState::Chase {
             continue;
@@ -473,6 +473,18 @@ pub fn hostile_ai(
         let config = &steering.0;
         let creature_pos = transform.translation.truncate();
         let distance = player_pos.distance(creature_pos);
+
+        let is_activated = activated.is_some();
+        if !is_activated {
+            if distance <= config.sight_range {
+                commands.entity(entity).insert(Activated);
+            } else {
+                continue;
+            }
+        } else if distance > config.chase_range {
+            commands.entity(entity).remove::<Activated>();
+            continue;
+        }
 
         // Adjust min distance to account for player's hit collider size
         let effective_min_distance = (config.min_player_distance - player_range_bonus).max(5.0);

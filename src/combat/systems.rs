@@ -4,7 +4,7 @@ use rand::Rng;
 use crate::constants::{PROVOKED_SPEED, WEAPON_OFFSET, Z_BLOOD, Z_WEAPON};
 use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, GameConfig, Health, HitCollider, InputBindings, Knockback, StaticCollider, Stunned};
 use crate::creatures::{ContextMapCache, Creature, FlankPreference, Goblin, Hostile};
-use crate::player::{Player, PlayerSmashAttack, PlayerState};
+use crate::player::{HurtAnimation, Player, PlayerSmashAttack, PlayerState};
 use crate::state_machine::StateMachine;
 use crate::props::{BarrelSprite, CrateSprite, Crate2Sprite, Destructible, Prop, PropRegistry, PropType};
 use super::{CreatureRangeIndicator, GoblinAttackIndicator, PlayerRangeIndicator, WeaponRangeIndicator};
@@ -174,12 +174,15 @@ pub fn apply_mesh_attack_hits(
             let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
             weapon.apply_on_hit(&mut commands, entity, knockback_dir);
 
-            // Add hit highlight (red flash)
-            commands.entity(entity).insert(HitHighlight {
-                timer: 0.0,
-                duration: config.hit_highlight_duration,
-                original_material: None,
-            });
+            // Add hit highlight (red flash) and hurt animation
+            commands.entity(entity).insert((
+                HitHighlight {
+                    timer: 0.0,
+                    duration: config.hit_highlight_duration,
+                    original_material: None,
+                },
+                HurtAnimation::default(),
+            ));
 
             let is_kill = health.0 <= 0;
             spawn_blood_particles(&mut commands, &assets, creature_pos, attack_dir, is_kill);
@@ -293,11 +296,14 @@ pub fn apply_smash_attack_hits(
             let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
             weapon.apply_on_hit(&mut commands, entity, knockback_dir);
 
-            commands.entity(entity).insert(HitHighlight {
-                timer: 0.0,
-                duration: config.hit_highlight_duration,
-                original_material: None,
-            });
+            commands.entity(entity).insert((
+                HitHighlight {
+                    timer: 0.0,
+                    duration: config.hit_highlight_duration,
+                    original_material: None,
+                },
+                HurtAnimation::default(),
+            ));
 
             let is_kill = health.0 <= 0;
             spawn_blood_particles(&mut commands, &assets, creature_pos, attack_dir, is_kill);
@@ -661,11 +667,14 @@ fn apply_attack_to_player(
     hitstop.trigger(config.hitstop_duration);
     screen_shake.trigger(config.screen_shake_intensity, config.screen_shake_duration);
 
-    commands.entity(player_entity).insert(HitHighlight {
-        timer: 0.0,
-        duration: config.hit_highlight_duration,
-        original_material: None,
-    });
+    commands.entity(player_entity).insert((
+        HitHighlight {
+            timer: 0.0,
+            duration: config.hit_highlight_duration,
+            original_material: None,
+        },
+        HurtAnimation::default(),
+    ));
 }
 
 /// Process creature attacks against player

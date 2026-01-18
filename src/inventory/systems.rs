@@ -26,8 +26,14 @@ pub struct DragState {
 }
 
 /// Tracks which hotbar slot is selected for weapons (None = fists)
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct SelectedHotbarSlot(pub Option<usize>);
+
+impl Default for SelectedHotbarSlot {
+    fn default() -> Self {
+        Self(Some(0))  // Start with slot 0 selected (sword)
+    }
+}
 
 /// Marker for the dragged item visual
 #[derive(Component)]

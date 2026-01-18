@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::combat::{create_half_circle_arc, Equipment, PlayerRangeIndicator, WeaponRangeIndicator};
-use crate::inventory::weapons::{Fist, PlayerWeapon, WeaponVisualMesh, weapon_catalog};
+use crate::inventory::weapons::{Drawn, PlayerWeapon, WeaponVisualMesh, weapon_catalog};
 use crate::constants::*;
 use crate::core::{CharacterAssets, Health, Shadow, WalkCollider, HitCollider, YSorted};
 use crate::effects::TargetOutline;
@@ -10,7 +10,7 @@ use crate::inventory::{EquippedWeaponId, GroundItem, GroundItemBob, Inventory, I
 use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
 use crate::levels::BoundToLevel;
-use super::{MovementInput, Player, PlayerAnimation, PlayerSpriteSheet, PlayerState, SpriteAnimation};
+use super::{ComboState, FacingDirection, MovementInput, Player, PlayerAnimation, PlayerSpriteSheet, PlayerState, SpriteAnimation};
 
 pub fn spawn_ground_item(
     commands: &mut Commands,
@@ -68,33 +68,42 @@ pub fn spawn_player(
     materials: &mut Assets<ColorMaterial>,
     spawn_pos: Vec2,
 ) {
-    // Player starts with fist, stick in inventory
-    let weapon = weapon_catalog::fist(meshes, materials);
+    // Player starts with sword
+    let weapon = weapon_catalog::sword(meshes, materials);
     let weapon_visual = weapon.visual.clone();
 
-    // Create inventory with stick
+    // Create inventory with sword and stick
     let mut inventory = Inventory::default();
+    inventory.try_add(ItemId::Sword, 1);
     inventory.try_add(ItemId::WoodenStick, 1);
 
-    // Get initial animation data
-    let initial_anim = sprite_sheet.animations.get("idle").unwrap_or_else(|| {
+    // Get initial animation data (start facing down)
+    let initial_anim = sprite_sheet.animations.get("idle_down").unwrap_or_else(|| {
         sprite_sheet.animations.values().next().expect("No animations in sprite sheet")
     });
 
     commands.spawn((
+        // Core identity
         Player,
         BoundToLevel,
         StateMachine::<PlayerState>::default(),
+        // Physics/rendering
         YSorted { base_offset: -24.0 },  // Feet position for 64x64 sprite
         WalkCollider { radius_x: 8.0, radius_y: 4.0, offset_y: -4.0 },  // At feet
         HitCollider::ellipse_vertical(5.0, 10.0, 14.0),  // Centered on body
+        // Animation state
         PlayerAnimation::default(),
         MovementInput::default(),
-        SpriteAnimation::new("idle", initial_anim.frame_duration_ms),
+        FacingDirection::default(),
+        ComboState::default(),
+        SpriteAnimation::new("idle_down", initial_anim.frame_duration_ms),
+        // Combat/inventory
         Health(10),
         Equipment::default(),
         inventory,
-        EquippedWeaponId(ItemId::Fist),
+        EquippedWeaponId(ItemId::Sword),
+    )).insert((
+        // Sprite and transform (separate insert to avoid tuple limit)
         Sprite::from_atlas_image(
             initial_anim.texture.clone(),
             TextureAtlas {
@@ -138,15 +147,13 @@ pub fn spawn_player(
             TextColor(Color::srgb(1.0, 1.0, 1.0)),
             Transform::from_xyz(2.0, 35.0, Z_UI_WORLD).with_scale(Vec3::splat(0.25)),
         ));
-        // Default weapon with visual (hidden until attack)
+        // Default weapon (already drawn)
         let weapon_pos = Vec3::new(12.0, 5.0, Z_WEAPON);
         parent.spawn((
-            Fist,
             PlayerWeapon,
+            Drawn,
             weapon.clone(),
             Transform::from_translation(weapon_pos),
-            Visibility::Hidden,
-            InheritedVisibility::HIDDEN,
         )).with_children(|weapon_parent| {
             weapon_parent.spawn((
                 WeaponVisualMesh,

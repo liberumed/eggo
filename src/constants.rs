@@ -54,6 +54,7 @@ pub const HIT_HIGHLIGHT_DURATION: f32 = 0.15; // Red flash duration
 // Combat - Attack Timing
 pub const ATTACK_HIT_DELAY_PERCENT: f32 = 0.5;  // Hit at 50% into swing animation
 pub const ATTACK_COOLDOWN_DURATION: f32 = 1.5;  // Creature wait time between attacks
+pub const COMBO_TIMEOUT: f32 = 1.5;             // Time before combo resets to attack1
 
 // Combat - Attack Geometry
 pub const WEAPON_OFFSET: (f32, f32) = (-4.0, 6.5);  // Weapon position relative to player

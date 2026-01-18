@@ -22,6 +22,7 @@ pub enum Rarity {
 pub enum ItemId {
     WoodenStick,
     RustyKnife,
+    Sword,
     Fist,
     HealthPotion,
     Mushroom,
@@ -97,6 +98,12 @@ pub fn get_item_data(id: ItemId) -> ItemData {
             category: ItemCategory::Weapon,
             stack_max: 1,
         },
+        ItemId::Sword => ItemData {
+            id,
+            name: "Sword".to_string(),
+            category: ItemCategory::Weapon,
+            stack_max: 1,
+        },
         ItemId::Fist => ItemData {
             id,
             name: "Fist".to_string(),
@@ -133,6 +140,7 @@ pub fn get_weapon_stats(
     match id {
         ItemId::WoodenStick => Some(weapon_catalog::wooden_stick(meshes, materials)),
         ItemId::RustyKnife => Some(weapon_catalog::rusty_knife(meshes, materials)),
+        ItemId::Sword => Some(weapon_catalog::sword(meshes, materials)),
         ItemId::Fist => Some(weapon_catalog::fist(meshes, materials)),
         _ => None,
     }
@@ -188,6 +196,33 @@ pub fn build_item_registry(
                 ],
             },
             weapon: Some(knife_weapon),
+            consumable_effect: None,
+        },
+    );
+
+    // Sword
+    let sword_weapon = weapon_catalog::sword(meshes, materials);
+    items.insert(
+        ItemId::Sword,
+        ItemDefinition {
+            name: sword_weapon.name.clone(),
+            category: ItemCategory::Weapon,
+            stack_max: 1,
+            ground_visual: GroundItemVisual {
+                meshes: vec![
+                    (
+                        sword_weapon.visual.mesh.clone(),
+                        sword_weapon.visual.material.clone(),
+                        Vec3::ZERO,
+                    ),
+                    (
+                        meshes.add(Rectangle::new(3.0, 5.0)),
+                        materials.add(Color::srgb(0.4, 0.3, 0.2)),
+                        Vec3::new(-12.0, 0.0, 0.0),
+                    ),
+                ],
+            },
+            weapon: Some(sword_weapon),
             consumable_effect: None,
         },
     );

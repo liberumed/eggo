@@ -832,8 +832,7 @@ pub fn sync_range_indicator(
 
     let player_pos = player_transform.translation.truncate();
     let dir = world_pos - player_pos;
-    let raw_angle = dir.y.atan2(dir.x);
-    let aim_angle = snap_to_cardinal(raw_angle);
+    let aim_angle = dir.y.atan2(dir.x);
 
     indicator_transform.rotation = Quat::from_rotation_z(aim_angle);
 }
@@ -920,14 +919,7 @@ pub fn sync_creature_range_indicators(
 
             // Calculate direction toward player
             let dir = player_pos - creature_pos;
-            let raw_angle = dir.y.atan2(dir.x);
-
-            // Goblins: snap to cardinal (like player), others: direct angle
-            let angle = if is_goblin.is_some() {
-                snap_to_cardinal(raw_angle)
-            } else {
-                raw_angle
-            };
+            let angle = dir.y.atan2(dir.x);
             indicator_transform.rotation = Quat::from_rotation_z(angle);
         } else {
             // Creature is dead or despawned, remove indicator

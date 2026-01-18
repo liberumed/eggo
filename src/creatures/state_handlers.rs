@@ -109,34 +109,34 @@ pub fn detect_player_proximity(
 ) {
     let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
-    // Effective range bonus = radius minus offset (offset adds distance to circle centers)
-    let player_range_bonus = player_hit_collider
-        .map(|h| (h.max_radius() - h.max_offset()).max(0.0))
-        .unwrap_or(0.0);
 
     for (entity, creature_transform, state_machine, children, goblin) in &creature_query {
-        // Only detect from Chase state
         if *state_machine.current() != CreatureState::Chase {
             continue;
         }
 
         let creature_pos = creature_transform.translation.truncate();
 
-        // Goblins attack from body center (with Y offset), others from base position
         let attack_origin = if goblin.is_some() {
             Vec2::new(creature_pos.x, creature_pos.y + config.attack_center_offset_y)
         } else {
             creature_pos
         };
-        let distance = player_pos.distance(attack_origin);
 
-        // Check if within weapon range
+        let min_distance = player_hit_collider
+            .map(|collider| {
+                collider.circles.iter()
+                    .map(|c| (player_pos + c.offset).distance(attack_origin) - c.radius)
+                    .fold(f32::MAX, f32::min)
+            })
+            .unwrap_or_else(|| player_pos.distance(attack_origin));
+
         for child in children.iter() {
             if let Ok(weapon) = fist_query.get(child) {
-                if distance < weapon.range() + player_range_bonus {
+                if min_distance < weapon.range() {
                     events.write(PlayerInRange {
                         creature: entity,
-                        distance,
+                        distance: min_distance,
                     });
                     break;
                 }

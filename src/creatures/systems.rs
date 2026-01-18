@@ -155,10 +155,12 @@ pub fn animate_death(
 
 pub fn apply_collision_push(
     time: Res<Time>,
+    config: Res<crate::core::GameConfig>,
     player_query: Query<&Transform, (With<Player>, Without<Dead>, Without<Creature>)>,
     mut creatures_query: Query<(Entity, &mut Transform), (With<Creature>, Without<Dead>, Without<Player>)>,
 ) {
     let dt = time.delta_secs();
+    let push_radius = config.push_radius;
 
     let creature_positions: Vec<(Entity, Vec2)> = creatures_query
         .iter()
@@ -178,9 +180,9 @@ pub fn apply_collision_push(
             let diff = creature_pos - player_pos;
             let dist = diff.length();
 
-            if dist < PUSH_RADIUS && dist > 0.1 {
+            if dist < push_radius && dist > 0.1 {
                 let push_dir = diff.normalize();
-                let overlap = (PUSH_RADIUS - dist) / PUSH_RADIUS;
+                let overlap = (push_radius - dist) / push_radius;
                 push += push_dir * overlap * PUSH_STRENGTH * dt;
             }
         }
@@ -193,9 +195,9 @@ pub fn apply_collision_push(
             let diff = creature_pos - *other_pos;
             let dist = diff.length();
 
-            if dist < PUSH_RADIUS && dist > 0.1 {
+            if dist < push_radius && dist > 0.1 {
                 let push_dir = diff.normalize();
-                let overlap = (PUSH_RADIUS - dist) / PUSH_RADIUS;
+                let overlap = (push_radius - dist) / push_radius;
                 push += push_dir * overlap * PUSH_STRENGTH * 0.5 * dt;
             }
         }

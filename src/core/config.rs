@@ -32,6 +32,8 @@ pub struct GameConfig {
     pub hostile_speed: f32,
     pub goblin_sight_range: f32,
     pub attack_cooldown_duration: f32,
+    pub player_min_distance: f32,
+    pub push_radius: f32,
 
     // === SHARED COMBAT CONFIG ===
     pub knockback_force: f32,
@@ -81,6 +83,8 @@ impl Default for GameConfig {
             hostile_speed: HOSTILE_SPEED,
             goblin_sight_range: GOBLIN_SIGHT_RANGE,
             attack_cooldown_duration: ATTACK_COOLDOWN_DURATION,
+            player_min_distance: PLAYER_MIN_DISTANCE,
+            push_radius: PUSH_RADIUS,
             // Shared Combat
             knockback_force: KNOCKBACK_FORCE,
             attack_hit_delay_percent: ATTACK_HIT_DELAY_PERCENT,
@@ -157,6 +161,8 @@ impl GameConfig {
         load_float!("creature", "hostile_speed", hostile_speed);
         load_float!("creature", "goblin_sight_range", goblin_sight_range);
         load_float!("creature", "attack_cooldown", attack_cooldown_duration);
+        load_float!("creature", "player_min_distance", player_min_distance);
+        load_float!("creature", "push_radius", push_radius);
 
         // Shared Combat
         load_float!("combat", "knockback_force", knockback_force);

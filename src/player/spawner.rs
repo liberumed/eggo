@@ -162,14 +162,13 @@ pub fn spawn_player(
                 Transform::from_xyz(weapon_visual.offset, 0.0, 0.0),
             ));
         });
-        // Range indicator - centered on player body for half-circle attacks
         let arc_mesh = create_half_circle_arc(meshes, weapon.range());
         parent.spawn((
             WeaponRangeIndicator,
             PlayerRangeIndicator,
             Mesh2d(arc_mesh),
             MeshMaterial2d(assets.range_indicator_material.clone()),
-            Transform::from_xyz(0.0, ATTACK_CENTER_OFFSET_Y, Z_WEAPON + 0.1),
+            Transform::from_xyz(0.0, config.attack_center_offset_y, Z_WEAPON + 0.1),
         ));
     });
 }

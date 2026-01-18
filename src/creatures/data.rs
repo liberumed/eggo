@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use crate::constants::{OBSTACLE_LOOK_AHEAD, PLAYER_MIN_DISTANCE, SEPARATION_RADIUS};
+
 /// Steering behavior strategy
 #[derive(Clone, Copy, Default, Debug)]
 pub enum SteeringStrategy {
@@ -28,9 +30,9 @@ impl Default for SteeringConfig {
             strategy: SteeringStrategy::Direct,
             sight_range: 150.0,
             chase_range: 300.0,
-            obstacle_look_ahead: 50.0,
-            separation_radius: 35.0,
-            min_player_distance: 25.0,
+            obstacle_look_ahead: OBSTACLE_LOOK_AHEAD,
+            separation_radius: SEPARATION_RADIUS,
+            min_player_distance: PLAYER_MIN_DISTANCE,
             flank_angle_min: 0.5,
             flank_angle_max: 1.0,
             occupied_angle_spread: 0.6,

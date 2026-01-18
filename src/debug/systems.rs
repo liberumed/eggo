@@ -1,9 +1,8 @@
 use bevy::prelude::*;
 
 use crate::combat::hit_detection::snap_to_cardinal;
-use crate::constants::ATTACK_CENTER_OFFSET_Y;
 use crate::inventory::weapons::{Fist, PlayerWeapon, Weapon, WeaponSwing};
-use crate::core::{Dead, HitCollider, StaticCollider, WalkCollider};
+use crate::core::{Dead, GameConfig, HitCollider, StaticCollider, WalkCollider};
 use crate::creatures::{ContextMap, ContextMapCache, Creature, Goblin, Hostile, NUM_DIRECTIONS};
 use crate::player::{Player, PlayerSmashAttack, PlayerState};
 use crate::props::{Prop, PropRegistry};
@@ -177,18 +176,15 @@ pub fn spawn_debug_circles(
     }
 }
 
-/// Spawn debug cones for weapons
 pub fn spawn_weapon_debug_cones(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    config: Res<GameConfig>,
     debug_config: Res<DebugConfig>,
-    // Player (to spawn cone on player, not weapon)
     player_query: Query<(Entity, Option<&WeaponConeStats>), With<Player>>,
     player_weapon_query: Query<&Weapon, With<PlayerWeapon>>,
-    // Existing player cones to despawn if weapon changed (exclude creature circles)
     cone_query: Query<Entity, (With<WeaponReachCone>, Without<CreatureDebugCircle>)>,
-    // Creatures with fists (spawn circle on creature, not fist)
     creature_query: Query<(Entity, &Children, Option<&Goblin>), (With<Creature>, Without<HasDebugCone>)>,
     fist_query: Query<&Weapon, With<Fist>>,
 ) {
@@ -216,9 +212,7 @@ pub fn spawn_weapon_debug_cones(
                     commands.entity(cone_entity).despawn();
                 }
 
-                // CircularSector::new takes half angle, so divide by 2
                 let cone_mesh = meshes.add(CircularSector::new(range, cone_angle / 2.0));
-                // Center on player body for half-circle attacks
                 commands.entity(player_entity)
                     .insert(WeaponConeStats { range, half_angle: cone_angle })
                     .with_children(|parent| {
@@ -226,7 +220,7 @@ pub fn spawn_weapon_debug_cones(
                             WeaponReachCone,
                             Mesh2d(cone_mesh),
                             MeshMaterial2d(cone_color.clone()),
-                            Transform::from_xyz(0.0, ATTACK_CENTER_OFFSET_Y, 9.8),
+                            Transform::from_xyz(0.0, config.attack_center_offset_y, 9.8),
                         ));
                     });
             }
@@ -312,9 +306,9 @@ pub fn update_player_debug_cone(
     }
 }
 
-/// Sync creature debug cones with creature positions/rotations and despawn when creature dies
 pub fn update_creature_debug_circles(
     mut commands: Commands,
+    config: Res<GameConfig>,
     player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<CreatureDebugCircle>)>,
     creature_query: Query<&Transform, (With<Creature>, Without<Dead>, Without<Player>, Without<CreatureDebugCircle>)>,
     mut circle_query: Query<(Entity, &CreatureDebugCircle, &mut Transform), (Without<Creature>, Without<Player>)>,
@@ -325,8 +319,7 @@ pub fn update_creature_debug_circles(
         if let Ok(creature_transform) = creature_query.get(link.entity) {
             let creature_pos = creature_transform.translation.truncate();
 
-            // Goblins use ATTACK_CENTER_OFFSET_Y like player
-            let y_offset = if link.is_goblin { ATTACK_CENTER_OFFSET_Y } else { 0.0 };
+            let y_offset = if link.is_goblin { config.attack_center_offset_y } else { 0.0 };
             circle_transform.translation.x = creature_pos.x;
             circle_transform.translation.y = creature_pos.y + y_offset;
 

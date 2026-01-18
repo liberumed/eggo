@@ -407,12 +407,11 @@ pub fn spawn_goblin(
         Vec3::new(position.x, position.y, 0.0),
     );
 
-    // Spawn filled half-circle attack indicator (hidden initially)
     commands.spawn((
         GoblinAttackIndicator(goblin_entity),
         Mesh2d(attack_mesh),
         MeshMaterial2d(assets.attack_windup_material.clone()),
-        Transform::from_xyz(position.x, position.y + ATTACK_CENTER_OFFSET_Y, Z_WEAPON + 0.05),
+        Transform::from_xyz(position.x, position.y + config.attack_center_offset_y, Z_WEAPON + 0.05),
         Visibility::Hidden,
     ));
 }

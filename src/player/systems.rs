@@ -75,20 +75,14 @@ pub fn apply_player_velocity(
     mut query: Query<(Entity, &MovementInput, &mut PlayerAnimation, &StateMachine<PlayerState>, Option<&Sprinting>), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     blocking_query: Query<&Blocking>,
 ) {
-    if hitstop.is_active() {
-        return;
-    }
+    if hitstop.is_active() { return; }
 
     let dt = time.delta_secs();
     let Ok((entity, input, mut anim, state, sprinting)) = query.single_mut() else { return };
 
-    let current_state = state.current();
-    if !matches!(current_state, PlayerState::Idle | PlayerState::Moving) {
-        return;
-    }
+    if !matches!(state.current(), PlayerState::Idle | PlayerState::Moving) { return; }
 
     let is_blocking = blocking_query.get(entity).is_ok();
-
     let sprint_multiplier = sprinting
         .map(|s| {
             let t = (s.duration / config.sprint_ramp_time).min(1.0);
@@ -101,49 +95,59 @@ pub fn apply_player_velocity(
     } else {
         config.player_speed * sprint_multiplier
     };
-
     let sprint_threshold = config.player_speed * config.sprint_decel_threshold;
+    let current_speed = anim.velocity.length();
 
-    if input.0 != Vec2::ZERO {
-        let target_velocity = input.0.normalize() * speed;
-        let diff = target_velocity - anim.velocity;
-        let current_speed = anim.velocity.length();
+    let has_input = input.0 != Vec2::ZERO;
+    let has_velocity = anim.velocity != Vec2::ZERO;
 
-        let is_decelerating = current_speed > speed;
-        let accel_amount = if is_decelerating && current_speed > sprint_threshold {
-            config.sprint_momentum_friction
-        } else {
-            config.player_acceleration
-        };
+    match (has_input, has_velocity) {
+        // Accelerating toward input direction
+        (true, _) => {
+            let target_velocity = input.0.normalize() * speed;
+            let diff = target_velocity - anim.velocity;
 
-        let accel = diff.normalize_or_zero() * accel_amount * dt;
-        if accel.length() > diff.length() {
-            anim.velocity = target_velocity;
-        } else {
-            anim.velocity += accel;
+            let accel_rate = if current_speed > speed && current_speed > sprint_threshold {
+                config.sprint_momentum_friction
+            } else {
+                config.player_acceleration
+            };
+
+            let accel = diff.normalize_or_zero() * accel_rate * dt;
+            anim.velocity = if accel.length() > diff.length() {
+                target_velocity
+            } else {
+                anim.velocity + accel
+            };
+
+            if *state.current() == PlayerState::Idle {
+                transitions.write(RequestTransition::new(entity, PlayerState::Moving));
+            }
         }
+        // Decelerating (no input, but still moving)
+        (false, true) => {
+            let friction_rate = if current_speed > sprint_threshold {
+                config.sprint_momentum_friction
+            } else {
+                config.player_friction
+            };
+            let friction = anim.velocity.normalize() * friction_rate * dt;
 
-        if *current_state == PlayerState::Idle {
-            transitions.write(RequestTransition::new(entity, PlayerState::Moving));
+            if friction.length() >= current_speed {
+                anim.velocity = Vec2::ZERO;
+                if *state.current() == PlayerState::Moving {
+                    transitions.write(RequestTransition::new(entity, PlayerState::Idle));
+                }
+            } else {
+                anim.velocity -= friction;
+            }
         }
-    } else if anim.velocity != Vec2::ZERO {
-        let current_speed = anim.velocity.length();
-        let friction_amount = if current_speed > sprint_threshold {
-            config.sprint_momentum_friction
-        } else {
-            config.player_friction
-        };
-        let friction = anim.velocity.normalize() * friction_amount * dt;
-        if friction.length() >= anim.velocity.length() {
-            anim.velocity = Vec2::ZERO;
-            if *current_state == PlayerState::Moving {
+        // Stopped (no input, no velocity)
+        (false, false) => {
+            if *state.current() == PlayerState::Moving {
                 transitions.write(RequestTransition::new(entity, PlayerState::Idle));
             }
-        } else {
-            anim.velocity -= friction;
         }
-    } else if *current_state == PlayerState::Moving {
-        transitions.write(RequestTransition::new(entity, PlayerState::Idle));
     }
 }
 
@@ -154,43 +158,24 @@ pub fn apply_player_movement(
     mut player_query: Query<(&mut Transform, &mut PlayerAnimation, &WalkCollider, &StateMachine<PlayerState>, Option<&PhaseThrough>), (With<Player>, Without<Dead>, Without<DeathAnimation>, Without<Creature>)>,
     creatures_query: Query<(&Transform, &WalkCollider, Option<&Dead>), (With<Creature>, Without<Player>)>,
 ) {
-    if hitstop.is_active() {
-        return;
-    }
+    if hitstop.is_active() { return; }
 
     let dt = time.delta_secs();
     let Ok((mut transform, mut anim, walk_collider, state, phase_through)) = player_query.single_mut() else { return };
 
-    if !matches!(state.current(), PlayerState::Idle | PlayerState::Moving) {
-        return;
-    }
-
-    if anim.velocity == Vec2::ZERO {
-        return;
-    }
+    if !matches!(state.current(), PlayerState::Idle | PlayerState::Moving) { return; }
+    if anim.velocity == Vec2::ZERO { return; }
 
     let movement = anim.velocity * dt;
-    let new_pos = Vec2::new(
-        transform.translation.x + movement.x,
-        transform.translation.y + movement.y,
-    );
-
+    let new_pos = transform.translation.truncate() + movement;
     let player_radius = Vec2::new(walk_collider.radius_x, walk_collider.radius_y);
     let player_offset_y = walk_collider.offset_y;
 
-    let mut blocked_x = false;
-    let mut blocked_y = false;
+    let (mut blocked_x, mut blocked_y) = (false, false);
 
     if phase_through.is_none() {
-        for (creature_transform, creature_walk, dead) in &creatures_query {
-            if dead.is_some() {
-                continue;
-            }
-
-            let creature_pos = Vec2::new(
-                creature_transform.translation.x,
-                creature_transform.translation.y + creature_walk.offset_y,
-            );
+        for (creature_transform, creature_walk, _) in creatures_query.iter().filter(|(_, _, d)| d.is_none()) {
+            let creature_pos = creature_transform.translation.truncate() + Vec2::Y * creature_walk.offset_y;
             let creature_radius = Vec2::new(creature_walk.radius_x, creature_walk.radius_y);
 
             let test_x = Vec2::new(new_pos.x, transform.translation.y + player_offset_y);
@@ -202,19 +187,13 @@ pub fn apply_player_movement(
             if ellipses_overlap(test_y, player_radius, creature_pos, creature_radius) {
                 blocked_y = true;
             }
+
+            if blocked_x && blocked_y { break; }
         }
     }
 
-    if !blocked_x {
-        transform.translation.x = new_pos.x;
-    } else {
-        anim.velocity.x = 0.0;
-    }
-    if !blocked_y {
-        transform.translation.y = new_pos.y;
-    } else {
-        anim.velocity.y = 0.0;
-    }
+    if blocked_x { anim.velocity.x = 0.0; } else { transform.translation.x = new_pos.x; }
+    if blocked_y { anim.velocity.y = 0.0; } else { transform.translation.y = new_pos.y; }
 }
 
 /// System 5: Push player out of static colliders
@@ -313,23 +292,30 @@ pub fn apply_knockback(
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut Knockback, Option<&Health>, Option<&DeathAnimation>), Or<(With<Player>, With<Creature>)>>,
 ) {
+    const KNOCKBACK_DECAY_RATE: f32 = 3.0;
+    const KNOCKBACK_DURATION: f32 = 0.3;
+
     for (entity, mut transform, mut knockback, health, death_anim) in &mut query {
         knockback.timer += time.delta_secs();
 
-        let decay = (1.0 - knockback.timer * 3.0).max(0.0);
+        // Apply decaying knockback movement
+        let decay = (1.0 - knockback.timer * KNOCKBACK_DECAY_RATE).max(0.0);
         let movement = knockback.velocity * decay * time.delta_secs();
-        transform.translation.x += movement.x;
-        transform.translation.y += movement.y;
+        transform.translation += movement.extend(0.0);
 
-        if knockback.timer > 0.3 {
-            commands.entity(entity).remove::<Knockback>();
-            if death_anim.is_none() {
-                if let Some(h) = health {
-                    if h.0 <= 0 {
-                        commands.entity(entity).insert(DeathAnimation { timer: 0.0, stage: 0 });
-                    }
-                }
-            }
+        // Knockback finished
+        if knockback.timer <= KNOCKBACK_DURATION {
+            continue;
+        }
+
+        commands.entity(entity).remove::<Knockback>();
+
+        // Trigger death animation if health depleted
+        let should_die = death_anim.is_none()
+            && health.is_some_and(|h| h.0 <= 0);
+
+        if should_die {
+            commands.entity(entity).insert(DeathAnimation { timer: 0.0, stage: 0 });
         }
     }
 }
@@ -598,32 +584,33 @@ pub fn animate_sprites(
     let Some(sprite_sheet) = sprite_sheet else { return };
 
     for (mut anim, mut sprite) in &mut query {
+        let Some(data) = sprite_sheet.animations.get(&anim.current_animation) else {
+            continue;
+        };
+
+        // Handle animation change
         if anim.animation_changed {
-            if let Some(data) = sprite_sheet.animations.get(&anim.current_animation) {
-                sprite.image = data.texture.clone();
-                if let Some(atlas) = &mut sprite.texture_atlas {
-                    atlas.layout = data.atlas_layout.clone();
-                    atlas.index = data.start_index;
-                }
-                anim.timer.set_duration(std::time::Duration::from_millis(data.frame_duration_ms as u64));
+            sprite.image = data.texture.clone();
+            if let Some(atlas) = &mut sprite.texture_atlas {
+                atlas.layout = data.atlas_layout.clone();
+                atlas.index = data.start_index;
             }
+            anim.timer.set_duration(std::time::Duration::from_millis(data.frame_duration_ms as u64));
             anim.animation_changed = false;
         }
 
+        // Advance frame
         let scaled_delta = time.delta().mul_f32(anim.speed);
         anim.timer.tick(scaled_delta);
 
         if anim.timer.just_finished() {
-            if let Some(data) = sprite_sheet.animations.get(&anim.current_animation) {
-                if data.looping {
-                    anim.frame_index = (anim.frame_index + 1) % data.frame_count;
-                } else if anim.frame_index < data.frame_count - 1 {
-                    anim.frame_index += 1;
-                }
-
-                if let Some(atlas) = &mut sprite.texture_atlas {
-                    atlas.index = data.start_index + anim.frame_index;
-                }
+            anim.frame_index = if data.looping {
+                (anim.frame_index + 1) % data.frame_count
+            } else {
+                (anim.frame_index + 1).min(data.frame_count - 1)
+            };
+            if let Some(atlas) = &mut sprite.texture_atlas {
+                atlas.index = data.start_index + anim.frame_index;
             }
         }
 

@@ -76,7 +76,7 @@ pub const BLOCK_ANGLE_THRESHOLD: f32 = 0.5; // Dot product threshold for valid b
 // Combat - Physics
 pub const PUSH_RADIUS: f32 = COLLISION_RADIUS * 2.2;  // Larger than all collision checks
 pub const PUSH_STRENGTH: f32 = 100.0;                 // Push force multiplier
-pub const HOSTILE_SIGHT_RANGE: f32 = 200.0;
+pub const GOBLIN_SIGHT_RANGE: f32 = 150.0;
 
 // Combat - Visual Indicators
 pub const RANGE_INDICATOR_ANGLE: f32 = std::f32::consts::FRAC_PI_6 / 2.0;  // 15 degrees for range indicator

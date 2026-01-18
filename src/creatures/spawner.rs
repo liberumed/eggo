@@ -4,7 +4,7 @@ use rand::Rng;
 use crate::combat::{create_weapon_arc, create_half_circle_arc, create_filled_half_circle, CreatureRangeIndicator, GoblinAttackIndicator, WeaponRangeIndicator};
 use crate::inventory::weapons::{Fist, Weapon, WeaponVisual, WeaponVisualMesh, weapon_catalog};
 use crate::constants::*;
-use crate::core::{CharacterAssets, Health, HitCollider, Loot, Shadow, WalkCollider, YSorted};
+use crate::core::{CharacterAssets, GameConfig, Health, HitCollider, Loot, Shadow, WalkCollider, YSorted};
 use crate::effects::ResourceBall;
 use crate::player::{PlayerSpriteSheet, SpriteAnimation};
 use crate::state_machine::StateMachine;
@@ -287,16 +287,17 @@ fn spawn_creature_children(
     }
 }
 
-/// Spawn a goblin enemy that uses player sprites and half-circle attacks
 pub fn spawn_goblin(
     commands: &mut Commands,
+    config: &GameConfig,
     assets: &CharacterAssets,
     sprite_sheet: &PlayerSpriteSheet,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
     position: Vec2,
 ) {
-    let definition = creature_catalog::goblin();
+    let mut definition = creature_catalog::goblin();
+    definition.steering.sight_range = config.goblin_sight_range;
     let club = weapon_catalog::club(meshes, materials);
     let club_visual = club.visual.clone();
     // Thin arc (always visible)

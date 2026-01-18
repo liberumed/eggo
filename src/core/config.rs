@@ -30,7 +30,7 @@ pub struct GameConfig {
 
     // === CREATURE CONFIG ===
     pub hostile_speed: f32,
-    pub hostile_sight_range: f32,
+    pub goblin_sight_range: f32,
     pub attack_cooldown_duration: f32,
 
     // === SHARED COMBAT CONFIG ===
@@ -72,7 +72,7 @@ impl Default for GameConfig {
             block_angle_threshold: BLOCK_ANGLE_THRESHOLD,
             // Creature
             hostile_speed: HOSTILE_SPEED,
-            hostile_sight_range: HOSTILE_SIGHT_RANGE,
+            goblin_sight_range: GOBLIN_SIGHT_RANGE,
             attack_cooldown_duration: ATTACK_COOLDOWN_DURATION,
             // Shared Combat
             knockback_force: KNOCKBACK_FORCE,
@@ -142,7 +142,7 @@ impl GameConfig {
 
         // Creature
         load_float!("creature", "hostile_speed", hostile_speed);
-        load_float!("creature", "sight_range", hostile_sight_range);
+        load_float!("creature", "goblin_sight_range", goblin_sight_range);
         load_float!("creature", "attack_cooldown", attack_cooldown_duration);
 
         // Shared Combat

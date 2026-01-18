@@ -151,6 +151,7 @@ fn load_item_icons(asset_server: &AssetServer) -> ItemIcons {
 
 fn spawn_world(
     mut commands: Commands,
+    config: Res<GameConfig>,
     character_assets: Res<CharacterAssets>,
     player_sprite_sheet: Res<PlayerSpriteSheet>,
     item_registry: Res<ItemRegistry>,
@@ -192,7 +193,7 @@ fn spawn_world(
     for spawn in &level.creatures {
         match spawn.creature {
             CreatureType::Goblin => {
-                creatures::spawn_goblin(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, spawn.position);
+                creatures::spawn_goblin(&mut commands, &config, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, spawn.position);
             }
         }
     }

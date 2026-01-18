@@ -849,9 +849,10 @@ pub fn update_goblin_attack_indicator(
     mut commands: Commands,
     config: Res<GameConfig>,
     assets: Res<CharacterAssets>,
-    creature_query: Query<(&Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>), (With<Goblin>, Without<Dead>, Without<GoblinAttackIndicator>)>,
+    creature_query: Query<(&Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, &Children), (With<Goblin>, Without<Dead>, Without<GoblinAttackIndicator>)>,
     player_query: Query<&Transform, (With<Player>, Without<Goblin>, Without<GoblinAttackIndicator>)>,
     mut indicator_query: Query<(Entity, &GoblinAttackIndicator, &mut Transform, &mut Visibility, &mut MeshMaterial2d<ColorMaterial>), (Without<Goblin>, Without<Player>)>,
+    fist_query: Query<&WeaponSwing, With<Fist>>,
 ) {
     use crate::state_machine::AttackPhase;
     use crate::creatures::CreatureState;
@@ -859,78 +860,96 @@ pub fn update_goblin_attack_indicator(
     let Ok(player_transform) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
 
-    // CircularSector points +Y by default, need -90° offset
     let sector_offset = -std::f32::consts::FRAC_PI_2;
 
     for (indicator_entity, link, mut transform, mut visibility, mut material) in &mut indicator_query {
-        if let Ok((creature_transform, state_machine)) = creature_query.get(link.0) {
-            let creature_pos = creature_transform.translation.truncate();
-
-            // Sync position
-            transform.translation.x = creature_pos.x;
-            transform.translation.y = creature_pos.y + config.attack_center_offset_y;
-
-            // Sync rotation (snapped to cardinal + sector offset)
-            let dir = player_pos - creature_pos;
-            let raw_angle = dir.y.atan2(dir.x);
-            let angle = snap_to_cardinal(raw_angle) + sector_offset;
-            transform.rotation = Quat::from_rotation_z(angle);
-
-            // Update visibility and color based on attack phase
-            match state_machine.current() {
-                CreatureState::Attack(AttackPhase::WindUp) => {
-                    // Orange during windup (preparation)
-                    *visibility = Visibility::Visible;
-                    material.0 = assets.attack_windup_material.clone();
-                }
-                CreatureState::Attack(AttackPhase::Strike) | CreatureState::Attack(AttackPhase::Recovery) => {
-                    // Bright red during strike AND recovery (so highlight is visible longer)
-                    *visibility = Visibility::Visible;
-                    material.0 = assets.attack_strike_material.clone();
-                }
-                _ => {
-                    *visibility = Visibility::Hidden;
-                }
-            }
-        } else {
-            // Goblin is dead or despawned, remove indicator
+        let Ok((creature_transform, state_machine, children)) = creature_query.get(link.0) else {
             commands.entity(indicator_entity).despawn();
+            continue;
+        };
+        let creature_pos = creature_transform.translation.truncate();
+
+        transform.translation.x = creature_pos.x;
+        transform.translation.y = creature_pos.y + config.attack_center_offset_y;
+
+        let is_attacking = matches!(state_machine.current(), CreatureState::Attack(_));
+        let locked_angle = if is_attacking {
+            children.iter()
+                .filter_map(|c| fist_query.get(c).ok())
+                .next()
+                .and_then(|swing| swing.base_angle)
+        } else {
+            None
+        };
+
+        let angle = match locked_angle {
+            Some(base) => snap_to_cardinal(base) + sector_offset,
+            None => {
+                let dir = player_pos - creature_pos;
+                snap_to_cardinal(dir.y.atan2(dir.x)) + sector_offset
+            }
+        };
+        transform.rotation = Quat::from_rotation_z(angle);
+
+        match state_machine.current() {
+            CreatureState::Attack(AttackPhase::WindUp) => {
+                *visibility = Visibility::Visible;
+                material.0 = assets.attack_windup_material.clone();
+            }
+            CreatureState::Attack(AttackPhase::Strike) | CreatureState::Attack(AttackPhase::Recovery) => {
+                *visibility = Visibility::Visible;
+                material.0 = assets.attack_strike_material.clone();
+            }
+            _ => {
+                *visibility = Visibility::Hidden;
+            }
         }
     }
 }
 
-/// Sync creature range indicators (thin arc) position/rotation toward player
 pub fn sync_creature_range_indicators(
     mut commands: Commands,
     config: Res<GameConfig>,
     player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<CreatureRangeIndicator>)>,
-    creature_query: Query<(&Transform, Option<&Goblin>), (With<Creature>, With<Hostile>, Without<Dead>, Without<CreatureRangeIndicator>)>,
+    creature_query: Query<(&Transform, Option<&Goblin>, &Children, &StateMachine<crate::creatures::CreatureState>), (With<Creature>, With<Hostile>, Without<Dead>, Without<CreatureRangeIndicator>)>,
     mut indicator_query: Query<(Entity, &CreatureRangeIndicator, &mut Transform)>,
+    fist_query: Query<&WeaponSwing, With<Fist>>,
 ) {
+    use crate::creatures::CreatureState;
+
     let Ok(player_transform) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
 
     for (indicator_entity, link, mut indicator_transform) in &mut indicator_query {
-        if let Ok((creature_transform, is_goblin)) = creature_query.get(link.0) {
-            let creature_pos = creature_transform.translation.truncate();
-
-            // Goblins: center on body (like player), others: center on feet
-            if is_goblin.is_some() {
-                indicator_transform.translation.x = creature_pos.x;
-                indicator_transform.translation.y = creature_pos.y + config.attack_center_offset_y;
-            } else {
-                indicator_transform.translation.x = creature_pos.x;
-                indicator_transform.translation.y = creature_pos.y;
-            }
-
-            // Calculate direction toward player
-            let dir = player_pos - creature_pos;
-            let angle = dir.y.atan2(dir.x);
-            indicator_transform.rotation = Quat::from_rotation_z(angle);
-        } else {
-            // Creature is dead or despawned, remove indicator
+        let Ok((creature_transform, is_goblin, children, state_machine)) = creature_query.get(link.0) else {
             commands.entity(indicator_entity).despawn();
+            continue;
+        };
+        let creature_pos = creature_transform.translation.truncate();
+
+        if is_goblin.is_some() {
+            indicator_transform.translation.x = creature_pos.x;
+            indicator_transform.translation.y = creature_pos.y + config.attack_center_offset_y;
+        } else {
+            indicator_transform.translation.x = creature_pos.x;
+            indicator_transform.translation.y = creature_pos.y;
         }
+
+        let is_attacking = matches!(state_machine.current(), CreatureState::Attack(_));
+        let locked_angle = if is_attacking {
+            children.iter()
+                .filter_map(|c| fist_query.get(c).ok())
+                .next()
+                .and_then(|swing| swing.base_angle)
+        } else {
+            None
+        };
+
+        let angle = locked_angle.unwrap_or_else(|| {
+            let dir = player_pos - creature_pos;
+            dir.y.atan2(dir.x)
+        });
+        indicator_transform.rotation = Quat::from_rotation_z(angle);
     }
 }
 

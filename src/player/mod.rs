@@ -68,7 +68,11 @@ impl Plugin for PlayerPlugin {
         app.add_systems(
             Update,
             (
-                move_player,
+                read_movement_input,
+                update_sprint_state.after(read_movement_input),
+                apply_player_velocity.after(update_sprint_state),
+                apply_player_movement.after(apply_player_velocity),
+                apply_static_collision.after(apply_player_movement),
                 apply_dash_state,
                 tick_dash_cooldown,
                 tick_phase_through,

@@ -10,7 +10,7 @@ use crate::inventory::{EquippedWeaponId, GroundItem, GroundItemBob, Inventory, I
 use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
 use crate::levels::BoundToLevel;
-use super::{Player, PlayerAnimation, PlayerSpriteSheet, PlayerState, SpriteAnimation};
+use super::{MovementInput, Player, PlayerAnimation, PlayerSpriteSheet, PlayerState, SpriteAnimation};
 
 pub fn spawn_ground_item(
     commands: &mut Commands,
@@ -89,6 +89,7 @@ pub fn spawn_player(
         WalkCollider { radius_x: 8.0, radius_y: 4.0, offset_y: -4.0 },  // At feet
         HitCollider::ellipse_vertical(5.0, 10.0, 14.0),  // Centered on body
         PlayerAnimation::default(),
+        MovementInput::default(),
         SpriteAnimation::new("idle", initial_anim.frame_duration_ms),
         Health(10),
         Equipment::default(),

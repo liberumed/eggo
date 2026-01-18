@@ -9,7 +9,7 @@ use crate::core::{GameAction, InputBindings};
 use crate::core::CharacterAssets;
 use crate::state_machine::{AttackPhase, RequestTransition, StateMachine};
 use super::{
-    Player, PlayerAnimation, DashCooldown, Sprinting, PhaseThrough,
+    Player, PlayerAnimation, DashCooldown, Sprinting, PhaseThrough, MovementInput,
     SpriteAnimation, PlayerSpriteSheet, PlayerState, CameraState,
     PlayerDashing, PlayerAttacking, PlayerSmashAttack,
 };
@@ -18,18 +18,61 @@ use crate::inventory::weapons::{Weapon, PlayerWeapon, Drawn, WeaponSwing, Fist};
 use crate::creatures::Creature;
 use crate::levels::CurrentLevel;
 
-pub fn move_player(
-    mut commands: Commands,
-    config: Res<GameConfig>,
-    mut transitions: MessageWriter<RequestTransition<PlayerState>>,
+/// System 1: Read WASD input into MovementInput component
+pub fn read_movement_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     bindings: Res<InputBindings>,
-    hitstop: Res<Hitstop>,
+    mut query: Query<&mut MovementInput, (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
+) {
+    let Ok(mut input) = query.single_mut() else { return };
+
+    input.0 = Vec2::ZERO;
+    if bindings.pressed(GameAction::MoveUp, &keyboard, &mouse) {
+        input.0.y += 1.0;
+    }
+    if bindings.pressed(GameAction::MoveDown, &keyboard, &mouse) {
+        input.0.y -= 1.0;
+    }
+    if bindings.pressed(GameAction::MoveLeft, &keyboard, &mouse) {
+        input.0.x -= 1.0;
+    }
+    if bindings.pressed(GameAction::MoveRight, &keyboard, &mouse) {
+        input.0.x += 1.0;
+    }
+}
+
+/// System 2: Manage Sprinting component based on sprint key + movement
+pub fn update_sprint_state(
+    mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     time: Res<Time>,
-    mut player_query: Query<(Entity, &mut Transform, &mut PlayerAnimation, &WalkCollider, &StateMachine<PlayerState>, Option<&mut Sprinting>, Option<&PhaseThrough>), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
-    creatures_query: Query<(&Transform, &WalkCollider, Option<&Dead>), (With<Creature>, Without<Player>)>,
-    colliders_query: Query<(&Transform, &StaticCollider), Without<Player>>,
+    mut query: Query<(Entity, &MovementInput, Option<&mut Sprinting>), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
+) {
+    let Ok((entity, input, sprinting)) = query.single_mut() else { return };
+
+    let wants_sprint = bindings.pressed(GameAction::Sprint, &keyboard, &mouse) && input.0 != Vec2::ZERO;
+
+    if wants_sprint {
+        if let Some(mut sprint) = sprinting {
+            sprint.duration += time.delta_secs();
+        } else {
+            commands.entity(entity).insert(Sprinting { duration: 0.0 });
+        }
+    } else {
+        commands.entity(entity).remove::<Sprinting>();
+    }
+}
+
+/// System 3: Apply acceleration/friction to calculate velocity, handle state transitions
+pub fn apply_player_velocity(
+    config: Res<GameConfig>,
+    time: Res<Time>,
+    hitstop: Res<Hitstop>,
+    mut transitions: MessageWriter<RequestTransition<PlayerState>>,
+    mut query: Query<(Entity, &MovementInput, &mut PlayerAnimation, &StateMachine<PlayerState>, Option<&Sprinting>), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     blocking_query: Query<&Blocking>,
 ) {
     if hitstop.is_active() {
@@ -37,162 +80,175 @@ pub fn move_player(
     }
 
     let dt = time.delta_secs();
+    let Ok((entity, input, mut anim, state, sprinting)) = query.single_mut() else { return };
 
-    for (entity, mut transform, mut anim, walk_collider, state, sprinting, phase_through) in &mut player_query {
-        let current_state = state.current();
+    let current_state = state.current();
+    if !matches!(current_state, PlayerState::Idle | PlayerState::Moving) {
+        return;
+    }
 
-        let can_move = matches!(current_state, PlayerState::Idle | PlayerState::Moving);
-        if !can_move {
-            continue;
-        }
+    let is_blocking = blocking_query.get(entity).is_ok();
 
-        let mut input_dir = Vec2::ZERO;
-        if bindings.pressed(GameAction::MoveUp, &keyboard, &mouse) {
-            input_dir.y += 1.0;
-        }
-        if bindings.pressed(GameAction::MoveDown, &keyboard, &mouse) {
-            input_dir.y -= 1.0;
-        }
-        if bindings.pressed(GameAction::MoveLeft, &keyboard, &mouse) {
-            input_dir.x -= 1.0;
-        }
-        if bindings.pressed(GameAction::MoveRight, &keyboard, &mouse) {
-            input_dir.x += 1.0;
-        }
-
-        let player_radius = Vec2::new(walk_collider.radius_x, walk_collider.radius_y);
-        let player_offset_y = walk_collider.offset_y;
-        let is_blocking = blocking_query.get(entity).is_ok();
-        let is_sprinting = bindings.pressed(GameAction::Sprint, &keyboard, &mouse) && input_dir != Vec2::ZERO;
-        let is_phasing = phase_through.is_some();
-
-        let sprint_multiplier = if is_sprinting {
-            let sprint_duration = if let Some(mut sprint) = sprinting {
-                sprint.duration += dt;
-                sprint.duration
-            } else {
-                commands.entity(entity).insert(Sprinting { duration: 0.0 });
-                0.0
-            };
-            let t = (sprint_duration / config.sprint_ramp_time).min(1.0);
+    let sprint_multiplier = sprinting
+        .map(|s| {
+            let t = (s.duration / config.sprint_ramp_time).min(1.0);
             config.sprint_min_multiplier + t * (config.sprint_max_multiplier - config.sprint_min_multiplier)
+        })
+        .unwrap_or(1.0);
+
+    let speed = if is_blocking {
+        config.player_speed * config.blocking_speed_multiplier
+    } else {
+        config.player_speed * sprint_multiplier
+    };
+
+    let sprint_threshold = config.player_speed * config.sprint_decel_threshold;
+
+    if input.0 != Vec2::ZERO {
+        let target_velocity = input.0.normalize() * speed;
+        let diff = target_velocity - anim.velocity;
+        let current_speed = anim.velocity.length();
+
+        let is_decelerating = current_speed > speed;
+        let accel_amount = if is_decelerating && current_speed > sprint_threshold {
+            config.sprint_momentum_friction
         } else {
-            commands.entity(entity).remove::<Sprinting>();
-            1.0
+            config.player_acceleration
         };
 
-        let speed = if is_blocking {
-            config.player_speed * 0.4
+        let accel = diff.normalize_or_zero() * accel_amount * dt;
+        if accel.length() > diff.length() {
+            anim.velocity = target_velocity;
         } else {
-            config.player_speed * sprint_multiplier
+            anim.velocity += accel;
+        }
+
+        if *current_state == PlayerState::Idle {
+            transitions.write(RequestTransition::new(entity, PlayerState::Moving));
+        }
+    } else if anim.velocity != Vec2::ZERO {
+        let current_speed = anim.velocity.length();
+        let friction_amount = if current_speed > sprint_threshold {
+            config.sprint_momentum_friction
+        } else {
+            config.player_friction
         };
-
-        if input_dir != Vec2::ZERO {
-            let target_velocity = input_dir.normalize() * speed;
-            let diff = target_velocity - anim.velocity;
-            let current_speed = anim.velocity.length();
-
-            let is_decelerating = current_speed > speed;
-            let accel_amount = if is_decelerating && current_speed > config.player_speed * 1.1 {
-                config.sprint_momentum_friction
-            } else {
-                config.player_acceleration
-            };
-
-            let accel = diff.normalize_or_zero() * accel_amount * dt;
-            if accel.length() > diff.length() {
-                anim.velocity = target_velocity;
-            } else {
-                anim.velocity += accel;
+        let friction = anim.velocity.normalize() * friction_amount * dt;
+        if friction.length() >= anim.velocity.length() {
+            anim.velocity = Vec2::ZERO;
+            if *current_state == PlayerState::Moving {
+                transitions.write(RequestTransition::new(entity, PlayerState::Idle));
             }
-
-            if *current_state == PlayerState::Idle {
-                transitions.write(RequestTransition::new(entity, PlayerState::Moving));
-            }
-        } else if anim.velocity != Vec2::ZERO {
-            let current_speed = anim.velocity.length();
-            let friction_amount = if current_speed > config.player_speed * 1.1 {
-                config.sprint_momentum_friction
-            } else {
-                config.player_friction
-            };
-            let friction = anim.velocity.normalize() * friction_amount * dt;
-            if friction.length() >= anim.velocity.length() {
-                anim.velocity = Vec2::ZERO;
-                if *current_state == PlayerState::Moving {
-                    transitions.write(RequestTransition::new(entity, PlayerState::Idle));
-                }
-            } else {
-                anim.velocity -= friction;
-            }
-        } else if *current_state == PlayerState::Moving {
-            transitions.write(RequestTransition::new(entity, PlayerState::Idle));
+        } else {
+            anim.velocity -= friction;
         }
+    } else if *current_state == PlayerState::Moving {
+        transitions.write(RequestTransition::new(entity, PlayerState::Idle));
+    }
+}
 
-        if anim.velocity == Vec2::ZERO {
-            continue;
-        }
+/// System 4: Apply velocity to position with creature collision blocking
+pub fn apply_player_movement(
+    time: Res<Time>,
+    hitstop: Res<Hitstop>,
+    mut player_query: Query<(&mut Transform, &mut PlayerAnimation, &WalkCollider, &StateMachine<PlayerState>, Option<&PhaseThrough>), (With<Player>, Without<Dead>, Without<DeathAnimation>, Without<Creature>)>,
+    creatures_query: Query<(&Transform, &WalkCollider, Option<&Dead>), (With<Creature>, Without<Player>)>,
+) {
+    if hitstop.is_active() {
+        return;
+    }
 
-        let movement = anim.velocity * dt;
-        let mut new_pos = Vec2::new(
-            transform.translation.x + movement.x,
-            transform.translation.y + movement.y,
-        );
+    let dt = time.delta_secs();
+    let Ok((mut transform, mut anim, walk_collider, state, phase_through)) = player_query.single_mut() else { return };
 
-        let mut blocked_x = false;
-        let mut blocked_y = false;
+    if !matches!(state.current(), PlayerState::Idle | PlayerState::Moving) {
+        return;
+    }
 
-        if !is_phasing {
-            for (creature_transform, creature_walk, dead) in &creatures_query {
-                if dead.is_some() {
-                    continue;
-                }
+    if anim.velocity == Vec2::ZERO {
+        return;
+    }
 
-                let creature_pos = Vec2::new(
-                    creature_transform.translation.x,
-                    creature_transform.translation.y + creature_walk.offset_y,
-                );
-                let creature_radius = Vec2::new(creature_walk.radius_x, creature_walk.radius_y);
+    let movement = anim.velocity * dt;
+    let new_pos = Vec2::new(
+        transform.translation.x + movement.x,
+        transform.translation.y + movement.y,
+    );
 
-                let test_x = Vec2::new(new_pos.x, transform.translation.y + player_offset_y);
-                if ellipses_overlap(test_x, player_radius, creature_pos, creature_radius) {
-                    blocked_x = true;
-                }
+    let player_radius = Vec2::new(walk_collider.radius_x, walk_collider.radius_y);
+    let player_offset_y = walk_collider.offset_y;
 
-                let test_y = Vec2::new(transform.translation.x, new_pos.y + player_offset_y);
-                if ellipses_overlap(test_y, player_radius, creature_pos, creature_radius) {
-                    blocked_y = true;
-                }
+    let mut blocked_x = false;
+    let mut blocked_y = false;
+
+    if phase_through.is_none() {
+        for (creature_transform, creature_walk, dead) in &creatures_query {
+            if dead.is_some() {
+                continue;
             }
-        }
 
-        let mut static_push = Vec2::ZERO;
-        for (collider_transform, collider) in &colliders_query {
-            let collider_pos = Vec2::new(
-                collider_transform.translation.x + collider.offset_x,
-                collider_transform.translation.y + collider.offset_y,
+            let creature_pos = Vec2::new(
+                creature_transform.translation.x,
+                creature_transform.translation.y + creature_walk.offset_y,
             );
-            let collider_radius = Vec2::new(collider.radius_x, collider.radius_y);
+            let creature_radius = Vec2::new(creature_walk.radius_x, creature_walk.radius_y);
 
-            let player_pos = Vec2::new(new_pos.x, new_pos.y + player_offset_y);
-            let push = ellipse_push(player_pos, player_radius, collider_pos, collider_radius);
-            static_push += push;
-        }
+            let test_x = Vec2::new(new_pos.x, transform.translation.y + player_offset_y);
+            if ellipses_overlap(test_x, player_radius, creature_pos, creature_radius) {
+                blocked_x = true;
+            }
 
-        if static_push != Vec2::ZERO {
-            new_pos += static_push;
+            let test_y = Vec2::new(transform.translation.x, new_pos.y + player_offset_y);
+            if ellipses_overlap(test_y, player_radius, creature_pos, creature_radius) {
+                blocked_y = true;
+            }
         }
+    }
 
-        if !blocked_x {
-            transform.translation.x = new_pos.x;
-        } else {
-            anim.velocity.x = 0.0;
-        }
-        if !blocked_y {
-            transform.translation.y = new_pos.y;
-        } else {
-            anim.velocity.y = 0.0;
-        }
+    if !blocked_x {
+        transform.translation.x = new_pos.x;
+    } else {
+        anim.velocity.x = 0.0;
+    }
+    if !blocked_y {
+        transform.translation.y = new_pos.y;
+    } else {
+        anim.velocity.y = 0.0;
+    }
+}
+
+/// System 5: Push player out of static colliders
+pub fn apply_static_collision(
+    hitstop: Res<Hitstop>,
+    mut player_query: Query<(&mut Transform, &WalkCollider), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
+    colliders_query: Query<(&Transform, &StaticCollider), Without<Player>>,
+) {
+    if hitstop.is_active() {
+        return;
+    }
+
+    let Ok((mut transform, walk_collider)) = player_query.single_mut() else { return };
+
+    let player_radius = Vec2::new(walk_collider.radius_x, walk_collider.radius_y);
+    let player_offset_y = walk_collider.offset_y;
+
+    let mut total_push = Vec2::ZERO;
+
+    for (collider_transform, collider) in &colliders_query {
+        let collider_pos = Vec2::new(
+            collider_transform.translation.x + collider.offset_x,
+            collider_transform.translation.y + collider.offset_y,
+        );
+        let collider_radius = Vec2::new(collider.radius_x, collider.radius_y);
+
+        let player_pos = Vec2::new(transform.translation.x, transform.translation.y + player_offset_y);
+        let push = ellipse_push(player_pos, player_radius, collider_pos, collider_radius);
+        total_push += push;
+    }
+
+    if total_push != Vec2::ZERO {
+        transform.translation.x += total_push.x;
+        transform.translation.y += total_push.y;
     }
 }
 

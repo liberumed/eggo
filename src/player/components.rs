@@ -37,6 +37,10 @@ pub struct PlayerAnimation {
     pub velocity: Vec2,
 }
 
+/// Raw movement input direction for current frame
+#[derive(Component, Default)]
+pub struct MovementInput(pub Vec2);
+
 /// Dash cooldown tracker
 #[derive(Component, Default)]
 pub struct DashCooldown {

@@ -21,7 +21,9 @@ pub struct GameConfig {
     pub sprint_max_multiplier: f32,
     pub sprint_ramp_time: f32,
     pub sprint_momentum_friction: f32,
+    pub sprint_decel_threshold: f32,
     // Blocking
+    pub blocking_speed_multiplier: f32,
     pub block_knockback: f32,
     pub block_facing_offset: f32,
     pub block_angle_threshold: f32,
@@ -62,7 +64,9 @@ impl Default for GameConfig {
             sprint_max_multiplier: SPRINT_MAX_MULTIPLIER,
             sprint_ramp_time: SPRINT_RAMP_TIME,
             sprint_momentum_friction: SPRINT_MOMENTUM_FRICTION,
+            sprint_decel_threshold: 1.1,
             // Player Blocking
+            blocking_speed_multiplier: 0.4,
             block_knockback: BLOCK_KNOCKBACK,
             block_facing_offset: BLOCK_FACING_OFFSET,
             block_angle_threshold: BLOCK_ANGLE_THRESHOLD,
@@ -128,8 +132,10 @@ impl GameConfig {
         load_float!("player_sprint", "max_multiplier", sprint_max_multiplier);
         load_float!("player_sprint", "ramp_time", sprint_ramp_time);
         load_float!("player_sprint", "momentum_friction", sprint_momentum_friction);
+        load_float!("player_sprint", "decel_threshold", sprint_decel_threshold);
 
         // Player Blocking
+        load_float!("player_blocking", "speed_multiplier", blocking_speed_multiplier);
         load_float!("player_blocking", "knockback", block_knockback);
         load_float!("player_blocking", "facing_offset", block_facing_offset);
         load_float!("player_blocking", "angle_threshold", block_angle_threshold);

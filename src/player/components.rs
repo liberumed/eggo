@@ -1,10 +1,110 @@
 use bevy::prelude::*;
 
-use crate::constants::{CAMERA_BASE_SCALE, CAMERA_ZOOM_OUT_SCALE};
+use crate::constants::{CAMERA_BASE_SCALE, CAMERA_ZOOM_OUT_SCALE, COMBO_TIMEOUT};
 
 /// Player marker component
 #[derive(Component)]
 pub struct Player;
+
+/// 4-directional facing for sprite animations
+#[derive(Component, Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum FacingDirection {
+    Up,
+    #[default]
+    Down,
+    Left,
+    Right,
+}
+
+impl FacingDirection {
+    /// Get direction suffix for animation names (e.g., "_down", "_right")
+    pub fn suffix(&self) -> &'static str {
+        match self {
+            FacingDirection::Up => "_up",
+            FacingDirection::Down => "_down",
+            FacingDirection::Left => "_left",
+            FacingDirection::Right => "_right",
+        }
+    }
+
+    /// Determine facing direction from a 2D direction vector
+    pub fn from_vec2(dir: Vec2) -> Self {
+        if dir.length_squared() < 0.01 {
+            return FacingDirection::Down;
+        }
+        let abs_x = dir.x.abs();
+        let abs_y = dir.y.abs();
+        if abs_y > abs_x {
+            if dir.y > 0.0 { FacingDirection::Up } else { FacingDirection::Down }
+        } else {
+            if dir.x > 0.0 { FacingDirection::Right } else { FacingDirection::Left }
+        }
+    }
+
+    /// Determine facing direction from an angle (radians)
+    pub fn from_angle(angle: f32) -> Self {
+        use std::f32::consts::{FRAC_PI_4, PI};
+        let angle = angle.rem_euclid(2.0 * PI);
+        if angle < FRAC_PI_4 || angle >= 7.0 * FRAC_PI_4 {
+            FacingDirection::Right
+        } else if angle < 3.0 * FRAC_PI_4 {
+            FacingDirection::Up
+        } else if angle < 5.0 * FRAC_PI_4 {
+            FacingDirection::Left
+        } else {
+            FacingDirection::Down
+        }
+    }
+}
+
+/// Tracks the current combo state for attack chains
+#[derive(Component, Default)]
+pub struct ComboState {
+    /// Current attack in combo (0, 1, or 2 for attack 1/2/3)
+    pub current_attack: u8,
+    /// Time since the last attack completed
+    pub time_since_attack: f32,
+}
+
+/// Brief hurt animation when taking damage
+#[derive(Component)]
+pub struct HurtAnimation {
+    pub timer: f32,
+    pub duration: f32,
+}
+
+impl Default for HurtAnimation {
+    fn default() -> Self {
+        Self {
+            timer: 0.0,
+            duration: 0.25,  // Short hurt flash
+        }
+    }
+}
+
+impl ComboState {
+    /// Advance to the next attack in the combo chain
+    pub fn advance(&mut self) {
+        self.current_attack = (self.current_attack + 1) % 3;
+        self.time_since_attack = 0.0;
+    }
+
+    /// Reset combo to the first attack
+    pub fn reset(&mut self) {
+        self.current_attack = 0;
+        self.time_since_attack = 0.0;
+    }
+
+    /// Check if combo should be reset due to timeout
+    pub fn should_reset(&self) -> bool {
+        self.time_since_attack >= COMBO_TIMEOUT
+    }
+
+    /// Get the attack number (1, 2, or 3)
+    pub fn attack_number(&self) -> u8 {
+        self.current_attack + 1
+    }
+}
 
 /// Camera zoom state - zooms out when player is moving
 #[derive(Resource)]

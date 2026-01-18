@@ -7,8 +7,8 @@ use crate::constants::ATTACK_HIT_DELAY_PERCENT;
 use crate::core::{Dead, DeathAnimation, GameAction, InputBindings};
 use crate::state_machine::{AttackPhase, RequestTransition, StateEntered, StateExited, StateMachine};
 use super::{
-    DashCooldown, DashInputDetected, AttackInputDetected, MovementInputDetected,
-    PhaseThrough, Player, PlayerAnimation, PlayerState,
+    ComboState, DashCooldown, DashInputDetected, AttackInputDetected, MovementInputDetected,
+    FacingDirection, PhaseThrough, Player, PlayerAnimation, PlayerState,
 };
 
 pub fn detect_movement_input(
@@ -115,15 +115,20 @@ pub fn detect_attack_input(
         return;
     }
 
-    let facing_right = if let Some(world_pos) = get_cursor_world_pos(&windows, &camera_query) {
-        world_pos.x >= player_transform.translation.x
+    // Calculate attack direction from cursor position
+    let player_pos = player_transform.translation.truncate();
+    let (facing_direction, attack_angle) = if let Some(cursor_pos) = get_cursor_world_pos(&windows, &camera_query) {
+        let dir = cursor_pos - player_pos;
+        let angle = dir.y.atan2(dir.x);
+        (FacingDirection::from_angle(angle), snap_to_cardinal(angle))
     } else {
-        true
+        (FacingDirection::Right, 0.0)
     };
 
     events.write(AttackInputDetected {
         player: entity,
-        facing_right,
+        facing_direction,
+        attack_angle,
     });
 }
 
@@ -179,10 +184,34 @@ pub fn handle_attack_input(
     mut transitions: MessageWriter<RequestTransition<PlayerState>>,
     mut events: MessageReader<AttackInputDetected>,
     mut commands: Commands,
+    mut combo_query: Query<(&mut ComboState, &mut FacingDirection), With<Player>>,
 ) {
     for event in events.read() {
+        let Ok((mut combo, mut facing)) = combo_query.get_mut(event.player) else { continue };
+
+        // Reset combo if timed out
+        if combo.should_reset() {
+            combo.reset();
+        }
+
+        // Update facing direction
+        *facing = event.facing_direction;
+
+        // Build attack animation name: "att_{direction}_{combo_number}"
+        let direction_name = match event.facing_direction {
+            FacingDirection::Up => "up",
+            FacingDirection::Down => "down",
+            FacingDirection::Left => "left",
+            FacingDirection::Right => "right",
+        };
+        let attack_anim = format!("att_{}_{}", direction_name, combo.attack_number());
+
+        // Advance combo for next attack
+        combo.advance();
+
         commands.entity(event.player).insert(PlayerAttacking {
-            facing_right: event.facing_right,
+            facing_direction: event.facing_direction,
+            attack_anim,
         });
         transitions.write(RequestTransition::new(
             event.player,
@@ -199,7 +228,8 @@ pub struct PlayerDashing {
 
 #[derive(Component)]
 pub struct PlayerAttacking {
-    pub facing_right: bool,
+    pub facing_direction: FacingDirection,
+    pub attack_anim: String,  // e.g., "att_right_1", "att_down_2"
 }
 
 pub fn on_dashing_exit(

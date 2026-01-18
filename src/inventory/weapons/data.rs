@@ -178,6 +178,35 @@ pub mod weapon_catalog {
         }
     }
 
+    /// Fast sword for satisfying combo attacks (uses sprite animations)
+    pub fn sword(
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<ColorMaterial>,
+    ) -> Weapon {
+        Weapon {
+            name: "Sword".to_string(),
+            visual: WeaponVisual {
+                mesh: meshes.add(Circle::new(1.0)),  // Minimal mesh (not displayed for Smash)
+                material: materials.add(Color::NONE),
+                offset: 0.0,
+            },
+            damage: 2,
+            speed: 5,      // Fast swings for good combo feel
+            reach: 3,      // Medium-long reach
+            arc: 2,        // Medium arc
+            attack_type: AttackType::Smash,  // Uses sprite animation for combos
+            damage_type: DamageType::Physical,
+            rarity: Rarity::Uncommon,
+            cost: 25,
+            block: 3,
+            block_kb: 2,
+            on_hit: vec![
+                OnHitEffect::Stun { duration: 0.3 },
+                OnHitEffect::Knockback { force: 120.0 },
+            ],
+        }
+    }
+
     pub fn fist(
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<ColorMaterial>,

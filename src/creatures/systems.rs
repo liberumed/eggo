@@ -6,7 +6,7 @@ use crate::effects::{Hitstop, MagnetizedBall, ResourceBall};
 use crate::player::{HurtAnimation, Player, SpriteAnimation};
 use crate::player::Stats;
 use crate::core::CharacterAssets;
-use crate::state_machine::StateMachine;
+use crate::state_machine::{AttackPhase, StateMachine};
 use super::{Creature, CreatureAnimation, CreatureState, Goblin};
 
 pub fn animate_creatures(
@@ -273,8 +273,7 @@ pub fn update_goblin_sprite_animation(
         }
 
         match state_machine.current() {
-            CreatureState::Attack(_) => {
-                // Use directional attack animations (use _1 variant for goblins)
+            CreatureState::Attack(AttackPhase::Strike | AttackPhase::Recovery) => {
                 let attack_anim = match facing {
                     GoblinFacing::Up => "att_up_1",
                     GoblinFacing::Down => "att_down_1",
@@ -283,6 +282,17 @@ pub fn update_goblin_sprite_animation(
                 };
                 sprite_anim.set_animation(attack_anim);
                 sprite_anim.speed = 1.0;
+                sprite_anim.flip_x = false;
+            }
+            CreatureState::Attack(AttackPhase::WindUp) => {
+                let idle_anim = match facing {
+                    GoblinFacing::Up => "idle_up",
+                    GoblinFacing::Down => "idle_down",
+                    GoblinFacing::Left => "idle_left",
+                    GoblinFacing::Right => "idle_right",
+                };
+                sprite_anim.set_animation(idle_anim);
+                sprite_anim.speed = 0.5;
                 sprite_anim.flip_x = false;
             }
             CreatureState::Chase => {

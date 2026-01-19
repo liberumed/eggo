@@ -251,7 +251,7 @@ pub mod weapon_catalog {
                 offset: 14.0,
             },
             damage: 2,
-            speed: 2,
+            speed: config.club_speed,
             reach: config.club_range,
             arc: 2,
             attack_type: AttackType::Smash,

@@ -5,6 +5,7 @@ use crate::combat::{create_half_circle_arc, Equipment, PlayerRangeIndicator, Wea
 use crate::inventory::weapons::{Drawn, PlayerWeapon, WeaponVisualMesh, weapon_catalog};
 use crate::constants::*;
 use crate::core::{CharacterAssets, GameConfig, Health, Shadow, WalkCollider, HitCollider, YSorted};
+use crate::creatures::ColliderDef;
 use crate::effects::TargetOutline;
 use crate::inventory::{EquippedWeaponId, GroundItem, GroundItemBob, Inventory, ItemIcons, ItemId, ItemRegistry, Pickupable};
 use crate::state_machine::StateMachine;
@@ -89,8 +90,11 @@ pub fn spawn_player(
         StateMachine::<PlayerState>::default(),
         // Physics/rendering
         YSorted { base_offset: -24.0 },  // Feet position for 64x64 sprite
-        WalkCollider { radius_x: 8.0, radius_y: 4.0, offset_y: -4.0 },  // At feet
-        HitCollider::ellipse_vertical(5.0, 10.0, 14.0),  // Centered on body
+        WalkCollider { radius_x: 8.0, radius_y: 4.0, offset_y: -4.0 },
+        {
+            let hit = ColliderDef::new(10.0, 14.0, 3.0);
+            HitCollider::ellipse_vertical(hit.offset_y, hit.radius_x, hit.radius_y)
+        },
         // Animation state
         PlayerAnimation::default(),
         MovementInput::default(),

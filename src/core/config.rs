@@ -49,10 +49,11 @@ pub struct GameConfig {
     pub screen_shake_duration: f32,
     pub hit_highlight_duration: f32,
 
-    // === WEAPON RANGES ===
+    // === WEAPON CONFIG ===
     pub fist_range: f32,
     pub knife_range: f32,
     pub club_range: f32,
+    pub club_speed: i32,
     pub stick_range: f32,
     pub sword_range: f32,
 }
@@ -97,10 +98,11 @@ impl Default for GameConfig {
             screen_shake_intensity: SCREEN_SHAKE_INTENSITY,
             screen_shake_duration: SCREEN_SHAKE_DURATION,
             hit_highlight_duration: HIT_HIGHLIGHT_DURATION,
-            // Weapon Ranges
+            // Weapon Config
             fist_range: FIST_RANGE,
             knife_range: KNIFE_RANGE,
             club_range: CLUB_RANGE,
+            club_speed: 2,
             stick_range: STICK_RANGE,
             sword_range: SWORD_RANGE,
         }
@@ -178,10 +180,13 @@ impl GameConfig {
         load_float!("game_feel", "screen_shake_duration", screen_shake_duration);
         load_float!("game_feel", "hit_highlight_duration", hit_highlight_duration);
 
-        // Weapon Ranges
+        // Weapon Config
         load_float!("weapon", "fist_range", fist_range);
         load_float!("weapon", "knife_range", knife_range);
         load_float!("weapon", "club_range", club_range);
+        if let Some(val) = ini.getint("weapon", "club_speed").ok().flatten() {
+            config.club_speed = val as i32;
+        }
         load_float!("weapon", "stick_range", stick_range);
         load_float!("weapon", "sword_range", sword_range);
 

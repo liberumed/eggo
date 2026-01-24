@@ -97,6 +97,31 @@ pub fn on_creature_provoked(
     }
 }
 
+pub fn on_creature_stunned(
+    mut transitions: MessageWriter<RequestTransition<CreatureState>>,
+    query: Query<(Entity, &StateMachine<CreatureState>), Added<Stunned>>,
+) {
+    for (entity, state_machine) in &query {
+        if *state_machine.current() != CreatureState::Stunned {
+            transitions.write(RequestTransition::new(entity, CreatureState::Stunned));
+        }
+    }
+}
+
+pub fn on_stun_recovered(
+    mut transitions: MessageWriter<RequestTransition<CreatureState>>,
+    mut removed: RemovedComponents<Stunned>,
+    query: Query<(Entity, &StateMachine<CreatureState>), With<Hostile>>,
+) {
+    for entity in removed.read() {
+        if let Ok((_, state_machine)) = query.get(entity) {
+            if *state_machine.current() == CreatureState::Stunned {
+                transitions.write(RequestTransition::new(entity, CreatureState::Chase));
+            }
+        }
+    }
+}
+
 /// Detects when creatures in Chase state are within weapon range of the player.
 /// Emits PlayerInRange event for other systems to react to.
 pub fn detect_player_proximity(

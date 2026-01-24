@@ -41,6 +41,8 @@ impl Plugin for CreaturePlugin {
                 on_attack_windup_enter.in_set(StateMachineSet::OnEnter),
                 on_attack_exit.in_set(StateMachineSet::OnExit),
                 on_creature_provoked.in_set(StateMachineSet::OnEnter),
+                on_creature_stunned.in_set(StateMachineSet::OnEnter),
+                on_stun_recovered.in_set(StateMachineSet::OnExit),
                 // Behavior systems - detection before decision
                 detect_player_proximity.in_set(StateMachineSet::Behavior),
                 hostile_ai.in_set(StateMachineSet::Behavior),

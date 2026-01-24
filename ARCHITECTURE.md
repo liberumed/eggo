@@ -66,20 +66,20 @@ src/
 │   └── systems.rs       # Movement, dash, knockback, animation, camera_follow
 │
 ├── creatures/           # Creature domain
-│   ├── components.rs    # Creature, CreatureAnimation, Hostile, Glowing, steering components
-│   ├── data.rs          # CreatureDefinition, SteeringConfig, creature_catalog
+│   ├── components.rs    # Creature, CreatureAnimation, Hostile, Glowing, PatrolOrigin, PatrolWander, AlertIndicator
+│   ├── data.rs          # CreatureDefinition, SteeringConfig (incl. patrol_radius), creature_catalog
 │   ├── events.rs        # PlayerInRange and other creature events
-│   ├── state.rs         # CreatureState enum, transition rules
-│   ├── state_handlers.rs # on_attack_enter, on_attack_exit, detect_player_proximity
-│   ├── steering.rs      # Context steering (ContextMap, interest/danger functions)
+│   ├── state.rs         # CreatureState enum (Idle, Patrol, Alert, Chase, Attack, Cooldown, etc.)
+│   ├── state_handlers.rs # State enter/exit handlers, detect_player_proximity, alert handlers
+│   ├── steering.rs      # Context steering (ContextMap, patrol_interest, patrol_boundary_danger)
 │   ├── spawner.rs       # spawn_creatures, spawn_creature_range_indicator
-│   └── systems.rs       # Animation, death, collision push
+│   └── systems.rs       # Animation, death, collision push, update_alert_indicator
 │
 ├── combat/              # Combat systems domain
 │   ├── components.rs    # Equipment, WeaponRangeIndicator, PlayerRangeIndicator
 │   ├── hit_detection.rs # HitCone, arc intersection
 │   ├── mesh.rs          # create_weapon_arc
-│   └── systems.rs       # Attack, block, damage, AI (hostile_ai, hostile_attack)
+│   └── systems.rs       # Attack, block, damage, AI (patrol_ai, alert_ai, hostile_ai, hostile_attack)
 │
 ├── props/               # World props domain
 │   ├── components.rs    # Prop, Destructible, CrateSprite, BarrelSprite
@@ -202,12 +202,15 @@ Behavior Systems → RequestTransition event → StateMachine validates → Stat
 
 ```rust
 enum CreatureState {
-    Idle,                    // Neutral creatures
+    Idle,                    // Neutral creatures, stationary
+    Patrol,                  // Wandering near spawn point
+    Alert,                   // Spotted player, showing "!" indicator
     Chase,                   // Pursuing player
     Attack(AttackPhase),     // WindUp → Strike → Recovery
-    Stunned,                 // (future)
-    Dying,                   // (future)
-    Dead,                    // (future)
+    Cooldown,                // Post-attack recovery period
+    Stunned,                 // Hit by player, temporarily disabled
+    Dying,                   // Death animation playing
+    Dead,                    // Corpse
 }
 ```
 
@@ -216,29 +219,53 @@ enum CreatureState {
 ```
 [Neutral spawn] → Idle
                     ↓ (hit by player, gets Hostile component)
-[Hostile spawn] → Chase ←──────────────────┐
-                    ↓ (player in range)    │
-              Attack(WindUp)               │
-                    ↓ (timer >= hit_delay) │
-              Attack(Strike)               │
-                    ↓ (hit applied)        │
-              Attack(Recovery)             │
-                    ↓ (timer >= duration)  │
-                    └──────────────────────┘
+[Hostile spawn] → Patrol ←─────────────────────────────────┐
+                    ↓ (player in sight_range)              │
+                  Alert (shows "!" for 1 sec)              │
+                    ↓ (alert timer expires)                │
+                    ↓ (player leaves) ─────────────────────┤
+                  Chase ←──────────────────┐               │
+                    ↓ (player in range)    │               │
+              Attack(WindUp)               │               │
+                    ↓ (timer >= hit_delay) │               │
+              Attack(Strike)               │               │
+                    ↓ (hit applied)        │               │
+              Attack(Recovery)             │               │
+                    ↓ (timer >= duration)  │               │
+                 Cooldown                  │               │
+                    ↓ (cooldown expires)   │               │
+                    └──────────────────────┘               │
+                    ↓ (player exceeds chase_range)         │
+                    └──────────────────────────────────────┘
 ```
 
 ## Creature Behavior
 
 - `Creature` = neutral blob, starts in `Idle` state
-- `Creature` + `Hostile` = chases and attacks, starts in `Chase` state
+- `Creature` + `Hostile` = patrols and attacks, starts in `Patrol` state
 - `Creature` + `Glowing` = special variant (visual only)
 - When neutral creature is hit: gets `Hostile`, transitions `Idle → Chase`
+
+### Patrol Behavior
+
+Hostile creatures patrol near their spawn point (`PatrolOrigin`):
+- Randomly alternate between moving and idling (`PatrolWander.action`)
+- Stay within `patrol_radius` of spawn point
+- When player enters `sight_range`: transition to `Alert` state
+
+### Alert State
+
+When a creature spots the player:
+- Shows "!" indicator above head (`AlertIndicator`)
+- Pauses for 1 second, facing player
+- If player leaves sight range: return to `Patrol`
+- If player stays: transition to `Chase` and pursue
 
 ### Context Steering
 
 Hostile creatures use context-based steering with interest/danger maps:
-- **Interest**: Direction toward player (direct or flanking)
-- **Danger**: Obstacles, other creatures, player proximity
+- **Interest**: Direction toward player (direct or flanking), or wander direction (patrol)
+- **Danger**: Obstacles, pits, other creatures, player proximity, patrol boundary
 
 ## Combat System
 
@@ -246,4 +273,6 @@ Hostile creatures use context-based steering with interest/danger maps:
 - Hit detection uses ellipse-arc intersection
 - Blocking reduces damage and reflects knockback
 - Hitstop freezes action on hit for game feel
-- Creature attacks go through state machine phases (WindUp → Strike → Recovery)
+- Creature attacks go through state machine phases (WindUp → Strike → Recovery → Cooldown)
+- Knockback applies to both living creatures and corpses
+- Death animation waits for knockback to complete before playing

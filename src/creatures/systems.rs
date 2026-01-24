@@ -7,7 +7,7 @@ use crate::player::{HurtAnimation, Player, SpriteAnimation};
 use crate::player::Stats;
 use crate::core::CharacterAssets;
 use crate::state_machine::{AttackPhase, StateMachine};
-use super::{Activated, Creature, CreatureAnimation, CreatureState, Goblin, PatrolAction, PatrolWander, SpriteRendering};
+use super::{Activated, AlertIndicator, Creature, CreatureAnimation, CreatureState, Goblin, PatrolAction, PatrolWander, SpriteRendering};
 
 pub fn animate_creatures(
     time: Res<Time>,
@@ -362,8 +362,18 @@ pub fn update_goblin_sprite_animation(
                 sprite_anim.speed = 0.5;
                 sprite_anim.flip_x = false;
             }
+            CreatureState::Alert => {
+                let idle_anim = match facing {
+                    GoblinFacing::Up => "idle_up",
+                    GoblinFacing::Down => "idle_down",
+                    GoblinFacing::Left => "idle_left",
+                    GoblinFacing::Right => "idle_right",
+                };
+                sprite_anim.set_animation(idle_anim);
+                sprite_anim.speed = 0.0;
+                sprite_anim.flip_x = false;
+            }
             CreatureState::Dying | CreatureState::Dead => {
-                // Show hurt animation and pause on death
                 let hurt_anim = match facing {
                     GoblinFacing::Up => "hurt_up",
                     GoblinFacing::Down => "hurt_down",
@@ -371,9 +381,22 @@ pub fn update_goblin_sprite_animation(
                     GoblinFacing::Right => "hurt_right",
                 };
                 sprite_anim.set_animation(hurt_anim);
-                sprite_anim.speed = 0.0; // Pause animation
+                sprite_anim.speed = 0.0;
                 sprite_anim.flip_x = false;
             }
         }
+    }
+}
+
+pub fn update_alert_indicator(
+    creature_query: Query<(&Transform, &AlertIndicator), With<Creature>>,
+    mut indicator_query: Query<&mut Transform, Without<Creature>>,
+) {
+    for (creature_transform, alert_indicator) in &creature_query {
+        let Ok(mut indicator_transform) = indicator_query.get_mut(alert_indicator.0) else {
+            continue;
+        };
+        indicator_transform.translation.x = creature_transform.translation.x;
+        indicator_transform.translation.y = creature_transform.translation.y + 35.0;
     }
 }

@@ -5,6 +5,7 @@ pub enum CreatureState {
     #[default]
     Idle,
     Patrol,
+    Alert,
     Chase,
     Attack(AttackPhase),
     /// Post-attack cooldown - creature waits before attacking again
@@ -47,10 +48,16 @@ impl StateType for CreatureState {
             (Idle, Chase) => true,
             (Idle, _) => false,
 
-            // Patrol can chase or return to idle
-            (Patrol, Chase) => true,
+            // Patrol can alert or return to idle
+            (Patrol, Alert) => true,
             (Patrol, Idle) => true,
             (Patrol, _) => false,
+
+            // Alert can chase, return to patrol, or idle
+            (Alert, Chase) => true,
+            (Alert, Patrol) => true,
+            (Alert, Idle) => true,
+            (Alert, _) => false,
 
             // Chase can attack, patrol, or return to idle
             (Chase, Idle) => true,
@@ -63,6 +70,7 @@ impl StateType for CreatureState {
             (Attack(_), Cooldown) => true,
             (Attack(_), Chase) => true,
             (Attack(_), Patrol) => true,
+            (Attack(_), Alert) => true,
             (Attack(_), Idle) => true,
 
             // Cooldown returns to Chase (or Idle)

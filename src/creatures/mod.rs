@@ -20,7 +20,7 @@ use bevy::prelude::*;
 
 use crate::core::GameState;
 use crate::combat::{
-    process_creature_attacks, hostile_ai, hostile_attack,
+    alert_ai, process_creature_attacks, hostile_ai, hostile_attack,
     hostile_fist_aim, patrol_ai, sync_creature_range_indicators, update_goblin_attack_indicator,
 };
 use crate::state_machine::{register_state_type, StateMachineSet};
@@ -44,6 +44,8 @@ impl Plugin for CreaturePlugin {
                 on_stun_recovered.in_set(StateMachineSet::OnExit),
                 on_hostile_start_patrol.in_set(StateMachineSet::OnEnter),
                 on_activated_to_chase.in_set(StateMachineSet::OnEnter),
+                on_alert_enter.in_set(StateMachineSet::OnEnter),
+                on_alert_exit.in_set(StateMachineSet::OnExit),
                 on_deactivated_to_patrol.in_set(StateMachineSet::OnExit),
             )
                 .run_if(in_state(GameState::Playing)),
@@ -54,6 +56,7 @@ impl Plugin for CreaturePlugin {
             (
                 detect_player_proximity.in_set(StateMachineSet::Behavior),
                 patrol_ai.in_set(StateMachineSet::Behavior),
+                alert_ai.in_set(StateMachineSet::Behavior),
                 hostile_ai.in_set(StateMachineSet::Behavior),
                 hostile_fist_aim.in_set(StateMachineSet::Behavior),
                 hostile_attack.in_set(StateMachineSet::Behavior).after(detect_player_proximity),
@@ -73,6 +76,7 @@ impl Plugin for CreaturePlugin {
                 sync_creature_range_indicators,
                 update_goblin_attack_indicator,
                 update_goblin_sprite_animation,
+                update_alert_indicator,
             )
                 .run_if(in_state(GameState::Playing)),
         );

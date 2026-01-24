@@ -61,6 +61,9 @@ pub struct PatrolOrigin {
     pub position: Vec2,
 }
 
+#[derive(Component)]
+pub struct AlertIndicator(pub Entity);
+
 #[derive(Clone, Copy, Default, PartialEq)]
 pub enum PatrolAction {
     #[default]

@@ -5,7 +5,8 @@ use crate::inventory::weapons::{Fist, Weapon, WeaponSwing};
 use crate::core::{Dead, DeathAnimation, GameConfig, HitCollider, Stunned};
 use crate::player::Player;
 use crate::state_machine::{AttackPhase, RequestTransition, StateEntered, StateExited, StateMachine};
-use super::{AttackOffset, CardinalAttacks, Creature, CreatureState, Hostile, PlayerInRange};
+use crate::constants::Z_UI_WORLD;
+use super::{AlertIndicator, AttackOffset, CardinalAttacks, Creature, CreatureState, Hostile, PlayerInRange};
 
 pub fn on_attack_windup_enter(
     mut commands: Commands,
@@ -163,6 +164,45 @@ pub fn on_activated_to_chase(
         if *state_machine.current() == CreatureState::Patrol {
             transitions.write(RequestTransition::new(entity, CreatureState::Chase));
         }
+    }
+}
+
+pub fn on_alert_enter(
+    mut commands: Commands,
+    mut events: MessageReader<StateEntered<CreatureState>>,
+    creature_query: Query<&Transform, With<Creature>>,
+) {
+    for event in events.read() {
+        if event.state != CreatureState::Alert {
+            continue;
+        }
+
+        let Ok(transform) = creature_query.get(event.entity) else { continue };
+
+        let indicator = commands.spawn((
+            Text2d::new("!"),
+            TextFont { font_size: 24.0, ..default() },
+            TextColor(Color::srgb(1.0, 0.8, 0.0)),
+            Transform::from_xyz(transform.translation.x, transform.translation.y + 35.0, Z_UI_WORLD + 1.0),
+        )).id();
+
+        commands.entity(event.entity).insert(AlertIndicator(indicator));
+    }
+}
+
+pub fn on_alert_exit(
+    mut commands: Commands,
+    mut events: MessageReader<StateExited<CreatureState>>,
+    creature_query: Query<&AlertIndicator>,
+) {
+    for event in events.read() {
+        if event.state != CreatureState::Alert {
+            continue;
+        }
+
+        let Ok(indicator) = creature_query.get(event.entity) else { continue };
+        commands.entity(indicator.0).despawn();
+        commands.entity(event.entity).remove::<AlertIndicator>();
     }
 }
 

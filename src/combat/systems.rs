@@ -440,6 +440,7 @@ pub fn patrol_ai(
     mut commands: Commands,
     time: Res<Time>,
     current_level: Res<crate::levels::CurrentLevel>,
+    mut transitions: MessageWriter<crate::state_machine::RequestTransition<crate::creatures::CreatureState>>,
     player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<StaticCollider>)>,
     collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
     mut creature_query: Query<(
@@ -479,7 +480,10 @@ pub fn patrol_ai(
         let distance_to_player = player_pos.distance(creature_pos);
 
         if distance_to_player <= config.sight_range {
-            commands.entity(entity).insert(Activated);
+            transitions.write(crate::state_machine::RequestTransition::new(
+                entity,
+                crate::creatures::CreatureState::Alert,
+            ));
             continue;
         }
 
@@ -546,6 +550,51 @@ pub fn patrol_ai(
             cache.0 = context;
         } else {
             commands.entity(entity).insert(ContextMapCache(context));
+        }
+    }
+}
+
+const ALERT_DURATION: f32 = 1.0;
+
+pub fn alert_ai(
+    mut commands: Commands,
+    mut transitions: MessageWriter<crate::state_machine::RequestTransition<crate::creatures::CreatureState>>,
+    player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<StaticCollider>)>,
+    creature_query: Query<(
+        Entity,
+        &Transform,
+        &crate::creatures::CreatureSteering,
+        &crate::state_machine::StateMachine<crate::creatures::CreatureState>,
+    ), (With<Hostile>, Without<Dead>, Without<Stunned>, Without<StaticCollider>)>,
+) {
+    use crate::creatures::CreatureState;
+
+    let Ok(player_transform) = player_query.single() else { return };
+    let player_pos = player_transform.translation.truncate();
+
+    for (entity, transform, steering, state_machine) in &creature_query {
+        if *state_machine.current() != CreatureState::Alert {
+            continue;
+        }
+
+        let config = &steering.0;
+        let creature_pos = transform.translation.truncate();
+        let distance_to_player = player_pos.distance(creature_pos);
+
+        if distance_to_player > config.sight_range {
+            transitions.write(crate::state_machine::RequestTransition::new(
+                entity,
+                CreatureState::Patrol,
+            ));
+            continue;
+        }
+
+        if state_machine.time_in_state() >= ALERT_DURATION {
+            commands.entity(entity).insert(Activated);
+            transitions.write(crate::state_machine::RequestTransition::new(
+                entity,
+                CreatureState::Chase,
+            ));
         }
     }
 }

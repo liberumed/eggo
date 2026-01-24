@@ -211,7 +211,7 @@ pub fn on_alert_exit(
 pub fn detect_player_proximity(
     mut events: MessageWriter<PlayerInRange>,
     player_query: Query<(&Transform, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    creature_query: Query<(Entity, &Transform, &StateMachine<CreatureState>, &Children, Option<&AttackOffset>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    creature_query: Query<(Entity, &Transform, &StateMachine<CreatureState>, &Children, Option<&AttackOffset>), (With<Hostile>, Without<Dead>, Without<DeathAnimation>, Without<Stunned>)>,
     fist_query: Query<&Weapon, With<Fist>>,
 ) {
     let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };

@@ -125,6 +125,7 @@ pub fn apply_mesh_attack_hits(
     player_query: Query<(Entity, &Transform, &StateMachine<PlayerState>), (With<Player>, Without<Dead>, Without<DeathAnimation>)>,
     mut weapon_query: Query<(&Transform, &Weapon, &mut WeaponSwing), With<PlayerWeapon>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>, Option<&crate::creatures::ProvokedSteering>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    corpse_query: Query<(Entity, &Transform, Option<&HitCollider>), (With<Creature>, With<Dead>)>,
     assets: Res<CharacterAssets>,
 ) {
     use crate::state_machine::AttackPhase;
@@ -231,6 +232,19 @@ pub fn apply_mesh_attack_hits(
         }
     }
 
+    // Apply knockback to corpses
+    for (entity, corpse_transform, hit_collider) in &corpse_query {
+        let corpse_pos = corpse_transform.translation.truncate();
+        let hits = match hit_collider {
+            Some(collider) => hit_cone.hits_collider(corpse_pos, collider),
+            None => hit_cone.hits(corpse_pos, 0.0),
+        };
+        if hits {
+            let knockback_dir = (corpse_pos - hit_cone.origin).normalize_or_zero();
+            weapon.apply_on_hit(&mut commands, entity, knockback_dir);
+        }
+    }
+
     // Apply recoil and game feel effects when hitting
     if hit_any {
         let recoil_force = weapon.knockback_force() * RECOIL_MULTIPLIER;
@@ -254,6 +268,7 @@ pub fn apply_smash_attack_hits(
     mut player_query: Query<(Entity, &Transform, &mut PlayerSmashAttack, &StateMachine<PlayerState>), With<Player>>,
     weapon_query: Query<(Entity, &Weapon), With<PlayerWeapon>>,
     mut creatures_query: Query<(Entity, &Transform, &mut Health, Option<&Hostile>, Option<&HitCollider>, Option<&crate::creatures::ProvokedSteering>), (With<Creature>, Without<Dead>, Without<DeathAnimation>)>,
+    corpse_query: Query<(Entity, &Transform, Option<&HitCollider>), (With<Creature>, With<Dead>)>,
     mut props_query: Query<(Entity, &Transform, &Prop, &mut Destructible, Option<&mut CrateSprite>, Option<&mut Crate2Sprite>, Option<&mut BarrelSprite>, Option<&mut Sprite>), Without<Creature>>,
     assets: Res<CharacterAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -372,6 +387,19 @@ pub fn apply_smash_attack_hits(
         }
     }
 
+    // Apply knockback to corpses
+    for (entity, corpse_transform, hit_collider) in &corpse_query {
+        let corpse_pos = corpse_transform.translation.truncate();
+        let hits = match hit_collider {
+            Some(collider) => hit_cone.hits_collider(corpse_pos, collider),
+            None => hit_cone.hits(corpse_pos, 0.0),
+        };
+        if hits {
+            let knockback_dir = (corpse_pos - hit_cone.origin).normalize_or_zero();
+            weapon.apply_on_hit(&mut commands, entity, knockback_dir);
+        }
+    }
+
     if hit_any {
         let recoil_force = weapon.knockback_force() * RECOIL_MULTIPLIER;
         commands.entity(player_entity).insert(Knockback {
@@ -452,7 +480,7 @@ pub fn patrol_ai(
         &crate::creatures::PatrolOrigin,
         &mut crate::creatures::PatrolWander,
         Option<&mut ContextMapCache>,
-    ), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
+    ), (Without<Dead>, Without<DeathAnimation>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
 ) {
     use crate::creatures::{ContextMap, ContextMapCache, CreatureState, obstacle_danger, pit_danger, patrol_interest, patrol_boundary_danger};
     use rand::Rng;
@@ -565,7 +593,7 @@ pub fn alert_ai(
         &Transform,
         &crate::creatures::CreatureSteering,
         &crate::state_machine::StateMachine<crate::creatures::CreatureState>,
-    ), (With<Hostile>, Without<Dead>, Without<Stunned>, Without<StaticCollider>)>,
+    ), (With<Hostile>, Without<Dead>, Without<DeathAnimation>, Without<Stunned>, Without<StaticCollider>)>,
 ) {
     use crate::creatures::CreatureState;
 
@@ -607,7 +635,7 @@ pub fn hostile_ai(
     collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
     mut creature_queries: ParamSet<(
         Query<(Entity, &Transform), (With<Creature>, Without<Dead>, Without<StaticCollider>)>,
-        Query<(Entity, &mut Transform, &Hostile, &crate::creatures::CreatureSteering, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&mut ContextMapCache>, Option<&FlankPreference>, Option<&Activated>), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
+        Query<(Entity, &mut Transform, &Hostile, &crate::creatures::CreatureSteering, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&mut ContextMapCache>, Option<&FlankPreference>, Option<&Activated>), (Without<Dead>, Without<DeathAnimation>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
     )>,
 ) {
     use crate::creatures::{ContextMap, ContextMapCache, CreatureState, FlankPreference, SteeringStrategy, seek_interest, seek_with_flank, obstacle_danger, separation_danger, player_proximity_danger, occupied_angle_danger, pit_danger};
@@ -852,7 +880,7 @@ pub fn process_creature_attacks(
     mut hitstop: ResMut<Hitstop>,
     mut screen_shake: ResMut<ScreenShake>,
     mut player_query: Query<(Entity, &Transform, &mut Health, Option<&HitCollider>, &StateMachine<PlayerState>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    hostile_query: Query<(Entity, &Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&CardinalAttacks>, Option<&AttackOffset>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    hostile_query: Query<(Entity, &Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&CardinalAttacks>, Option<&AttackOffset>), (With<Hostile>, Without<Dead>, Without<DeathAnimation>, Without<Stunned>)>,
     mut fist_query: Query<(&Weapon, &mut WeaponSwing, &ChildOf), With<Fist>>,
     knockback_query: Query<&Knockback>,
     blocking_query: Query<&Blocking>,

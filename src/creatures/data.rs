@@ -165,7 +165,7 @@ pub mod creature_catalog {
     pub fn goblin() -> CreatureDefinition {
         CreatureDefinition {
             name: "Goblin".to_string(),
-            health: 4,
+            health: 5,
             speed: 50.0,
             hostile_chance: 1.0,
             glowing_chance: 0.0,

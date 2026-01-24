@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::constants::*;
-use crate::core::{Dead, DeathAnimation, DespawnTimer, ellipse_push, ellipses_overlap, Loot, WalkCollider};
+use crate::core::{Dead, DeathAnimation, DespawnTimer, ellipse_push, ellipses_overlap, Knockback, Loot, WalkCollider};
 use crate::effects::{Hitstop, MagnetizedBall, ResourceBall};
 use crate::player::{HurtAnimation, Player, SpriteAnimation};
 use crate::player::Stats;
@@ -45,12 +45,16 @@ pub fn animate_death(
     time: Res<Time>,
     assets: Res<CharacterAssets>,
     mut stats: ResMut<Stats>,
-    mut query: Query<(Entity, &Transform, &mut DeathAnimation, &Loot, &Children, Option<&SpriteRendering>), With<Creature>>,
+    mut query: Query<(Entity, &Transform, &mut DeathAnimation, &Loot, &Children, Option<&SpriteRendering>, Option<&Knockback>), With<Creature>>,
     ball_query: Query<&Transform, With<ResourceBall>>,
 ) {
     let mut balls_to_magnetize: Vec<(Entity, Vec3)> = Vec::new();
 
-    for (entity, transform, mut death, loot, children, sprite_rendering) in &mut query {
+    for (entity, transform, mut death, loot, children, sprite_rendering, knockback) in &mut query {
+        // Skip death animation while knockback is active
+        if knockback.is_some() {
+            continue;
+        }
         death.timer += time.delta_secs();
         let t = death.timer;
 

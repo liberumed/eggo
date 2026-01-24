@@ -7,7 +7,7 @@ use crate::player::{HurtAnimation, Player, SpriteAnimation};
 use crate::player::Stats;
 use crate::core::CharacterAssets;
 use crate::state_machine::{AttackPhase, StateMachine};
-use super::{Creature, CreatureAnimation, CreatureState, Goblin, SpriteRendering};
+use super::{Activated, Creature, CreatureAnimation, CreatureState, Goblin, PatrolAction, PatrolWander, SpriteRendering};
 
 pub fn animate_creatures(
     time: Res<Time>,
@@ -235,17 +235,22 @@ fn get_goblin_facing(dir: Vec2) -> GoblinFacing {
 /// Updates goblin sprite animations based on state and movement
 pub fn update_goblin_sprite_animation(
     player_query: Query<&Transform, (With<Player>, Without<Goblin>)>,
-    mut goblin_query: Query<(&Transform, &mut SpriteAnimation, &StateMachine<CreatureState>, Option<&HurtAnimation>, Option<&DeathAnimation>), (With<Goblin>, Without<Dead>)>,
+    mut goblin_query: Query<(&Transform, &mut SpriteAnimation, &StateMachine<CreatureState>, Option<&HurtAnimation>, Option<&DeathAnimation>, Option<&Activated>, Option<&PatrolWander>), (With<Goblin>, Without<Dead>)>,
 ) {
     let Ok(player_transform) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
 
-    for (transform, mut sprite_anim, state_machine, hurt, death) in &mut goblin_query {
+    for (transform, mut sprite_anim, state_machine, hurt, death, activated, patrol_wander) in &mut goblin_query {
         let goblin_pos = transform.translation.truncate();
         let dir_to_player = player_pos - goblin_pos;
 
-        // Determine facing direction based on direction to player
-        let facing = get_goblin_facing(dir_to_player);
+        let facing = match state_machine.current() {
+            CreatureState::Patrol => {
+                let wander_dir = patrol_wander.map(|w| w.direction).unwrap_or(Vec2::NEG_Y);
+                get_goblin_facing(wander_dir)
+            }
+            _ => get_goblin_facing(dir_to_player),
+        };
 
         // Death animation takes highest priority - show hurt sprite and freeze
         if death.is_some() {
@@ -298,16 +303,51 @@ pub fn update_goblin_sprite_animation(
                 sprite_anim.speed = 0.5;
                 sprite_anim.flip_x = false;
             }
+            CreatureState::Patrol => {
+                let is_moving = patrol_wander
+                    .map(|w| w.action == PatrolAction::Moving)
+                    .unwrap_or(false);
+                if is_moving {
+                    let walk_anim = match facing {
+                        GoblinFacing::Up => "walk_up",
+                        GoblinFacing::Down => "walk_down",
+                        GoblinFacing::Left => "walk_left",
+                        GoblinFacing::Right => "walk_right",
+                    };
+                    sprite_anim.set_animation(walk_anim);
+                    sprite_anim.speed = 0.6;
+                } else {
+                    let idle_anim = match facing {
+                        GoblinFacing::Up => "idle_up",
+                        GoblinFacing::Down => "idle_down",
+                        GoblinFacing::Left => "idle_left",
+                        GoblinFacing::Right => "idle_right",
+                    };
+                    sprite_anim.set_animation(idle_anim);
+                    sprite_anim.speed = 0.5;
+                }
+                sprite_anim.flip_x = false;
+            }
             CreatureState::Chase => {
-                // Use directional walk animations
-                let walk_anim = match facing {
-                    GoblinFacing::Up => "walk_up",
-                    GoblinFacing::Down => "walk_down",
-                    GoblinFacing::Left => "walk_left",
-                    GoblinFacing::Right => "walk_right",
-                };
-                sprite_anim.set_animation(walk_anim);
-                sprite_anim.speed = 1.0;
+                if activated.is_some() {
+                    let walk_anim = match facing {
+                        GoblinFacing::Up => "walk_up",
+                        GoblinFacing::Down => "walk_down",
+                        GoblinFacing::Left => "walk_left",
+                        GoblinFacing::Right => "walk_right",
+                    };
+                    sprite_anim.set_animation(walk_anim);
+                    sprite_anim.speed = 1.0;
+                } else {
+                    let idle_anim = match facing {
+                        GoblinFacing::Up => "idle_up",
+                        GoblinFacing::Down => "idle_down",
+                        GoblinFacing::Left => "idle_left",
+                        GoblinFacing::Right => "idle_right",
+                    };
+                    sprite_anim.set_animation(idle_anim);
+                    sprite_anim.speed = 0.5;
+                }
                 sprite_anim.flip_x = false;
             }
             CreatureState::Idle | CreatureState::Stunned | CreatureState::Cooldown => {

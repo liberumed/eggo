@@ -10,7 +10,7 @@ use crate::player::{PlayerSpriteSheet, SpriteAnimation};
 use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
 use crate::levels::BoundToLevel;
-use super::{AttackOffset, CardinalAttacks, Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Goblin, Hostile, ProvokedSteering, SpriteRendering, creature_catalog};
+use super::{AttackOffset, CardinalAttacks, Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Goblin, Hostile, PatrolOrigin, PatrolWander, ProvokedSteering, SpriteRendering, creature_catalog};
 
 /// Spawn a creature's range indicator as an independent entity
 /// This ensures consistent behavior - indicator follows creature but isn't affected by animations
@@ -164,14 +164,18 @@ fn spawn_creature(
 
     // State machine - all creatures get one
     let initial_state = if is_hostile {
-        CreatureState::Chase
+        CreatureState::Patrol
     } else {
         CreatureState::Idle
     };
     entity_commands.insert(StateMachine::new(initial_state));
 
     if is_hostile {
-        entity_commands.insert(Hostile { speed: definition.speed });
+        entity_commands.insert((
+            Hostile { speed: definition.speed },
+            PatrolOrigin { position: Vec2::new(x, y) },
+            PatrolWander::default(),
+        ));
     }
     if is_glowing {
         entity_commands.insert(Glowing);
@@ -331,7 +335,9 @@ pub fn spawn_goblin(
         Creature,
         BoundToLevel,
         Hostile { speed: definition.speed },
-        StateMachine::<CreatureState>::new(CreatureState::Chase),
+        PatrolOrigin { position },
+        PatrolWander::default(),
+        StateMachine::<CreatureState>::new(CreatureState::Patrol),
         // Physics/rendering
         YSorted { base_offset: definition.base_offset },
         WalkCollider {

@@ -16,6 +16,7 @@ pub struct SteeringConfig {
     pub strategy: SteeringStrategy,
     pub sight_range: f32,
     pub chase_range: f32,
+    pub patrol_radius: f32,
     pub obstacle_look_ahead: f32,
     pub separation_radius: f32,
     pub min_player_distance: f32,
@@ -30,6 +31,7 @@ impl Default for SteeringConfig {
             strategy: SteeringStrategy::Direct,
             sight_range: 150.0,
             chase_range: 300.0,
+            patrol_radius: 60.0,
             obstacle_look_ahead: OBSTACLE_LOOK_AHEAD,
             separation_radius: SEPARATION_RADIUS,
             min_player_distance: PLAYER_MIN_DISTANCE,
@@ -115,7 +117,10 @@ pub mod creature_catalog {
             attack_offset_y: 0.0,
             cardinal_attacks: false,
             sprite_rendering: false,
-            steering: SteeringConfig::default(),
+            steering: SteeringConfig {
+                patrol_radius: 40.0,
+                ..Default::default()
+            },
             provoked_steering: SteeringConfig {
                 strategy: SteeringStrategy::Direct,
                 sight_range: 300.0,
@@ -147,6 +152,7 @@ pub mod creature_catalog {
             sprite_rendering: false,
             steering: SteeringConfig {
                 strategy: SteeringStrategy::Flanking,
+                patrol_radius: 80.0,
                 flank_angle_min: 0.5,
                 flank_angle_max: 1.0,
                 ..Default::default()
@@ -177,6 +183,9 @@ pub mod creature_catalog {
             sprite_rendering: true,
             steering: SteeringConfig {
                 strategy: SteeringStrategy::Flanking,
+                sight_range: 50.0,
+                chase_range: 200.0,
+                patrol_radius: 100.0,
                 flank_angle_min: 0.3,
                 flank_angle_max: 0.8,
                 ..Default::default()

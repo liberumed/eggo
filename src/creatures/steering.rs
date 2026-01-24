@@ -267,3 +267,59 @@ pub fn pit_danger(
         }
     }
 }
+
+/// Add interest for patrol wandering behavior
+/// Combines current wander direction with pull back toward origin when near edge
+pub fn patrol_interest(
+    map: &mut ContextMap,
+    creature_pos: Vec2,
+    origin: Vec2,
+    wander_direction: Vec2,
+    patrol_radius: f32,
+) {
+    let to_origin = origin - creature_pos;
+    let dist_from_origin = to_origin.length();
+
+    for i in 0..NUM_DIRECTIONS {
+        let dir = ContextMap::direction(i);
+
+        let mut interest = 0.0;
+
+        if wander_direction.length_squared() > 0.01 {
+            let wander_dot = dir.dot(wander_direction).max(0.0);
+            interest += wander_dot * 0.6;
+        }
+
+        if dist_from_origin > patrol_radius * 0.7 && dist_from_origin > 0.001 {
+            let to_origin_normalized = to_origin / dist_from_origin;
+            let return_dot = dir.dot(to_origin_normalized).max(0.0);
+            let pull_strength = (dist_from_origin - patrol_radius * 0.7) / (patrol_radius * 0.3);
+            interest += return_dot * pull_strength.min(1.0);
+        }
+
+        map.interest[i] = map.interest[i].max(interest);
+    }
+}
+
+/// Add danger for leaving patrol area (hard boundary)
+pub fn patrol_boundary_danger(
+    map: &mut ContextMap,
+    creature_pos: Vec2,
+    origin: Vec2,
+    patrol_radius: f32,
+) {
+    let to_origin = origin - creature_pos;
+    let dist_from_origin = to_origin.length();
+
+    if dist_from_origin > patrol_radius * 0.8 && dist_from_origin > 0.001 {
+        let away_from_origin = -to_origin / dist_from_origin;
+        let boundary_proximity = (dist_from_origin - patrol_radius * 0.8) / (patrol_radius * 0.2);
+
+        for i in 0..NUM_DIRECTIONS {
+            let dir = ContextMap::direction(i);
+            let alignment = dir.dot(away_from_origin).max(0.0);
+            let danger = alignment * boundary_proximity.min(1.0);
+            map.danger[i] = map.danger[i].max(danger);
+        }
+    }
+}

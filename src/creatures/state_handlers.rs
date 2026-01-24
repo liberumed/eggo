@@ -111,13 +111,57 @@ pub fn on_creature_stunned(
 pub fn on_stun_recovered(
     mut transitions: MessageWriter<RequestTransition<CreatureState>>,
     mut removed: RemovedComponents<Stunned>,
-    query: Query<(Entity, &StateMachine<CreatureState>), With<Hostile>>,
+    query: Query<(Entity, &StateMachine<CreatureState>, Option<&super::Activated>, Option<&super::PatrolOrigin>), With<Hostile>>,
+) {
+    for entity in removed.read() {
+        if let Ok((_, state_machine, activated, patrol_origin)) = query.get(entity) {
+            if *state_machine.current() != CreatureState::Stunned {
+                continue;
+            }
+            let target = if activated.is_some() {
+                CreatureState::Chase
+            } else if patrol_origin.is_some() {
+                CreatureState::Patrol
+            } else {
+                CreatureState::Chase
+            };
+            transitions.write(RequestTransition::new(entity, target));
+        }
+    }
+}
+
+pub fn on_hostile_start_patrol(
+    mut transitions: MessageWriter<RequestTransition<CreatureState>>,
+    query: Query<(Entity, &StateMachine<CreatureState>), (With<Hostile>, With<super::PatrolOrigin>, Without<super::Activated>, Added<StateMachine<CreatureState>>)>,
+) {
+    for (entity, state_machine) in &query {
+        if *state_machine.current() == CreatureState::Idle {
+            transitions.write(RequestTransition::new(entity, CreatureState::Patrol));
+        }
+    }
+}
+
+pub fn on_deactivated_to_patrol(
+    mut transitions: MessageWriter<RequestTransition<CreatureState>>,
+    mut removed: RemovedComponents<super::Activated>,
+    query: Query<(Entity, &StateMachine<CreatureState>), (With<Hostile>, With<super::PatrolOrigin>)>,
 ) {
     for entity in removed.read() {
         if let Ok((_, state_machine)) = query.get(entity) {
-            if *state_machine.current() == CreatureState::Stunned {
-                transitions.write(RequestTransition::new(entity, CreatureState::Chase));
+            if *state_machine.current() == CreatureState::Chase {
+                transitions.write(RequestTransition::new(entity, CreatureState::Patrol));
             }
+        }
+    }
+}
+
+pub fn on_activated_to_chase(
+    mut transitions: MessageWriter<RequestTransition<CreatureState>>,
+    query: Query<(Entity, &StateMachine<CreatureState>), (With<Hostile>, Added<super::Activated>)>,
+) {
+    for (entity, state_machine) in &query {
+        if *state_machine.current() == CreatureState::Patrol {
+            transitions.write(RequestTransition::new(entity, CreatureState::Chase));
         }
     }
 }

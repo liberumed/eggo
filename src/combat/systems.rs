@@ -436,6 +436,120 @@ pub fn aim_weapon(
     }
 }
 
+pub fn patrol_ai(
+    mut commands: Commands,
+    time: Res<Time>,
+    current_level: Res<crate::levels::CurrentLevel>,
+    player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<StaticCollider>)>,
+    collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
+    mut creature_query: Query<(
+        Entity,
+        &mut Transform,
+        &Hostile,
+        &crate::creatures::CreatureSteering,
+        &crate::state_machine::StateMachine<crate::creatures::CreatureState>,
+        &crate::creatures::PatrolOrigin,
+        &mut crate::creatures::PatrolWander,
+        Option<&mut ContextMapCache>,
+    ), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
+) {
+    use crate::creatures::{ContextMap, ContextMapCache, CreatureState, obstacle_danger, pit_danger, patrol_interest, patrol_boundary_danger};
+    use rand::Rng;
+
+    let Ok(player_transform) = player_query.single() else { return };
+    let player_pos = player_transform.translation.truncate();
+
+    let collider_data: Vec<(Vec2, Vec2)> = collider_query
+        .iter()
+        .map(|(t, c)| (Vec2::new(t.translation.x, t.translation.y + c.offset_y), Vec2::new(c.radius_x, c.radius_y)))
+        .collect();
+
+    let pit_data: Vec<(Vec2, f32)> = current_level.pits()
+        .iter()
+        .map(|p| (p.position, p.edge_radius))
+        .collect();
+
+    for (entity, mut transform, hostile, steering, state_machine, patrol_origin, mut patrol_wander, context_cache) in &mut creature_query {
+        if *state_machine.current() != CreatureState::Patrol {
+            continue;
+        }
+
+        let config = &steering.0;
+        let creature_pos = transform.translation.truncate();
+        let distance_to_player = player_pos.distance(creature_pos);
+
+        if distance_to_player <= config.sight_range {
+            commands.entity(entity).insert(Activated);
+            continue;
+        }
+
+        use crate::creatures::PatrolAction;
+
+        patrol_wander.action_timer -= time.delta_secs();
+        if patrol_wander.action_timer <= 0.0 {
+            let mut rng = rand::rng();
+            if rng.random_bool(0.6) {
+                let angle = rng.random_range(0.0..std::f32::consts::TAU);
+                patrol_wander.direction = Vec2::new(angle.cos(), angle.sin());
+                patrol_wander.action = PatrolAction::Moving;
+                patrol_wander.action_timer = rng.random_range(1.5..3.5);
+            } else {
+                patrol_wander.action = PatrolAction::Idle;
+                patrol_wander.action_timer = rng.random_range(1.0..2.5);
+            }
+        }
+
+        if patrol_wander.action == PatrolAction::Idle {
+            continue;
+        }
+
+        let mut context = ContextMap::new();
+
+        patrol_interest(
+            &mut context,
+            creature_pos,
+            patrol_origin.position,
+            patrol_wander.direction,
+            config.patrol_radius,
+        );
+
+        patrol_boundary_danger(
+            &mut context,
+            creature_pos,
+            patrol_origin.position,
+            config.patrol_radius,
+        );
+
+        obstacle_danger(&mut context, creature_pos, &collider_data, config.obstacle_look_ahead);
+        pit_danger(&mut context, creature_pos, &pit_data, config.obstacle_look_ahead);
+
+        let (direction, strength) = context.resolve();
+
+        if strength > 0.0 {
+            let patrol_speed = hostile.speed * 0.4;
+            let movement = direction * patrol_speed * strength * time.delta_secs();
+            let mut new_pos = creature_pos + movement;
+
+            let creature_radius = Vec2::new(8.0, 5.0);
+            let creature_offset_y = -11.0;
+            for (collider_pos, collider_radius) in &collider_data {
+                let creature_feet = Vec2::new(new_pos.x, new_pos.y + creature_offset_y);
+                let push = ellipse_push(creature_feet, creature_radius, *collider_pos, *collider_radius);
+                new_pos += push;
+            }
+
+            transform.translation.x = new_pos.x;
+            transform.translation.y = new_pos.y;
+        }
+
+        if let Some(mut cache) = context_cache {
+            cache.0 = context;
+        } else {
+            commands.entity(entity).insert(ContextMapCache(context));
+        }
+    }
+}
+
 pub fn hostile_ai(
     mut commands: Commands,
     time: Res<Time>,
@@ -452,26 +566,22 @@ pub fn hostile_ai(
 
     let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
-    // Effective range bonus = radius minus offset (offset adds distance to circle centers)
     let player_range_bonus = player_hit_collider
         .map(|h| (h.max_radius() - h.max_offset()).max(0.0))
         .unwrap_or(0.0);
 
-    // Gather all creature positions for separation behavior
     let creature_positions: Vec<(Entity, Vec2)> = creature_queries
         .p0()
         .iter()
         .map(|(e, t)| (e, t.translation.truncate()))
         .collect();
 
-    // Gather static collider data for obstacle avoidance
     let collider_data: Vec<(Vec2, Vec2)> = collider_query
         .iter()
         .map(|(t, c)| (Vec2::new(t.translation.x, t.translation.y + c.offset_y), Vec2::new(c.radius_x, c.radius_y)))
         .collect();
 
     for (entity, mut transform, hostile, steering, state_machine, context_cache, flank_pref, activated) in creature_queries.p1().iter_mut() {
-        // Only process creatures in Chase state
         if *state_machine.current() != CreatureState::Chase {
             continue;
         }
@@ -492,14 +602,11 @@ pub fn hostile_ai(
             continue;
         }
 
-        // Adjust min distance to account for player's hit collider size
         let effective_min_distance = (config.min_player_distance - player_range_bonus).max(5.0);
 
         if distance > effective_min_distance {
-            // Build context map
             let mut context = ContextMap::new();
 
-            // Interest: use strategy from config
             match config.strategy {
                 SteeringStrategy::Direct => {
                     seek_interest(&mut context, creature_pos, player_pos);
@@ -508,7 +615,6 @@ pub fn hostile_ai(
                     let flank_angle = if let Some(pref) = flank_pref {
                         pref.0
                     } else {
-                        // Assign flank angle from config range
                         let mut rng = rand::rng();
                         let sign = if rng.random_bool(0.5) { 1.0 } else { -1.0 };
                         let magnitude = rng.random_range(config.flank_angle_min..config.flank_angle_max);
@@ -520,36 +626,29 @@ pub fn hostile_ai(
                 }
             }
 
-            // Danger: avoid obstacles
             obstacle_danger(&mut context, creature_pos, &collider_data, config.obstacle_look_ahead);
 
-            // Danger: avoid pits
             let pit_data: Vec<(Vec2, f32)> = current_level.pits()
                 .iter()
                 .map(|p| (p.position, p.edge_radius))
                 .collect();
             pit_danger(&mut context, creature_pos, &pit_data, config.obstacle_look_ahead);
 
-            // Danger: separation from other creatures
             let others: Vec<Vec2> = creature_positions.iter()
                 .filter(|(e, _)| *e != entity)
                 .map(|(_, p)| *p)
                 .collect();
             separation_danger(&mut context, creature_pos, &others, config.separation_radius);
 
-            // Danger: avoid approaching from same angle as other creatures (forces spreading)
             occupied_angle_danger(&mut context, creature_pos, player_pos, &others, config.occupied_angle_spread);
 
-            // Danger: don't get too close to player (adjusted for player's collider size)
             player_proximity_danger(&mut context, creature_pos, player_pos, effective_min_distance);
 
-            // Resolve and move
             let (direction, strength) = context.resolve();
             if strength > 0.0 {
                 let movement = direction * hostile.speed * strength * time.delta_secs();
                 let mut new_pos = creature_pos + movement;
 
-                // Still apply push-based collision for safety (handles edge cases)
                 let creature_radius = Vec2::new(8.0, 5.0);
                 let creature_offset_y = -11.0;
                 for (collider_pos, collider_radius) in &collider_data {
@@ -562,7 +661,6 @@ pub fn hostile_ai(
                 transform.translation.y = new_pos.y;
             }
 
-            // Cache context map for debug visualization
             if let Some(mut cache) = context_cache {
                 cache.0 = context;
             } else {

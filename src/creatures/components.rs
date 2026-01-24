@@ -55,3 +55,22 @@ pub struct SpriteRendering;
 /// Vertical offset for creature's attack origin (0.0 = feet, higher = body center)
 #[derive(Component)]
 pub struct AttackOffset(pub f32);
+
+#[derive(Component)]
+pub struct PatrolOrigin {
+    pub position: Vec2,
+}
+
+#[derive(Clone, Copy, Default, PartialEq)]
+pub enum PatrolAction {
+    #[default]
+    Idle,
+    Moving,
+}
+
+#[derive(Component, Default)]
+pub struct PatrolWander {
+    pub direction: Vec2,
+    pub action: PatrolAction,
+    pub action_timer: f32,
+}

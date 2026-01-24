@@ -241,3 +241,29 @@ pub fn player_proximity_danger(
         }
     }
 }
+
+/// Add danger for pit hazards
+/// pits: slice of (center, edge_radius) tuples
+pub fn pit_danger(
+    map: &mut ContextMap,
+    creature_pos: Vec2,
+    pits: &[(Vec2, f32)],
+    look_ahead: f32,
+) {
+    for (pit_center, edge_radius) in pits {
+        let to_pit = *pit_center - creature_pos;
+        let dist = to_pit.length() - edge_radius;
+
+        if dist < look_ahead && dist > 0.001 {
+            let dir_to_pit = to_pit.normalize();
+            let proximity = 1.0 - (dist / look_ahead);
+
+            for i in 0..NUM_DIRECTIONS {
+                let dir = ContextMap::direction(i);
+                let alignment = dir.dot(dir_to_pit).max(0.0);
+                let danger = alignment * proximity * 0.6;
+                map.danger[i] = map.danger[i].max(danger);
+            }
+        }
+    }
+}

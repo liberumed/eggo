@@ -1,14 +1,22 @@
 use bevy::prelude::*;
 
-use crate::core::{Dead, GameState, WalkCollider};
+use crate::core::{Dead, DeathAnimation, GameState, Knockback, WalkCollider};
 use crate::creatures::Hostile;
 use crate::player::Player;
-use super::{CurrentLevel, WinZone, WinZoneTimer, WinZoneTimerText};
+use super::{CurrentLevel, Pit, WinZone, WinZoneTimer, WinZoneTimerText};
 
 const WIN_ZONE_TIME: f32 = 3.0;
+const PIT_EDGE_RESISTANCE: f32 = 80.0;
+const PIT_FALL_DURATION: f32 = 0.5;
 
 #[derive(Component)]
 pub struct BoundToLevel;
+
+#[derive(Component)]
+pub struct FallingIntoPit {
+    pub timer: f32,
+    pub pit_center: Vec2,
+}
 
 pub fn enforce_level_bounds(
     current_level: Res<CurrentLevel>,
@@ -85,5 +93,91 @@ pub fn check_win_zone(
         }
     } else {
         timer.0 = 0.0;
+    }
+}
+
+pub fn apply_pit_edge_resistance(
+    time: Res<Time>,
+    pit_query: Query<(&Transform, &Pit)>,
+    mut entity_query: Query<(&mut Transform, Option<&WalkCollider>), (With<BoundToLevel>, Without<Dead>, Without<FallingIntoPit>, Without<Pit>, Without<Knockback>)>,
+) {
+    for (mut entity_transform, walk_collider) in &mut entity_query {
+        let offset_y = walk_collider.map(|c| c.offset_y).unwrap_or(0.0);
+        let feet_pos = Vec2::new(
+            entity_transform.translation.x,
+            entity_transform.translation.y + offset_y,
+        );
+
+        for (pit_transform, pit) in &pit_query {
+            let pit_center = pit_transform.translation.truncate();
+            let to_entity = feet_pos - pit_center;
+            let distance = to_entity.length();
+
+            if distance >= pit.radius && distance < pit.edge_radius {
+                let edge_depth = 1.0 - (distance - pit.radius) / (pit.edge_radius - pit.radius);
+                let resistance = edge_depth.powi(2) * PIT_EDGE_RESISTANCE;
+                let push_dir = to_entity.normalize_or_zero();
+                let push = push_dir * resistance * time.delta_secs();
+
+                entity_transform.translation.x += push.x;
+                entity_transform.translation.y += push.y;
+            }
+        }
+    }
+}
+
+pub fn check_pit_fall(
+    mut commands: Commands,
+    pit_query: Query<(&Transform, &Pit)>,
+    entity_query: Query<(Entity, &Transform, Option<&WalkCollider>), (With<BoundToLevel>, Without<Dead>, Without<FallingIntoPit>)>,
+) {
+    for (entity, entity_transform, walk_collider) in &entity_query {
+        let offset_y = walk_collider.map(|c| c.offset_y).unwrap_or(0.0);
+        let feet_pos = Vec2::new(
+            entity_transform.translation.x,
+            entity_transform.translation.y + offset_y,
+        );
+
+        for (pit_transform, pit) in &pit_query {
+            let pit_center = pit_transform.translation.truncate();
+            let distance = feet_pos.distance(pit_center);
+
+            if distance < pit.radius {
+                commands.entity(entity).insert(FallingIntoPit {
+                    timer: 0.0,
+                    pit_center,
+                });
+                break;
+            }
+        }
+    }
+}
+
+pub fn animate_pit_fall(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Transform, &mut FallingIntoPit, Option<&WalkCollider>)>,
+) {
+    for (entity, mut transform, mut falling, walk_collider) in &mut query {
+        falling.timer += time.delta_secs();
+        let t = (falling.timer / PIT_FALL_DURATION).min(1.0);
+
+        let offset_y = walk_collider.map(|c| c.offset_y).unwrap_or(0.0);
+        let current_feet = Vec2::new(
+            transform.translation.x,
+            transform.translation.y + offset_y,
+        );
+
+        let new_feet = current_feet.lerp(falling.pit_center, t * 3.0 * time.delta_secs());
+        transform.translation.x = new_feet.x;
+        transform.translation.y = new_feet.y - offset_y;
+
+        let scale = (1.0 - t * 2.0).max(0.0);
+        transform.scale = Vec3::splat(scale);
+
+        if falling.timer >= PIT_FALL_DURATION {
+            commands.entity(entity).insert((Dead, DeathAnimation { timer: 0.0, stage: 2 }));
+            commands.entity(entity).remove::<FallingIntoPit>();
+        }
     }
 }

@@ -107,7 +107,6 @@ fn setup(
 ) {
     // Load game config from INI file (with fallback to defaults)
     let game_config = GameConfig::load_from_file("config.ini");
-    commands.insert_resource(game_config);
 
     // Camera
     commands.spawn((
@@ -118,7 +117,7 @@ fn setup(
     // Load assets
     let character_assets = CharacterAssets::load(&mut meshes, &mut materials);
     let player_sprite_sheet = load_player_sprite_sheet(&asset_server, &mut texture_atlas_layouts);
-    let item_registry = build_item_registry(&mut meshes, &mut materials);
+    let item_registry = build_item_registry(&game_config, &mut meshes, &mut materials);
     let prop_registry = build_prop_registry(&mut meshes, &mut materials);
     let crate_sprites = load_crate_sprites(&asset_server, &mut texture_atlas_layouts);
     let crate2_sprites = load_crate2_sprites(&asset_server, &mut texture_atlas_layouts);
@@ -126,6 +125,7 @@ fn setup(
     let item_icons = load_item_icons(&asset_server);
 
     // Insert resources
+    commands.insert_resource(game_config);
     commands.insert_resource(character_assets);
     commands.insert_resource(player_sprite_sheet);
     commands.insert_resource(item_registry);
@@ -182,8 +182,13 @@ fn spawn_world(
         levels::spawn_win_zone(&mut commands, win_zone.position, win_zone.radius, &mut meshes, &mut materials);
     }
 
+    // Spawn pits
+    for pit in &level.pits {
+        levels::spawn_pit(&mut commands, pit.position, pit.radius, pit.edge_radius, &mut meshes, &mut materials);
+    }
+
     // Spawn player at level's spawn position
-    player::spawn_player(&mut commands, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, level.player_spawn);
+    player::spawn_player(&mut commands, &config, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, level.player_spawn);
     player::spawn_target_outline(&mut commands, &character_assets);
 
     for spawn in &level.items {

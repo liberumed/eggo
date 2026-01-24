@@ -5,14 +5,14 @@ use crate::inventory::weapons::{Fist, Weapon, WeaponSwing};
 use crate::core::{Dead, DeathAnimation, GameConfig, HitCollider, Stunned};
 use crate::player::Player;
 use crate::state_machine::{AttackPhase, RequestTransition, StateEntered, StateExited, StateMachine};
-use super::{Creature, CreatureState, Goblin, Hostile, PlayerInRange};
+use super::{AttackOffset, CardinalAttacks, Creature, CreatureState, Hostile, PlayerInRange};
 
 pub fn on_attack_windup_enter(
     mut commands: Commands,
     config: Res<GameConfig>,
     mut events: MessageReader<StateEntered<CreatureState>>,
     player_query: Query<&Transform, With<Player>>,
-    creature_query: Query<(&Transform, &Children, Option<&Goblin>)>,
+    creature_query: Query<(&Transform, &Children, Option<&CardinalAttacks>)>,
     fist_query: Query<(Entity, &Weapon), With<Fist>>,
 ) {
     let Ok(player_transform) = player_query.single() else { return };
@@ -23,7 +23,7 @@ pub fn on_attack_windup_enter(
             continue;
         }
 
-        let Ok((creature_transform, children, goblin)) = creature_query.get(event.entity) else {
+        let Ok((creature_transform, children, cardinal_attacks)) = creature_query.get(event.entity) else {
             continue;
         };
 
@@ -31,8 +31,7 @@ pub fn on_attack_windup_enter(
         let dir = player_pos - creature_pos;
         let raw_angle = dir.y.atan2(dir.x);
 
-        // Goblins snap to cardinal directions (like player)
-        let base_angle = Some(if goblin.is_some() {
+        let base_angle = Some(if cardinal_attacks.is_some() {
             snap_to_cardinal(raw_angle)
         } else {
             raw_angle
@@ -101,42 +100,38 @@ pub fn on_creature_provoked(
 /// Detects when creatures in Chase state are within weapon range of the player.
 /// Emits PlayerInRange event for other systems to react to.
 pub fn detect_player_proximity(
-    config: Res<GameConfig>,
     mut events: MessageWriter<PlayerInRange>,
     player_query: Query<(&Transform, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    creature_query: Query<(Entity, &Transform, &StateMachine<CreatureState>, &Children, Option<&Goblin>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    creature_query: Query<(Entity, &Transform, &StateMachine<CreatureState>, &Children, Option<&AttackOffset>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     fist_query: Query<&Weapon, With<Fist>>,
 ) {
     let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
-    // Effective range bonus = radius minus offset (offset adds distance to circle centers)
-    let player_range_bonus = player_hit_collider
-        .map(|h| (h.max_radius() - h.max_offset()).max(0.0))
-        .unwrap_or(0.0);
 
-    for (entity, creature_transform, state_machine, children, goblin) in &creature_query {
-        // Only detect from Chase state
+    for (entity, creature_transform, state_machine, children, attack_offset) in &creature_query {
         if *state_machine.current() != CreatureState::Chase {
             continue;
         }
 
         let creature_pos = creature_transform.translation.truncate();
 
-        // Goblins attack from body center (with Y offset), others from base position
-        let attack_origin = if goblin.is_some() {
-            Vec2::new(creature_pos.x, creature_pos.y + config.attack_center_offset_y)
-        } else {
-            creature_pos
-        };
-        let distance = player_pos.distance(attack_origin);
+        let offset_y = attack_offset.map(|o| o.0).unwrap_or(0.0);
+        let attack_origin = Vec2::new(creature_pos.x, creature_pos.y + offset_y);
 
-        // Check if within weapon range
+        let min_distance = player_hit_collider
+            .map(|collider| {
+                collider.circles.iter()
+                    .map(|c| (player_pos + c.offset).distance(attack_origin) - c.radius)
+                    .fold(f32::MAX, f32::min)
+            })
+            .unwrap_or_else(|| player_pos.distance(attack_origin));
+
         for child in children.iter() {
             if let Ok(weapon) = fist_query.get(child) {
-                if distance < weapon.range() + player_range_bonus {
+                if min_distance < weapon.range() {
                     events.write(PlayerInRange {
                         creature: entity,
-                        distance,
+                        distance: min_distance,
                     });
                     break;
                 }

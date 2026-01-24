@@ -16,6 +16,12 @@ pub struct WinZone {
 }
 
 #[derive(Component)]
+pub struct Pit {
+    pub radius: f32,
+    pub edge_radius: f32,
+}
+
+#[derive(Component)]
 pub struct WinZoneTimerText;
 
 #[derive(Resource, Default)]
@@ -23,6 +29,7 @@ pub struct WinZoneTimer(pub f32);
 
 const Z_VOID: f32 = -10.0;
 const Z_CORRIDOR: f32 = -9.0;
+const Z_PIT: f32 = -8.5;
 const Z_WIN_ZONE: f32 = -8.5;
 
 /// Create a pentagram (5-pointed star) inside a circle, mirrored horizontally (point down)
@@ -156,6 +163,82 @@ pub fn spawn_win_zone(
             TextFont { font_size: 14.0, ..default() },
             TextColor(Color::srgba(1.0, 1.0, 0.5, 0.9)),
             Transform::from_xyz(0.0, 0.0, 0.1),
+        ));
+    });
+}
+
+fn create_pit_mesh(radius: f32, segments: u32) -> Mesh {
+    use std::f32::consts::PI;
+
+    let mut positions = Vec::new();
+    let mut indices = Vec::new();
+
+    positions.push([0.0, 0.0, 0.0]);
+
+    for i in 0..=segments {
+        let angle = (i as f32) * 2.0 * PI / segments as f32;
+        positions.push([radius * angle.cos(), radius * angle.sin(), 0.0]);
+    }
+
+    for i in 1..=segments {
+        indices.extend_from_slice(&[0, i, i + 1]);
+    }
+    indices.extend_from_slice(&[0, segments, 1]);
+
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_indices(Indices::U32(indices))
+}
+
+fn create_ring_mesh(inner_radius: f32, outer_radius: f32, segments: u32) -> Mesh {
+    use std::f32::consts::PI;
+
+    let mut positions = Vec::new();
+    let mut indices = Vec::new();
+
+    for i in 0..=segments {
+        let angle = (i as f32) * 2.0 * PI / segments as f32;
+        positions.push([inner_radius * angle.cos(), inner_radius * angle.sin(), 0.0]);
+        positions.push([outer_radius * angle.cos(), outer_radius * angle.sin(), 0.0]);
+    }
+
+    for i in 0..segments {
+        let base = i * 2;
+        indices.extend_from_slice(&[
+            base, base + 1, base + 3,
+            base, base + 3, base + 2,
+        ]);
+    }
+
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_indices(Indices::U32(indices))
+}
+
+pub fn spawn_pit(
+    commands: &mut Commands,
+    position: Vec2,
+    radius: f32,
+    edge_radius: f32,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+) {
+    let pit_mesh = meshes.add(create_pit_mesh(radius, 24));
+    let pit_material = materials.add(Color::srgba(0.02, 0.02, 0.02, 1.0));
+
+    let edge_mesh = meshes.add(create_ring_mesh(radius, edge_radius, 24));
+    let edge_material = materials.add(Color::srgba(0.3, 0.15, 0.1, 0.6));
+
+    commands.spawn((
+        Pit { radius, edge_radius },
+        Mesh2d(pit_mesh),
+        MeshMaterial2d(pit_material),
+        Transform::from_xyz(position.x, position.y, Z_PIT),
+    )).with_children(|parent| {
+        parent.spawn((
+            Mesh2d(edge_mesh),
+            MeshMaterial2d(edge_material),
+            Transform::from_xyz(0.0, 0.0, 0.01),
         ));
     });
 }

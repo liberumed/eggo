@@ -32,6 +32,8 @@ pub struct GameConfig {
     pub hostile_speed: f32,
     pub goblin_sight_range: f32,
     pub attack_cooldown_duration: f32,
+    pub player_min_distance: f32,
+    pub push_radius: f32,
 
     // === SHARED COMBAT CONFIG ===
     pub knockback_force: f32,
@@ -46,6 +48,14 @@ pub struct GameConfig {
     pub screen_shake_intensity: f32,
     pub screen_shake_duration: f32,
     pub hit_highlight_duration: f32,
+
+    // === WEAPON CONFIG ===
+    pub fist_range: f32,
+    pub knife_range: f32,
+    pub club_range: f32,
+    pub club_speed: i32,
+    pub stick_range: f32,
+    pub sword_range: f32,
 }
 
 impl Default for GameConfig {
@@ -74,6 +84,8 @@ impl Default for GameConfig {
             hostile_speed: HOSTILE_SPEED,
             goblin_sight_range: GOBLIN_SIGHT_RANGE,
             attack_cooldown_duration: ATTACK_COOLDOWN_DURATION,
+            player_min_distance: PLAYER_MIN_DISTANCE,
+            push_radius: PUSH_RADIUS,
             // Shared Combat
             knockback_force: KNOCKBACK_FORCE,
             attack_hit_delay_percent: ATTACK_HIT_DELAY_PERCENT,
@@ -86,6 +98,13 @@ impl Default for GameConfig {
             screen_shake_intensity: SCREEN_SHAKE_INTENSITY,
             screen_shake_duration: SCREEN_SHAKE_DURATION,
             hit_highlight_duration: HIT_HIGHLIGHT_DURATION,
+            // Weapon Config
+            fist_range: FIST_RANGE,
+            knife_range: KNIFE_RANGE,
+            club_range: CLUB_RANGE,
+            club_speed: 2,
+            stick_range: STICK_RANGE,
+            sword_range: SWORD_RANGE,
         }
     }
 }
@@ -144,6 +163,8 @@ impl GameConfig {
         load_float!("creature", "hostile_speed", hostile_speed);
         load_float!("creature", "goblin_sight_range", goblin_sight_range);
         load_float!("creature", "attack_cooldown", attack_cooldown_duration);
+        load_float!("creature", "player_min_distance", player_min_distance);
+        load_float!("creature", "push_radius", push_radius);
 
         // Shared Combat
         load_float!("combat", "knockback_force", knockback_force);
@@ -158,6 +179,16 @@ impl GameConfig {
         load_float!("game_feel", "screen_shake_intensity", screen_shake_intensity);
         load_float!("game_feel", "screen_shake_duration", screen_shake_duration);
         load_float!("game_feel", "hit_highlight_duration", hit_highlight_duration);
+
+        // Weapon Config
+        load_float!("weapon", "fist_range", fist_range);
+        load_float!("weapon", "knife_range", knife_range);
+        load_float!("weapon", "club_range", club_range);
+        if let Some(val) = ini.getint("weapon", "club_speed").ok().flatten() {
+            config.club_speed = val as i32;
+        }
+        load_float!("weapon", "stick_range", stick_range);
+        load_float!("weapon", "sword_range", sword_range);
 
         config
     }

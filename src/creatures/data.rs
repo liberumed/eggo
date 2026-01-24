@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use crate::constants::{OBSTACLE_LOOK_AHEAD, PLAYER_MIN_DISTANCE, SEPARATION_RADIUS};
+
 /// Steering behavior strategy
 #[derive(Clone, Copy, Default, Debug)]
 pub enum SteeringStrategy {
@@ -28,9 +30,9 @@ impl Default for SteeringConfig {
             strategy: SteeringStrategy::Direct,
             sight_range: 150.0,
             chase_range: 300.0,
-            obstacle_look_ahead: 50.0,
-            separation_radius: 35.0,
-            min_player_distance: 25.0,
+            obstacle_look_ahead: OBSTACLE_LOOK_AHEAD,
+            separation_radius: SEPARATION_RADIUS,
+            min_player_distance: PLAYER_MIN_DISTANCE,
             flank_angle_min: 0.5,
             flank_angle_max: 1.0,
             occupied_angle_spread: 0.6,
@@ -81,6 +83,10 @@ pub struct CreatureDefinition {
     pub hit_collider: ColliderDef,
     pub base_offset: f32,
     pub scale: f32,
+    // Attack behavior
+    pub attack_offset_y: f32,
+    pub cardinal_attacks: bool,
+    pub sprite_rendering: bool,
     // AI behavior
     pub steering: SteeringConfig,
     pub provoked_steering: SteeringConfig,
@@ -106,7 +112,9 @@ pub mod creature_catalog {
             hit_collider: ColliderDef::new(10.0, 14.0, 0.0),
             base_offset: -14.0,
             scale: 1.0,
-            // Neutral blobs don't have steering (not hostile by default)
+            attack_offset_y: 0.0,
+            cardinal_attacks: false,
+            sprite_rendering: false,
             steering: SteeringConfig::default(),
             provoked_steering: SteeringConfig {
                 strategy: SteeringStrategy::Direct,
@@ -134,14 +142,15 @@ pub mod creature_catalog {
             hit_collider: ColliderDef::new(10.0, 14.0, 0.0),
             base_offset: -14.0,
             scale: 1.0,
-            // Hostile blobs use flanking behavior
+            attack_offset_y: 0.0,
+            cardinal_attacks: false,
+            sprite_rendering: false,
             steering: SteeringConfig {
                 strategy: SteeringStrategy::Flanking,
                 flank_angle_min: 0.5,
                 flank_angle_max: 1.0,
                 ..Default::default()
             },
-            // Not used (always hostile from start)
             provoked_steering: SteeringConfig::default(),
         }
     }
@@ -152,19 +161,20 @@ pub mod creature_catalog {
             name: "Goblin".to_string(),
             health: 4,
             speed: 50.0,
-            hostile_chance: 1.0,  // Always hostile
+            hostile_chance: 1.0,
             glowing_chance: 0.0,
             loot: LootTable {
                 philosophy_chance: 0.3,
                 nature_chance: 0.3,
                 wisdom_chance: 0.4,
             },
-            // Same colliders as player for sprite-based enemy
             walk_collider: ColliderDef::new(8.0, 4.0, -4.0),
-            hit_collider: ColliderDef::new(12.0, 18.0, 8.0),
-            base_offset: -24.0,  // Same as player for 64x64 sprites
+            hit_collider: ColliderDef::new(10.0, 14.0, 3.0),
+            base_offset: -24.0,
             scale: 1.0,
-            // Goblins use flanking behavior
+            attack_offset_y: 1.5,
+            cardinal_attacks: true,
+            sprite_rendering: true,
             steering: SteeringConfig {
                 strategy: SteeringStrategy::Flanking,
                 flank_angle_min: 0.3,

@@ -76,6 +76,8 @@ impl Plugin for PlayerPlugin {
                 apply_dash_state,
                 tick_dash_cooldown,
                 tick_phase_through,
+                tick_combo_timer,
+                tick_hurt_animation,
                 apply_knockback,
                 animate_player_death,
                 toggle_weapon,

@@ -10,7 +10,7 @@ use crate::player::{PlayerSpriteSheet, SpriteAnimation};
 use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
 use crate::levels::BoundToLevel;
-use super::{Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Goblin, Hostile, ProvokedSteering, creature_catalog};
+use super::{AttackOffset, CardinalAttacks, Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Goblin, Hostile, ProvokedSteering, SpriteRendering, creature_catalog};
 
 /// Spawn a creature's range indicator as an independent entity
 /// This ensures consistent behavior - indicator follows creature but isn't affected by animations
@@ -32,6 +32,7 @@ pub fn spawn_creature_range_indicator(
 
 pub fn spawn_creatures(
     commands: &mut Commands,
+    config: &GameConfig,
     assets: &CharacterAssets,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
@@ -70,14 +71,14 @@ pub fn spawn_creatures(
 
             positions.push(pos);
 
-            // Only spawn neutral blobs (no hostile red eggs for now)
-            spawn_creature(commands, assets, meshes, materials, &mut rng, &blob, x, y);
+            spawn_creature(commands, config, assets, meshes, materials, &mut rng, &blob, x, y);
         }
     }
 }
 
 fn spawn_creature(
     commands: &mut Commands,
+    config: &GameConfig,
     assets: &CharacterAssets,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
@@ -113,9 +114,8 @@ fn spawn_creature(
         }
     };
 
-    // Pre-create fist weapon if hostile (before entering closure)
     let fist_data = if is_hostile {
-        let fist = weapon_catalog::fist(meshes, materials);
+        let fist = weapon_catalog::fist(config, meshes, materials);
         let arc_mesh = create_weapon_arc(meshes, &fist);
         Some((fist.visual.clone(), fist, arc_mesh))
     } else {
@@ -152,6 +152,15 @@ fn spawn_creature(
         CreatureSteering(definition.steering.clone()),
         ProvokedSteering(definition.provoked_steering.clone()),
     ));
+
+    // Attack behavior components
+    entity_commands.insert(AttackOffset(definition.attack_offset_y));
+    if definition.cardinal_attacks {
+        entity_commands.insert(CardinalAttacks);
+    }
+    if definition.sprite_rendering {
+        entity_commands.insert(SpriteRendering);
+    }
 
     // State machine - all creatures get one
     let initial_state = if is_hostile {
@@ -298,7 +307,7 @@ pub fn spawn_goblin(
 ) {
     let mut definition = creature_catalog::goblin();
     definition.steering.sight_range = config.goblin_sight_range;
-    let club = weapon_catalog::club(meshes, materials);
+    let club = weapon_catalog::club(config, meshes, materials);
     let club_visual = club.visual.clone();
     // Thin arc (always visible)
     let arc_mesh = create_half_circle_arc(meshes, club.range());
@@ -317,11 +326,13 @@ pub fn spawn_goblin(
     };
 
     let goblin_entity = commands.spawn((
+        // Core identity
         Goblin,
         Creature,
         BoundToLevel,
         Hostile { speed: definition.speed },
         StateMachine::<CreatureState>::new(CreatureState::Chase),
+        // Physics/rendering
         YSorted { base_offset: definition.base_offset },
         WalkCollider {
             radius_x: definition.walk_collider.radius_x,
@@ -335,8 +346,15 @@ pub fn spawn_goblin(
         ),
         Health(definition.health),
         loot,
+    )).insert((
+        // AI/steering
         CreatureSteering(definition.steering.clone()),
         ProvokedSteering(definition.provoked_steering.clone()),
+        // Attack behavior
+        AttackOffset(definition.attack_offset_y),
+        CardinalAttacks,
+        SpriteRendering,
+        // Animation
         SpriteAnimation::new("idle", initial_anim.frame_duration_ms),
         Sprite::from_atlas_image(
             initial_anim.texture.clone(),
@@ -407,12 +425,11 @@ pub fn spawn_goblin(
         Vec3::new(position.x, position.y, 0.0),
     );
 
-    // Spawn filled half-circle attack indicator (hidden initially)
     commands.spawn((
         GoblinAttackIndicator(goblin_entity),
         Mesh2d(attack_mesh),
         MeshMaterial2d(assets.attack_windup_material.clone()),
-        Transform::from_xyz(position.x, position.y + ATTACK_CENTER_OFFSET_Y, Z_WEAPON + 0.05),
+        Transform::from_xyz(position.x, position.y + definition.attack_offset_y, Z_WEAPON + 0.05),
         Visibility::Hidden,
     ));
 }

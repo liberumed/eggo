@@ -106,6 +106,13 @@ pub struct WinZoneData {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct PitData {
+    pub position: Vec2,
+    pub radius: f32,
+    pub edge_radius: f32,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct LevelData {
     pub name: String,
     pub bounds: LevelBounds,
@@ -119,6 +126,8 @@ pub struct LevelData {
     pub props: Vec<PropSpawn>,
     #[serde(default)]
     pub win_zone: Option<WinZoneData>,
+    #[serde(default)]
+    pub pits: Vec<PitData>,
 }
 
 impl LevelData {
@@ -181,5 +190,9 @@ impl CurrentLevel {
 
     pub fn win_zone(&self) -> Option<&WinZoneData> {
         self.data.as_ref().and_then(|d| d.win_zone.as_ref())
+    }
+
+    pub fn pits(&self) -> &[PitData] {
+        self.data.as_ref().map(|d| d.pits.as_slice()).unwrap_or(&[])
     }
 }

@@ -43,3 +43,15 @@ pub struct Goblin;
 /// Marker for creatures that have spotted the player and are actively pursuing
 #[derive(Component)]
 pub struct Activated;
+
+/// Creature attacks snap to 4 cardinal directions (like player)
+#[derive(Component)]
+pub struct CardinalAttacks;
+
+/// Creature uses sprite-based rendering (vs procedural mesh)
+#[derive(Component)]
+pub struct SpriteRendering;
+
+/// Vertical offset for creature's attack origin (0.0 = feet, higher = body center)
+#[derive(Component)]
+pub struct AttackOffset(pub f32);

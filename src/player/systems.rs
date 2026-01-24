@@ -10,11 +10,11 @@ use crate::core::CharacterAssets;
 use crate::state_machine::{AttackPhase, RequestTransition, StateMachine};
 use super::{
     Player, PlayerAnimation, DashCooldown, Sprinting, PhaseThrough, MovementInput,
-    SpriteAnimation, PlayerSpriteSheet, PlayerState, CameraState,
-    PlayerDashing, PlayerAttacking, PlayerSmashAttack,
+    SpriteAnimation, PlayerSpriteSheet, PlayerState, CameraState, ComboState, FacingDirection,
+    PlayerDashing, PlayerAttacking, PlayerSmashAttack, HurtAnimation,
 };
 use crate::inventory::AttackType;
-use crate::inventory::weapons::{Weapon, PlayerWeapon, Drawn, WeaponSwing, Fist};
+use crate::inventory::weapons::{PlayerWeapon, WeaponSwing, Fist};
 use crate::creatures::Creature;
 use crate::levels::CurrentLevel;
 
@@ -287,6 +287,32 @@ pub fn tick_dash_cooldown(
     }
 }
 
+/// Tick combo timer and reset combo if timed out
+pub fn tick_combo_timer(
+    time: Res<Time>,
+    mut query: Query<&mut ComboState, With<Player>>,
+) {
+    let dt = time.delta_secs();
+    for mut combo in &mut query {
+        combo.time_since_attack += dt;
+    }
+}
+
+/// Tick hurt animation timer and remove when done
+pub fn tick_hurt_animation(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut HurtAnimation)>,
+) {
+    let dt = time.delta_secs();
+    for (entity, mut hurt) in &mut query {
+        hurt.timer += dt;
+        if hurt.timer >= hurt.duration {
+            commands.entity(entity).remove::<HurtAnimation>();
+        }
+    }
+}
+
 pub fn apply_knockback(
     mut commands: Commands,
     time: Res<Time>,
@@ -528,51 +554,65 @@ pub fn advance_player_attack_phases(
 
 pub fn update_player_sprite_animation(
     config: Res<GameConfig>,
-    mut query: Query<(&PlayerAnimation, &mut SpriteAnimation, &StateMachine<PlayerState>, Option<&PlayerAttacking>), With<Player>>,
-    weapon_query: Query<(&Weapon, Option<&Drawn>), With<PlayerWeapon>>,
+    mut query: Query<(&PlayerAnimation, &mut SpriteAnimation, &mut FacingDirection, &StateMachine<PlayerState>, Option<&PlayerAttacking>, Option<&HurtAnimation>), With<Player>>,
 ) {
-    let has_smash_weapon = weapon_query
-        .iter()
-        .next()
-        .map(|(w, drawn)| w.attack_type == AttackType::Smash && drawn.is_some())
-        .unwrap_or(false);
+    for (player_anim, mut sprite_anim, mut facing, state, attacking, hurt) in &mut query {
+        // Hurt animation takes priority (brief interrupt)
+        if hurt.is_some() {
+            let hurt_anim = match *facing {
+                FacingDirection::Up => "hurt_up",
+                FacingDirection::Down => "hurt_down",
+                FacingDirection::Left => "hurt_left",
+                FacingDirection::Right => "hurt_right",
+            };
+            sprite_anim.set_animation(hurt_anim);
+            sprite_anim.speed = 1.0;
+            sprite_anim.flip_x = false;
+            continue;
+        }
 
-    for (player_anim, mut sprite_anim, state, attacking) in &mut query {
+        // Handle attack animations - use the specific attack anim from combo
         if matches!(state.current(), PlayerState::Attacking(_)) {
             if let Some(attack) = attacking {
-                sprite_anim.set_animation("attack");
+                sprite_anim.set_animation(&attack.attack_anim);
                 sprite_anim.speed = 1.0;
-                sprite_anim.flip_x = !attack.facing_right;
+                sprite_anim.flip_x = false;  // Directional sprites don't need flip
             }
             continue;
         }
 
         let velocity = player_anim.velocity.length();
 
-        let (new_animation, anim_speed) = if velocity > config.player_speed * 1.2 {
-            ("run", 1.0)
-        } else if velocity > 0.1 {
-            let vx = player_anim.velocity.x.abs();
-            let vy = player_anim.velocity.y;
-            if vy > vx {
-                ("walk_up", 1.0)
-            } else if vy < -vx {
-                ("walk_down", 1.0)
-            } else {
-                ("walk", 1.0)
-            }
-        } else if has_smash_weapon {
-            ("idle_stick", 1.0)
+        // Update facing direction from movement
+        if velocity > 0.1 {
+            *facing = FacingDirection::from_vec2(player_anim.velocity);
+        }
+
+        // Select animation based on velocity and facing direction
+        let (new_animation, anim_speed) = if velocity > 0.1 {
+            // Use directional walk animations
+            let walk_anim = match *facing {
+                FacingDirection::Up => "walk_up",
+                FacingDirection::Down => "walk_down",
+                FacingDirection::Left => "walk_left",
+                FacingDirection::Right => "walk_right",
+            };
+            let speed = if velocity > config.player_speed * 1.2 { 1.5 } else { 1.0 };
+            (walk_anim, speed)
         } else {
-            ("idle", 0.2)
+            // Use directional idle animations
+            let idle_anim = match *facing {
+                FacingDirection::Up => "idle_up",
+                FacingDirection::Down => "idle_down",
+                FacingDirection::Left => "idle_left",
+                FacingDirection::Right => "idle_right",
+            };
+            (idle_anim, 0.5)
         };
 
         sprite_anim.set_animation(new_animation);
         sprite_anim.speed = anim_speed;
-
-        if player_anim.velocity.x.abs() > 0.1 {
-            sprite_anim.flip_x = player_anim.velocity.x > 0.0;
-        }
+        sprite_anim.flip_x = false;  // Directional sprites don't need flip
     }
 }
 

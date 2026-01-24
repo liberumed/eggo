@@ -1,10 +1,9 @@
 use bevy::prelude::*;
 
 use crate::combat::hit_detection::snap_to_cardinal;
-use crate::constants::ATTACK_CENTER_OFFSET_Y;
 use crate::inventory::weapons::{Fist, PlayerWeapon, Weapon, WeaponSwing};
-use crate::core::{Dead, HitCollider, StaticCollider, WalkCollider};
-use crate::creatures::{ContextMap, ContextMapCache, Creature, Goblin, Hostile, NUM_DIRECTIONS};
+use crate::core::{Dead, GameConfig, HitCollider, StaticCollider, WalkCollider};
+use crate::creatures::{AttackOffset, CardinalAttacks, ContextMap, ContextMapCache, Creature, Hostile, NUM_DIRECTIONS};
 use crate::player::{Player, PlayerSmashAttack, PlayerState};
 use crate::props::{Prop, PropRegistry};
 use crate::state_machine::StateMachine;
@@ -41,7 +40,8 @@ pub struct WeaponConeStats {
 #[derive(Component)]
 pub struct CreatureDebugCircle {
     pub entity: Entity,
-    pub is_goblin: bool,
+    pub offset_y: f32,
+    pub cardinal_attacks: bool,
 }
 
 /// Toggle collision debug visibility with F3
@@ -177,19 +177,16 @@ pub fn spawn_debug_circles(
     }
 }
 
-/// Spawn debug cones for weapons
 pub fn spawn_weapon_debug_cones(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    config: Res<GameConfig>,
     debug_config: Res<DebugConfig>,
-    // Player (to spawn cone on player, not weapon)
     player_query: Query<(Entity, Option<&WeaponConeStats>), With<Player>>,
     player_weapon_query: Query<&Weapon, With<PlayerWeapon>>,
-    // Existing player cones to despawn if weapon changed (exclude creature circles)
     cone_query: Query<Entity, (With<WeaponReachCone>, Without<CreatureDebugCircle>)>,
-    // Creatures with fists (spawn circle on creature, not fist)
-    creature_query: Query<(Entity, &Children, Option<&Goblin>), (With<Creature>, Without<HasDebugCone>)>,
+    creature_query: Query<(Entity, &Children, Option<&CardinalAttacks>, Option<&AttackOffset>), (With<Creature>, Without<HasDebugCone>)>,
     fist_query: Query<&Weapon, With<Fist>>,
 ) {
     if !debug_config.show_collisions {
@@ -216,9 +213,7 @@ pub fn spawn_weapon_debug_cones(
                     commands.entity(cone_entity).despawn();
                 }
 
-                // CircularSector::new takes half angle, so divide by 2
                 let cone_mesh = meshes.add(CircularSector::new(range, cone_angle / 2.0));
-                // Center on player body for half-circle attacks
                 commands.entity(player_entity)
                     .insert(WeaponConeStats { range, half_angle: cone_angle })
                     .with_children(|parent| {
@@ -226,7 +221,7 @@ pub fn spawn_weapon_debug_cones(
                             WeaponReachCone,
                             Mesh2d(cone_mesh),
                             MeshMaterial2d(cone_color.clone()),
-                            Transform::from_xyz(0.0, ATTACK_CENTER_OFFSET_Y, 9.8),
+                            Transform::from_xyz(0.0, config.attack_center_offset_y, 9.8),
                         ));
                     });
             }
@@ -234,23 +229,24 @@ pub fn spawn_weapon_debug_cones(
     }
 
     // Creature fist cones - spawn as independent entities (not children) to avoid scale issues
-    for (creature_entity, children, maybe_goblin) in &creature_query {
+    for (creature_entity, children, cardinal_attacks, attack_offset) in &creature_query {
         // Find fist weapon in children
         for child in children.iter() {
             if let Ok(weapon) = fist_query.get(child) {
-                let is_goblin = maybe_goblin.is_some();
-                // Goblins use half-circle like player, other creatures use weapon cone
-                let cone_angle = if is_goblin {
+                let has_cardinal = cardinal_attacks.is_some();
+                // Cardinal attackers use half-circle like player, other creatures use weapon cone
+                let cone_angle = if has_cardinal {
                     std::f32::consts::PI
                 } else {
                     weapon.cone_angle()
                 };
+                let offset_y = attack_offset.map(|o| o.0).unwrap_or(0.0);
                 let cone_mesh = meshes.add(CircularSector::new(weapon.range(), cone_angle / 2.0));
                 commands.entity(creature_entity).insert(HasDebugCone);
                 // Spawn as independent entity, will follow creature position and rotation
                 commands.spawn((
                     WeaponReachCone,
-                    CreatureDebugCircle { entity: creature_entity, is_goblin },
+                    CreatureDebugCircle { entity: creature_entity, offset_y, cardinal_attacks: has_cardinal },
                     Mesh2d(cone_mesh),
                     MeshMaterial2d(cone_color.clone()),
                     Transform::from_xyz(0.0, 0.0, 9.8),
@@ -312,7 +308,6 @@ pub fn update_player_debug_cone(
     }
 }
 
-/// Sync creature debug cones with creature positions/rotations and despawn when creature dies
 pub fn update_creature_debug_circles(
     mut commands: Commands,
     player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<CreatureDebugCircle>)>,
@@ -325,17 +320,15 @@ pub fn update_creature_debug_circles(
         if let Ok(creature_transform) = creature_query.get(link.entity) {
             let creature_pos = creature_transform.translation.truncate();
 
-            // Goblins use ATTACK_CENTER_OFFSET_Y like player
-            let y_offset = if link.is_goblin { ATTACK_CENTER_OFFSET_Y } else { 0.0 };
             circle_transform.translation.x = creature_pos.x;
-            circle_transform.translation.y = creature_pos.y + y_offset;
+            circle_transform.translation.y = creature_pos.y + link.offset_y;
 
             // Rotate cone toward player (same direction as attack)
             // CircularSector points +Y by default, so offset by -90° to align with attack direction
             let dir = player_pos - creature_pos;
             let raw_angle = dir.y.atan2(dir.x);
-            // Goblins snap to cardinal directions like player
-            let angle = if link.is_goblin {
+            // Cardinal attackers snap to cardinal directions like player
+            let angle = if link.cardinal_attacks {
                 snap_to_cardinal(raw_angle)
             } else {
                 raw_angle

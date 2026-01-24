@@ -19,17 +19,17 @@ pub struct PlayerSpriteSheet {
     pub animations: HashMap<String, AnimationData>,
 }
 
-// Aseprite JSON structures
+// Aseprite JSON structures for json-array format
 #[derive(Deserialize)]
 #[allow(dead_code)]
-pub struct AsepriteJson {
-    pub frames: HashMap<String, AsepriteFrame>,
+pub struct AsepriteJsonArray {
+    pub frames: Vec<AsepriteFrameEntry>,
     pub meta: AsepriteMeta,
 }
 
 #[derive(Deserialize)]
 #[allow(dead_code)]
-pub struct AsepriteFrame {
+pub struct AsepriteFrameEntry {
     pub frame: AsepriteRect,
     pub duration: u32,
 }
@@ -66,47 +66,61 @@ pub struct AsepriteFrameTag {
     pub to: usize,
 }
 
-/// Load a single animation from Aseprite export
-fn load_animation(
-    name: &str,
+/// Non-looping animation tag prefixes
+const NON_LOOPING_PREFIXES: &[&str] = &["att_", "hurt_"];
+
+fn is_looping_animation(name: &str) -> bool {
+    !NON_LOOPING_PREFIXES.iter().any(|prefix| name.starts_with(prefix))
+}
+
+/// Load all tagged animations from an Aseprite export
+fn load_tagged_animations(
     png_path: &'static str,
     json_path: &str,
     asset_server: &AssetServer,
     texture_atlas_layouts: &mut Assets<TextureAtlasLayout>,
-    looping: bool,
-) -> AnimationData {
+) -> Vec<(String, AnimationData)> {
     let texture: Handle<Image> = asset_server.load(png_path);
 
     let json_str = std::fs::read_to_string(format!("assets/{}", json_path))
-        .expect(&format!("Failed to read {} JSON", name));
-    let aseprite: AsepriteJson = serde_json::from_str(&json_str)
-        .expect(&format!("Failed to parse {} JSON", name));
+        .unwrap_or_else(|_| panic!("Failed to read JSON: {}", json_path));
+    let aseprite: AsepriteJsonArray = serde_json::from_str(&json_str)
+        .unwrap_or_else(|_| panic!("Failed to parse JSON: {}", json_path));
 
-    let mut frames: Vec<_> = aseprite.frames.iter().collect();
-    frames.sort_by(|a, b| a.0.cmp(b.0));
+    // Get frame dimensions from the first frame
+    let frame_width = aseprite.frames.first().map(|f| f.frame.w).unwrap_or(128);
+    let frame_height = aseprite.frames.first().map(|f| f.frame.h).unwrap_or(128);
+    let total_frames = aseprite.frames.len() as u32;
 
-    let frame_width = frames.first().map(|(_, f)| f.frame.w).unwrap_or(64);
-    let frame_height = frames.first().map(|(_, f)| f.frame.h).unwrap_or(64);
-
+    // Create a single atlas layout for the entire spritesheet
     let layout = TextureAtlasLayout::from_grid(
         UVec2::new(frame_width, frame_height),
-        frames.len() as u32,
+        total_frames,
         1,
         None,
         None,
     );
     let atlas_layout = texture_atlas_layouts.add(layout);
 
-    let duration = frames.first().map(|(_, f)| f.duration).unwrap_or(100);
+    // Create animation data for each frame tag
+    aseprite.meta.frame_tags.iter().map(|tag| {
+        let frame_count = tag.to - tag.from + 1;
+        let duration = aseprite.frames.get(tag.from)
+            .map(|f| f.duration)
+            .unwrap_or(100);
 
-    AnimationData {
-        texture,
-        atlas_layout,
-        start_index: 0,
-        frame_count: frames.len(),
-        frame_duration_ms: duration,
-        looping,
-    }
+        (
+            tag.name.clone(),
+            AnimationData {
+                texture: texture.clone(),
+                atlas_layout: atlas_layout.clone(),
+                start_index: tag.from,
+                frame_count,
+                frame_duration_ms: duration,
+                looping: is_looping_animation(&tag.name),
+            }
+        )
+    }).collect()
 }
 
 /// Load and parse Aseprite JSON files, build TextureAtlasLayouts
@@ -116,65 +130,15 @@ pub fn load_player_sprite_sheet(
 ) -> PlayerSpriteSheet {
     let mut animations = HashMap::new();
 
-    // Load idle animation
-    animations.insert("idle".to_string(), load_animation(
-        "idle",
-        "sprites/player/player_idle.png",
-        "sprites/player/player_idle.json",
+    // Load all animations from the new tagged spritesheet
+    for (name, data) in load_tagged_animations(
+        "sprites/player/player_new.png",
+        "sprites/player/player_new.json",
         asset_server,
         texture_atlas_layouts,
-        true,
-    ));
-
-    // Load walk animation
-    animations.insert("walk".to_string(), load_animation(
-        "walk",
-        "sprites/player/player_walk.png",
-        "sprites/player/player_walk.json",
-        asset_server,
-        texture_atlas_layouts,
-        true,
-    ));
-
-    // Load walk_up animation
-    animations.insert("walk_up".to_string(), load_animation(
-        "walk_up",
-        "sprites/player/player_walk_up.png",
-        "sprites/player/player_walk_up.json",
-        asset_server,
-        texture_atlas_layouts,
-        true,
-    ));
-
-    // Load walk_down animation
-    animations.insert("walk_down".to_string(), load_animation(
-        "walk_down",
-        "sprites/player/player_walk_down.png",
-        "sprites/player/player_walk_down.json",
-        asset_server,
-        texture_atlas_layouts,
-        true,
-    ));
-
-    // Load attack animation (non-looping)
-    animations.insert("attack".to_string(), load_animation(
-        "attack",
-        "sprites/player/player_attack.png",
-        "sprites/player/player_attack.json",
-        asset_server,
-        texture_atlas_layouts,
-        false,
-    ));
-
-    // Load idle with stick animation
-    animations.insert("idle_stick".to_string(), load_animation(
-        "idle_stick",
-        "sprites/player/player_idle_stick.png",
-        "sprites/player/player_idle_stick.json",
-        asset_server,
-        texture_atlas_layouts,
-        true,
-    ));
+    ) {
+        animations.insert(name, data);
+    }
 
     PlayerSpriteSheet { animations }
 }

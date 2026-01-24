@@ -3,8 +3,8 @@ use rand::Rng;
 
 use crate::constants::{PROVOKED_SPEED, WEAPON_OFFSET, Z_BLOOD, Z_WEAPON};
 use crate::core::{ellipse_push, Blocking, Dead, DeathAnimation, GameAction, GameConfig, Health, HitCollider, InputBindings, Knockback, StaticCollider, Stunned};
-use crate::creatures::{Activated, ContextMapCache, Creature, FlankPreference, Goblin, Hostile};
-use crate::player::{Player, PlayerSmashAttack, PlayerState};
+use crate::creatures::{Activated, AttackOffset, CardinalAttacks, ContextMapCache, Creature, FlankPreference, Goblin, Hostile};
+use crate::player::{HurtAnimation, Player, PlayerSmashAttack, PlayerState};
 use crate::state_machine::StateMachine;
 use crate::props::{BarrelSprite, CrateSprite, Crate2Sprite, Destructible, Prop, PropRegistry, PropType};
 use super::{CreatureRangeIndicator, GoblinAttackIndicator, PlayerRangeIndicator, WeaponRangeIndicator};
@@ -174,12 +174,15 @@ pub fn apply_mesh_attack_hits(
             let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
             weapon.apply_on_hit(&mut commands, entity, knockback_dir);
 
-            // Add hit highlight (red flash)
-            commands.entity(entity).insert(HitHighlight {
-                timer: 0.0,
-                duration: config.hit_highlight_duration,
-                original_material: None,
-            });
+            // Add hit highlight (red flash) and hurt animation
+            commands.entity(entity).insert((
+                HitHighlight {
+                    timer: 0.0,
+                    duration: config.hit_highlight_duration,
+                    original_material: None,
+                },
+                HurtAnimation::default(),
+            ));
 
             let is_kill = health.0 <= 0;
             spawn_blood_particles(&mut commands, &assets, creature_pos, attack_dir, is_kill);
@@ -198,8 +201,7 @@ pub fn apply_mesh_attack_hits(
                     commands.entity(entity).insert(CreatureSteering(provoked_config.0.clone()));
                 }
 
-                // Spawn a fist for the newly hostile creature
-                let fist_weapon = weapon_catalog::fist(&mut meshes, &mut materials);
+                let fist_weapon = weapon_catalog::fist(&config, &mut meshes, &mut materials);
                 let fist_visual = fist_weapon.visual.clone();
                 let arc_mesh = create_weapon_arc(&mut meshes, &fist_weapon);
                 let fist_entity = commands.spawn((
@@ -293,11 +295,14 @@ pub fn apply_smash_attack_hits(
             let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
             weapon.apply_on_hit(&mut commands, entity, knockback_dir);
 
-            commands.entity(entity).insert(HitHighlight {
-                timer: 0.0,
-                duration: config.hit_highlight_duration,
-                original_material: None,
-            });
+            commands.entity(entity).insert((
+                HitHighlight {
+                    timer: 0.0,
+                    duration: config.hit_highlight_duration,
+                    original_material: None,
+                },
+                HurtAnimation::default(),
+            ));
 
             let is_kill = health.0 <= 0;
             spawn_blood_particles(&mut commands, &assets, creature_pos, attack_dir, is_kill);
@@ -314,7 +319,7 @@ pub fn apply_smash_attack_hits(
                     commands.entity(entity).insert(CreatureSteering(provoked_config.0.clone()));
                 }
 
-                let fist_weapon = weapon_catalog::fist(&mut meshes, &mut materials);
+                let fist_weapon = weapon_catalog::fist(&config, &mut meshes, &mut materials);
                 let fist_visual = fist_weapon.visual.clone();
                 let arc_mesh = create_weapon_arc(&mut meshes, &fist_weapon);
                 let fist_entity = commands.spawn((
@@ -434,6 +439,7 @@ pub fn aim_weapon(
 pub fn hostile_ai(
     mut commands: Commands,
     time: Res<Time>,
+    current_level: Res<crate::levels::CurrentLevel>,
     player_query: Query<(&Transform, Option<&HitCollider>), (With<Player>, Without<Creature>, Without<StaticCollider>)>,
     collider_query: Query<(&Transform, &StaticCollider), (Without<Player>, Without<Creature>)>,
     mut creature_queries: ParamSet<(
@@ -441,7 +447,7 @@ pub fn hostile_ai(
         Query<(Entity, &mut Transform, &Hostile, &crate::creatures::CreatureSteering, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&mut ContextMapCache>, Option<&FlankPreference>, Option<&Activated>), (Without<Dead>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
     )>,
 ) {
-    use crate::creatures::{ContextMap, ContextMapCache, CreatureState, FlankPreference, SteeringStrategy, seek_interest, seek_with_flank, obstacle_danger, separation_danger, player_proximity_danger, occupied_angle_danger};
+    use crate::creatures::{ContextMap, ContextMapCache, CreatureState, FlankPreference, SteeringStrategy, seek_interest, seek_with_flank, obstacle_danger, separation_danger, player_proximity_danger, occupied_angle_danger, pit_danger};
     use rand::Rng;
 
     let Ok((player_transform, player_hit_collider)) = player_query.single() else { return };
@@ -516,6 +522,13 @@ pub fn hostile_ai(
 
             // Danger: avoid obstacles
             obstacle_danger(&mut context, creature_pos, &collider_data, config.obstacle_look_ahead);
+
+            // Danger: avoid pits
+            let pit_data: Vec<(Vec2, f32)> = current_level.pits()
+                .iter()
+                .map(|p| (p.position, p.edge_radius))
+                .collect();
+            pit_danger(&mut context, creature_pos, &pit_data, config.obstacle_look_ahead);
 
             // Danger: separation from other creatures
             let others: Vec<Vec2> = creature_positions.iter()
@@ -673,11 +686,14 @@ fn apply_attack_to_player(
     hitstop.trigger(config.hitstop_duration);
     screen_shake.trigger(config.screen_shake_intensity, config.screen_shake_duration);
 
-    commands.entity(player_entity).insert(HitHighlight {
-        timer: 0.0,
-        duration: config.hit_highlight_duration,
-        original_material: None,
-    });
+    commands.entity(player_entity).insert((
+        HitHighlight {
+            timer: 0.0,
+            duration: config.hit_highlight_duration,
+            original_material: None,
+        },
+        HurtAnimation::default(),
+    ));
 }
 
 /// Process creature attacks against player
@@ -689,7 +705,7 @@ pub fn process_creature_attacks(
     mut hitstop: ResMut<Hitstop>,
     mut screen_shake: ResMut<ScreenShake>,
     mut player_query: Query<(Entity, &Transform, &mut Health, Option<&HitCollider>, &StateMachine<PlayerState>), (With<Player>, Without<Creature>, Without<Dead>, Without<DeathAnimation>)>,
-    hostile_query: Query<(Entity, &Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&Goblin>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
+    hostile_query: Query<(Entity, &Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, Option<&CardinalAttacks>, Option<&AttackOffset>), (With<Hostile>, Without<Dead>, Without<Stunned>)>,
     mut fist_query: Query<(&Weapon, &mut WeaponSwing, &ChildOf), With<Fist>>,
     knockback_query: Query<&Knockback>,
     blocking_query: Query<&Blocking>,
@@ -718,7 +734,7 @@ pub fn process_creature_attacks(
         }
 
         // Get attacker (parent creature) and check state
-        let Ok((attacker_entity, attacker_transform, state_machine, is_goblin)) = hostile_query.get(child_of.parent()) else {
+        let Ok((attacker_entity, attacker_transform, state_machine, cardinal_attacks, attack_offset)) = hostile_query.get(child_of.parent()) else {
             continue;
         };
 
@@ -732,9 +748,9 @@ pub fn process_creature_attacks(
         // Mark hit as applied
         swing.hit_applied = true;
 
-        // Hit detection: goblin uses half-circle with stored angle, others use cone toward player
-        let (attack_dir, cone_angle) = if is_goblin.is_some() {
-            // Goblin: use stored base_angle (snapped to cardinal) and half-circle
+        // Hit detection: cardinal attackers use half-circle with stored angle, others use cone toward player
+        let (attack_dir, cone_angle) = if cardinal_attacks.is_some() {
+            // Cardinal attacks: use stored base_angle (snapped to cardinal) and half-circle
             let angle = swing.base_angle.unwrap_or_else(|| {
                 let dir = player_pos - attacker_pos;
                 dir.y.atan2(dir.x)
@@ -746,12 +762,9 @@ pub fn process_creature_attacks(
             (dir, weapon.cone_angle())
         };
 
-        // Attack origin: centered on body for goblins (like player)
-        let attack_origin = if is_goblin.is_some() {
-            attacker_pos + Vec2::new(0.0, config.attack_center_offset_y)
-        } else {
-            attacker_pos
-        };
+        // Attack origin: offset from feet for creatures with AttackOffset component
+        let offset_y = attack_offset.map(|o| o.0).unwrap_or(0.0);
+        let attack_origin = attacker_pos + Vec2::new(0.0, offset_y);
 
         let hit_cone = HitCone::new(attack_origin, attack_dir, weapon.range(), cone_angle);
 
@@ -847,9 +860,8 @@ pub fn sync_range_indicator(
 /// Hidden normally, visible during WindUp (orange), highlighted during Strike (bright red)
 pub fn update_goblin_attack_indicator(
     mut commands: Commands,
-    config: Res<GameConfig>,
     assets: Res<CharacterAssets>,
-    creature_query: Query<(&Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, &Children), (With<Goblin>, Without<Dead>, Without<GoblinAttackIndicator>)>,
+    creature_query: Query<(&Transform, &crate::state_machine::StateMachine<crate::creatures::CreatureState>, &Children, Option<&AttackOffset>), (With<Goblin>, Without<Dead>, Without<GoblinAttackIndicator>)>,
     player_query: Query<&Transform, (With<Player>, Without<Goblin>, Without<GoblinAttackIndicator>)>,
     mut indicator_query: Query<(Entity, &GoblinAttackIndicator, &mut Transform, &mut Visibility, &mut MeshMaterial2d<ColorMaterial>), (Without<Goblin>, Without<Player>)>,
     fist_query: Query<&WeaponSwing, With<Fist>>,
@@ -863,14 +875,15 @@ pub fn update_goblin_attack_indicator(
     let sector_offset = -std::f32::consts::FRAC_PI_2;
 
     for (indicator_entity, link, mut transform, mut visibility, mut material) in &mut indicator_query {
-        let Ok((creature_transform, state_machine, children)) = creature_query.get(link.0) else {
+        let Ok((creature_transform, state_machine, children, attack_offset)) = creature_query.get(link.0) else {
             commands.entity(indicator_entity).despawn();
             continue;
         };
         let creature_pos = creature_transform.translation.truncate();
+        let offset_y = attack_offset.map(|o| o.0).unwrap_or(0.0);
 
         transform.translation.x = creature_pos.x;
-        transform.translation.y = creature_pos.y + config.attack_center_offset_y;
+        transform.translation.y = creature_pos.y + offset_y;
 
         let is_attacking = matches!(state_machine.current(), CreatureState::Attack(_));
         let locked_angle = if is_attacking {
@@ -909,9 +922,8 @@ pub fn update_goblin_attack_indicator(
 
 pub fn sync_creature_range_indicators(
     mut commands: Commands,
-    config: Res<GameConfig>,
     player_query: Query<&Transform, (With<Player>, Without<Creature>, Without<CreatureRangeIndicator>)>,
-    creature_query: Query<(&Transform, Option<&Goblin>, &Children, &StateMachine<crate::creatures::CreatureState>), (With<Creature>, With<Hostile>, Without<Dead>, Without<CreatureRangeIndicator>)>,
+    creature_query: Query<(&Transform, Option<&AttackOffset>, &Children, &StateMachine<crate::creatures::CreatureState>), (With<Creature>, With<Hostile>, Without<Dead>, Without<CreatureRangeIndicator>)>,
     mut indicator_query: Query<(Entity, &CreatureRangeIndicator, &mut Transform)>,
     fist_query: Query<&WeaponSwing, With<Fist>>,
 ) {
@@ -921,19 +933,15 @@ pub fn sync_creature_range_indicators(
     let player_pos = player_transform.translation.truncate();
 
     for (indicator_entity, link, mut indicator_transform) in &mut indicator_query {
-        let Ok((creature_transform, is_goblin, children, state_machine)) = creature_query.get(link.0) else {
+        let Ok((creature_transform, attack_offset, children, state_machine)) = creature_query.get(link.0) else {
             commands.entity(indicator_entity).despawn();
             continue;
         };
         let creature_pos = creature_transform.translation.truncate();
 
-        if is_goblin.is_some() {
-            indicator_transform.translation.x = creature_pos.x;
-            indicator_transform.translation.y = creature_pos.y + config.attack_center_offset_y;
-        } else {
-            indicator_transform.translation.x = creature_pos.x;
-            indicator_transform.translation.y = creature_pos.y;
-        }
+        let offset_y = attack_offset.map(|o| o.0).unwrap_or(0.0);
+        indicator_transform.translation.x = creature_pos.x;
+        indicator_transform.translation.y = creature_pos.y + offset_y;
 
         let is_attacking = matches!(state_machine.current(), CreatureState::Attack(_));
         let locked_angle = if is_attacking {

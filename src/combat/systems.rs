@@ -9,7 +9,7 @@ use crate::state_machine::StateMachine;
 use crate::props::{BarrelSprite, CrateSprite, Crate2Sprite, Destructible, Prop, PropRegistry, PropType};
 use super::{CreatureRangeIndicator, GoblinAttackIndicator, PlayerRangeIndicator, WeaponRangeIndicator};
 use crate::inventory::weapons::{weapon_catalog, AttackType, Drawn, Fist, PlayerWeapon, Weapon, WeaponSwing, WeaponVisualMesh};
-use crate::effects::{BloodParticle, HitHighlight, Hitstop, ScreenShake, TargetOutline};
+use crate::effects::{BloodParticle, HitHighlight, Hitstop, ScreenShake, TargetOutline, spawn_damage_number};
 use crate::core::CharacterAssets;
 use crate::creatures::spawn_creature_range_indicator;
 use super::hit_detection::{HitCone, angle_to_direction, snap_to_cardinal};
@@ -169,7 +169,9 @@ pub fn apply_mesh_attack_hits(
         };
         if hits {
             hit_any = true;
-            health.0 -= weapon.roll_damage();
+            let damage = weapon.roll_damage();
+            health.0 -= damage;
+            spawn_damage_number(&mut commands, creature_pos, damage);
 
             // Knockback direction: from attack origin toward creature
             let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
@@ -305,7 +307,9 @@ pub fn apply_smash_attack_hits(
         };
         if hits {
             hit_any = true;
-            health.0 -= weapon.roll_damage();
+            let damage = weapon.roll_damage();
+            health.0 -= damage;
+            spawn_damage_number(&mut commands, creature_pos, damage);
 
             let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
             weapon.apply_on_hit(&mut commands, entity, knockback_dir);
@@ -858,6 +862,7 @@ fn apply_attack_to_player(
     // Apply damage
     let final_damage = ((weapon.roll_damage() as f32) * damage_mult).floor() as i32;
     player_health.0 -= final_damage.max(0);
+    spawn_damage_number(commands, player_pos, final_damage.max(0));
 
     // Knockback player
     let knockback_dir = (player_pos - attacker_pos).normalize();

@@ -17,6 +17,7 @@ impl Plugin for EffectsPlugin {
             (
                 animate_blood,
                 animate_dust,
+                animate_damage_numbers,
                 animate_resource_balls,
                 animate_magnetized_balls,
                 animate_hit_highlight,

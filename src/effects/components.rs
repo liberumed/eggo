@@ -31,3 +31,10 @@ pub struct HitHighlight {
     pub duration: f32,
     pub original_material: Option<Handle<ColorMaterial>>,
 }
+
+/// Floating damage number that rises and fades
+#[derive(Component)]
+pub struct DamageNumber {
+    pub velocity: Vec2,
+    pub lifetime: f32,
+}

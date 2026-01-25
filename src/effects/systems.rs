@@ -1,5 +1,7 @@
 use bevy::prelude::*;
+use rand::Rng;
 
+use crate::constants::Z_UI_WORLD;
 use crate::core::DespawnTimer;
 use crate::player::{Player, PlayerAnimation, Sprinting};
 use super::components::*;
@@ -231,5 +233,54 @@ pub fn spawn_sprint_dust(
                 crate::constants::Z_PARTICLE,
             ),
         ));
+    }
+}
+
+/// Spawn a floating damage number at a position
+pub fn spawn_damage_number(
+    commands: &mut Commands,
+    position: Vec2,
+    damage: i32,
+) {
+    let mut rng = rand::rng();
+    let x_offset = rng.random_range(-8.0..8.0);
+    let velocity = Vec2::new(x_offset * 0.5, 40.0);
+
+    commands.spawn((
+        DamageNumber {
+            velocity,
+            lifetime: 0.6,
+        },
+        Text2d::new(damage.to_string()),
+        TextFont { font_size: 32.0, ..default() },
+        TextColor(Color::srgb(1.0, 0.4, 0.4)),
+        Transform::from_xyz(position.x + x_offset, position.y + 10.0, Z_UI_WORLD)
+            .with_scale(Vec3::splat(0.25)),
+    ));
+}
+
+/// Animate damage numbers (float up and fade out)
+pub fn animate_damage_numbers(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut DamageNumber, &mut Transform, &mut TextColor)>,
+) {
+    for (entity, mut number, mut transform, mut color) in &mut query {
+        number.lifetime -= time.delta_secs();
+
+        if number.lifetime <= 0.0 {
+            commands.entity(entity).despawn();
+            continue;
+        }
+
+        // Float upward with deceleration
+        transform.translation.x += number.velocity.x * time.delta_secs();
+        transform.translation.y += number.velocity.y * time.delta_secs();
+        number.velocity.y *= 0.95;
+
+        // Fade out in last 0.3s
+        if number.lifetime < 0.3 {
+            color.0 = color.0.with_alpha(number.lifetime / 0.3);
+        }
     }
 }

@@ -190,7 +190,11 @@ pub fn update_weapon_info(
         **text = weapon.name.clone();
     }
     if let Ok(mut text) = damage_query.single_mut() {
-        **text = weapon.damage.to_string();
+        **text = if weapon.damage.0 == weapon.damage.1 {
+            weapon.damage.0.to_string()
+        } else {
+            format!("{}-{}", weapon.damage.0, weapon.damage.1)
+        };
     }
     if let Ok(mut text) = speed_query.single_mut() {
         **text = weapon.speed.to_string();

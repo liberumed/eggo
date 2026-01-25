@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use bevy::prelude::*;
+use rand::Rng;
 
 use crate::core::{GameConfig, Knockback, Stunned};
 use super::super::Rarity;
@@ -56,7 +57,7 @@ pub struct WeaponVisual {
 pub struct Weapon {
     pub name: String,
     pub visual: WeaponVisual,
-    pub damage: i32,
+    pub damage: (i32, i32),
     /// Attack speed tier: 1=slow, 5=fast
     pub speed: i32,
     /// Weapon range in pixels
@@ -75,6 +76,14 @@ pub struct Weapon {
 }
 
 impl Weapon {
+    pub fn roll_damage(&self) -> i32 {
+        if self.damage.0 == self.damage.1 {
+            self.damage.0
+        } else {
+            rand::rng().random_range(self.damage.0..=self.damage.1)
+        }
+    }
+
     pub fn attack_speed(&self) -> f32 {
         1.0 + self.speed as f32 * 0.5
     }
@@ -131,7 +140,7 @@ pub mod weapon_catalog {
                 material: materials.add(Color::srgb(0.55, 0.4, 0.25)),
                 offset: 12.0,
             },
-            damage: 1,
+            damage: (1, 1),
             speed: 1,
             reach: config.stick_range,
             arc: 2,
@@ -163,7 +172,7 @@ pub mod weapon_catalog {
                 material: materials.add(Color::srgb(0.75, 0.75, 0.8)),
                 offset: 14.0,
             },
-            damage: 2,
+            damage: (2, 2),
             speed: 4,
             reach: config.knife_range,
             arc: 1,
@@ -192,7 +201,7 @@ pub mod weapon_catalog {
                 material: materials.add(Color::NONE),
                 offset: 0.0,
             },
-            damage: 2,
+            damage: (2, 3),
             speed: 5,
             reach: config.sword_range,
             arc: 2,
@@ -221,7 +230,7 @@ pub mod weapon_catalog {
                 material: materials.add(Color::srgb(0.8, 0.65, 0.5)),
                 offset: 11.0,
             },
-            damage: 1,
+            damage: (1, 1),
             speed: 2,
             reach: config.fist_range,
             arc: 1,
@@ -250,7 +259,7 @@ pub mod weapon_catalog {
                 material: materials.add(Color::srgb(0.5, 0.35, 0.2)),
                 offset: 14.0,
             },
-            damage: 2,
+            damage: (1, 2),
             speed: config.club_speed,
             reach: config.club_range,
             arc: 2,

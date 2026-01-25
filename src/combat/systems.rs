@@ -169,7 +169,7 @@ pub fn apply_mesh_attack_hits(
         };
         if hits {
             hit_any = true;
-            health.0 -= weapon.damage;
+            health.0 -= weapon.roll_damage();
 
             // Knockback direction: from attack origin toward creature
             let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
@@ -305,7 +305,7 @@ pub fn apply_smash_attack_hits(
         };
         if hits {
             hit_any = true;
-            health.0 -= weapon.damage;
+            health.0 -= weapon.roll_damage();
 
             let knockback_dir = (creature_pos - hit_cone.origin).normalize_or_zero();
             weapon.apply_on_hit(&mut commands, entity, knockback_dir);
@@ -371,7 +371,7 @@ pub fn apply_smash_attack_hits(
 
         if hit_cone.hits(prop_pos, hit_radius) {
             hit_any = true;
-            destructible.health -= weapon.damage;
+            destructible.health -= weapon.roll_damage();
 
             if destructible.health <= 0 {
                 commands.entity(entity).despawn();
@@ -856,7 +856,7 @@ fn apply_attack_to_player(
     config: &GameConfig,
 ) {
     // Apply damage
-    let final_damage = ((weapon.damage as f32) * damage_mult).floor() as i32;
+    let final_damage = ((weapon.roll_damage() as f32) * damage_mult).floor() as i32;
     player_health.0 -= final_damage.max(0);
 
     // Knockback player

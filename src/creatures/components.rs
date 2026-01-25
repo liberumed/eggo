@@ -77,3 +77,6 @@ pub struct PatrolWander {
     pub action: PatrolAction,
     pub action_timer: f32,
 }
+
+#[derive(Component)]
+pub struct Rushing;

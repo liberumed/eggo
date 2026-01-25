@@ -7,7 +7,7 @@ use crate::player::{HurtAnimation, Player, SpriteAnimation};
 use crate::player::Stats;
 use crate::core::CharacterAssets;
 use crate::state_machine::{AttackPhase, StateMachine};
-use super::{Activated, AlertIndicator, Creature, CreatureAnimation, CreatureState, Goblin, PatrolAction, PatrolWander, SpriteRendering};
+use super::{Activated, AlertIndicator, Creature, CreatureAnimation, CreatureState, Goblin, PatrolAction, PatrolOrigin, PatrolWander, Rushing, SpriteRendering};
 
 pub fn animate_creatures(
     time: Res<Time>,
@@ -239,19 +239,31 @@ fn get_goblin_facing(dir: Vec2) -> GoblinFacing {
 /// Updates goblin sprite animations based on state and movement
 pub fn update_goblin_sprite_animation(
     player_query: Query<&Transform, (With<Player>, Without<Goblin>)>,
-    mut goblin_query: Query<(&Transform, &mut SpriteAnimation, &StateMachine<CreatureState>, Option<&HurtAnimation>, Option<&DeathAnimation>, Option<&Activated>, Option<&PatrolWander>), (With<Goblin>, Without<Dead>)>,
+    mut goblin_query: Query<(&Transform, &mut SpriteAnimation, &StateMachine<CreatureState>, Option<&HurtAnimation>, Option<&DeathAnimation>, Option<&Activated>, Option<&PatrolWander>, Option<&Rushing>, Option<&PatrolOrigin>), (With<Goblin>, Without<Dead>)>,
 ) {
     let Ok(player_transform) = player_query.single() else { return };
     let player_pos = player_transform.translation.truncate();
 
-    for (transform, mut sprite_anim, state_machine, hurt, death, activated, patrol_wander) in &mut goblin_query {
+    for (transform, mut sprite_anim, state_machine, hurt, death, activated, patrol_wander, rushing, patrol_origin) in &mut goblin_query {
         let goblin_pos = transform.translation.truncate();
         let dir_to_player = player_pos - goblin_pos;
 
+        let is_rushing = rushing.is_some();
+
         let facing = match state_machine.current() {
             CreatureState::Patrol => {
-                let wander_dir = patrol_wander.map(|w| w.direction).unwrap_or(Vec2::NEG_Y);
-                get_goblin_facing(wander_dir)
+                if is_rushing {
+                    let target = patrol_origin.map(|o| o.position).unwrap_or(goblin_pos);
+                    let dir_to_target = (target - goblin_pos).normalize_or_zero();
+                    if dir_to_target == Vec2::ZERO {
+                        get_goblin_facing(Vec2::NEG_Y)
+                    } else {
+                        get_goblin_facing(dir_to_target)
+                    }
+                } else {
+                    let wander_dir = patrol_wander.map(|w| w.direction).unwrap_or(Vec2::NEG_Y);
+                    get_goblin_facing(wander_dir)
+                }
             }
             _ => get_goblin_facing(dir_to_player),
         };
@@ -308,7 +320,7 @@ pub fn update_goblin_sprite_animation(
                 sprite_anim.flip_x = false;
             }
             CreatureState::Patrol => {
-                let is_moving = patrol_wander
+                let is_moving = is_rushing || patrol_wander
                     .map(|w| w.action == PatrolAction::Moving)
                     .unwrap_or(false);
                 if is_moving {

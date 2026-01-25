@@ -16,7 +16,7 @@ use bevy::{image::ImageSamplerDescriptor, prelude::*};
 use constants::*;
 
 use core::{CharacterAssets, CorePlugin, GameConfig, GameState, InputBindings};
-use levels::{CreatureType, CurrentLevel, LevelBackground, LevelsPlugin, PropType, VoidBackground, WinZone, WinZoneTimer};
+use levels::{CreatureType, CurrentLevel, LevelBackground, LevelsPlugin, PropType, VoidBackground, WaveSpawnState, WinZone, WinZoneTimer};
 use world::{NewGameRequested, WorldConfig};
 use creatures::{Creature, CreaturePlugin};
 use debug::{
@@ -59,6 +59,7 @@ fn main() {
         .init_resource::<ScreenShake>()
         .init_resource::<DebugConfig>()
         .init_resource::<WinZoneTimer>()
+        .init_resource::<WaveSpawnState>()
         .init_state::<GameState>()
         .insert_resource(ClearColor(Color::srgb(0.2, 0.2, 0.25)))
         .add_systems(Startup, (setup, setup_ui, spawn_key_bindings_panel))
@@ -83,7 +84,10 @@ fn main() {
         .add_systems(OnExit(GameState::Dead), (hide_pause_menu, cleanup_world).chain())
         .add_systems(OnEnter(GameState::Victory), show_victory_menu)
         .add_systems(OnExit(GameState::Victory), (hide_pause_menu, cleanup_world).chain())
-        .add_systems(Update, levels::systems::check_win_zone.run_if(in_state(GameState::Playing)))
+        .add_systems(Update, (
+            levels::systems::check_win_zone,
+            levels::systems::spawn_wave_goblins,
+        ).run_if(in_state(GameState::Playing)))
         .add_plugins((
             state_machine::StateMachinePlugin,
             CorePlugin,
@@ -198,7 +202,7 @@ fn spawn_world(
     for spawn in &level.creatures {
         match spawn.creature {
             CreatureType::Goblin => {
-                creatures::spawn_goblin(&mut commands, &config, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, spawn.position);
+                creatures::spawn_goblin(&mut commands, &config, &character_assets, &player_sprite_sheet, &mut meshes, &mut materials, spawn.position, None);
             }
         }
     }
@@ -219,6 +223,7 @@ fn cleanup_world(
     mut stats: ResMut<Stats>,
     mut current_level: ResMut<CurrentLevel>,
     mut win_zone_timer: ResMut<WinZoneTimer>,
+    mut wave_spawn_state: ResMut<WaveSpawnState>,
 ) {
     for entity in &query {
         commands.entity(entity).despawn();
@@ -228,4 +233,5 @@ fn cleanup_world(
     stats.wisdom = 0;
     current_level.data = None;
     win_zone_timer.0 = 0.0;
+    *wave_spawn_state = WaveSpawnState::default();
 }

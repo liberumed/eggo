@@ -4,7 +4,7 @@ pub mod systems;
 
 pub use data::{CreatureType, CurrentLevel, LevelData, PitData, PropType};
 pub use spawner::{spawn_level_background, spawn_pit, spawn_win_zone, LevelBackground, Pit, VoidBackground, WinZone, WinZoneTimer, WinZoneTimerText};
-pub use systems::{BoundToLevel, FallingIntoPit};
+pub use systems::{BoundToLevel, FallingIntoPit, WaveSpawnState};
 
 use bevy::prelude::*;
 

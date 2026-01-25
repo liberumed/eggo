@@ -480,9 +480,10 @@ pub fn patrol_ai(
         &crate::creatures::PatrolOrigin,
         &mut crate::creatures::PatrolWander,
         Option<&mut ContextMapCache>,
+        Option<&crate::creatures::Rushing>,
     ), (Without<Dead>, Without<DeathAnimation>, Without<Player>, Without<Stunned>, Without<StaticCollider>)>,
 ) {
-    use crate::creatures::{ContextMap, ContextMapCache, CreatureState, obstacle_danger, pit_danger, patrol_interest, patrol_boundary_danger};
+    use crate::creatures::{ContextMap, ContextMapCache, CreatureState, obstacle_danger, pit_danger, patrol_interest, patrol_boundary_danger, seek_interest};
     use rand::Rng;
 
     let Ok(player_transform) = player_query.single() else { return };
@@ -498,7 +499,7 @@ pub fn patrol_ai(
         .map(|p| (p.position, p.edge_radius))
         .collect();
 
-    for (entity, mut transform, hostile, steering, state_machine, patrol_origin, mut patrol_wander, context_cache) in &mut creature_query {
+    for (entity, mut transform, hostile, steering, state_machine, patrol_origin, mut patrol_wander, context_cache, rushing) in &mut creature_query {
         if *state_machine.current() != CreatureState::Patrol {
             continue;
         }
@@ -515,42 +516,58 @@ pub fn patrol_ai(
             continue;
         }
 
-        use crate::creatures::PatrolAction;
+        let mut is_rushing = rushing.is_some();
 
-        patrol_wander.action_timer -= time.delta_secs();
-        if patrol_wander.action_timer <= 0.0 {
-            let mut rng = rand::rng();
-            if rng.random_bool(0.6) {
-                let angle = rng.random_range(0.0..std::f32::consts::TAU);
-                patrol_wander.direction = Vec2::new(angle.cos(), angle.sin());
-                patrol_wander.action = PatrolAction::Moving;
-                patrol_wander.action_timer = rng.random_range(1.5..3.5);
-            } else {
-                patrol_wander.action = PatrolAction::Idle;
-                patrol_wander.action_timer = rng.random_range(1.0..2.5);
+        if is_rushing {
+            let distance_to_origin = creature_pos.distance(patrol_origin.position);
+            if distance_to_origin < config.patrol_radius {
+                commands.entity(entity).remove::<crate::creatures::Rushing>();
+                is_rushing = false;
             }
         }
 
-        if patrol_wander.action == PatrolAction::Idle {
-            continue;
+        use crate::creatures::PatrolAction;
+
+        if !is_rushing {
+            patrol_wander.action_timer -= time.delta_secs();
+            if patrol_wander.action_timer <= 0.0 {
+                let mut rng = rand::rng();
+                if rng.random_bool(0.6) {
+                    let angle = rng.random_range(0.0..std::f32::consts::TAU);
+                    patrol_wander.direction = Vec2::new(angle.cos(), angle.sin());
+                    patrol_wander.action = PatrolAction::Moving;
+                    patrol_wander.action_timer = rng.random_range(1.5..3.5);
+                } else {
+                    patrol_wander.action = PatrolAction::Idle;
+                    patrol_wander.action_timer = rng.random_range(1.0..2.5);
+                }
+            }
+
+            if patrol_wander.action == PatrolAction::Idle {
+                continue;
+            }
         }
 
         let mut context = ContextMap::new();
 
-        patrol_interest(
-            &mut context,
-            creature_pos,
-            patrol_origin.position,
-            patrol_wander.direction,
-            config.patrol_radius,
-        );
+        if is_rushing {
+            seek_interest(&mut context, creature_pos, patrol_origin.position);
+        } else {
+            patrol_interest(
+                &mut context,
+                creature_pos,
+                patrol_origin.position,
+                patrol_wander.direction,
+                config.patrol_radius,
+            );
 
-        patrol_boundary_danger(
-            &mut context,
-            creature_pos,
-            patrol_origin.position,
-            config.patrol_radius,
-        );
+            patrol_boundary_danger(
+                &mut context,
+                creature_pos,
+                patrol_origin.position,
+                config.patrol_radius,
+            );
+        }
 
         obstacle_danger(&mut context, creature_pos, &collider_data, config.obstacle_look_ahead);
         pit_danger(&mut context, creature_pos, &pit_data, config.obstacle_look_ahead);
@@ -558,7 +575,7 @@ pub fn patrol_ai(
         let (direction, strength) = context.resolve();
 
         if strength > 0.0 {
-            let patrol_speed = hostile.speed * 0.4;
+            let patrol_speed = if is_rushing { hostile.speed * 0.7 } else { hostile.speed * 0.4 };
             let movement = direction * patrol_speed * strength * time.delta_secs();
             let mut new_pos = creature_pos + movement;
 

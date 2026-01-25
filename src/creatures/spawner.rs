@@ -10,7 +10,7 @@ use crate::player::{PlayerSpriteSheet, SpriteAnimation};
 use crate::state_machine::StateMachine;
 use crate::ui::{HeartSprite, HpText};
 use crate::levels::BoundToLevel;
-use super::{AttackOffset, CardinalAttacks, Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Goblin, Hostile, PatrolOrigin, PatrolWander, ProvokedSteering, SpriteRendering, creature_catalog};
+use super::{AttackOffset, CardinalAttacks, Creature, CreatureAnimation, CreatureDefinition, CreatureSteering, CreatureState, Glowing, Goblin, Hostile, PatrolOrigin, PatrolWander, ProvokedSteering, Rushing, SpriteRendering, creature_catalog};
 
 /// Spawn a creature's range indicator as an independent entity
 /// This ensures consistent behavior - indicator follows creature but isn't affected by animations
@@ -308,6 +308,7 @@ pub fn spawn_goblin(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
     position: Vec2,
+    patrol_target: Option<Vec2>,
 ) {
     let mut definition = creature_catalog::goblin();
     definition.steering.sight_range = config.goblin_sight_range;
@@ -329,13 +330,18 @@ pub fn spawn_goblin(
         wisdom: rand::rng().random_bool(definition.loot.wisdom_chance),
     };
 
+    let (patrol_origin, is_rushing) = match patrol_target {
+        Some(target) => (target, true),
+        None => (position, false),
+    };
+
     let goblin_entity = commands.spawn((
         // Core identity
         Goblin,
         Creature,
         BoundToLevel,
         Hostile { speed: definition.speed },
-        PatrolOrigin { position },
+        PatrolOrigin { position: patrol_origin },
         PatrolWander::default(),
         StateMachine::<CreatureState>::new(CreatureState::Patrol),
         // Physics/rendering
@@ -421,6 +427,10 @@ pub fn spawn_goblin(
             ));
         });
     }).id();
+
+    if is_rushing {
+        commands.entity(goblin_entity).insert(Rushing);
+    }
 
     // Spawn thin arc indicator (always visible)
     spawn_creature_range_indicator(

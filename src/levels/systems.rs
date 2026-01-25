@@ -1,11 +1,22 @@
 use bevy::prelude::*;
 
-use crate::core::{Dead, DeathAnimation, GameState, Knockback, WalkCollider};
+use crate::core::{CharacterAssets, Dead, DeathAnimation, GameConfig, GameState, Knockback, WalkCollider};
 use crate::creatures::Hostile;
-use crate::player::Player;
+use crate::player::{Player, PlayerSpriteSheet};
 use super::{CurrentLevel, Pit, WinZone, WinZoneTimer, WinZoneTimerText};
 
-const WIN_ZONE_TIME: f32 = 3.0;
+const WIN_ZONE_TIME: f32 = 5.0;
+const WAVE_TRIGGER_TIME: f32 = 2.0;
+const WAVE_SPAWN_INTERVAL: f32 = 3.0;
+const WAVE_GOBLINS_PER_SIDE: u32 = 4;
+
+#[derive(Resource, Default)]
+pub struct WaveSpawnState {
+    pub triggered: bool,
+    pub spawn_timer: f32,
+    pub spawned_left: u32,
+    pub spawned_right: u32,
+}
 const PIT_EDGE_RESISTANCE: f32 = 80.0;
 const PIT_FALL_DURATION: f32 = 0.5;
 
@@ -44,6 +55,7 @@ pub fn enforce_level_bounds(
 pub fn check_win_zone(
     time: Res<Time>,
     mut timer: ResMut<WinZoneTimer>,
+    mut wave_state: ResMut<WaveSpawnState>,
     mut next_state: ResMut<NextState<GameState>>,
     enemies_query: Query<(), (With<Hostile>, Without<Dead>)>,
     player_query: Query<&Transform, (With<Player>, Without<Dead>)>,
@@ -55,7 +67,7 @@ pub fn check_win_zone(
     // Update timer text visibility and content
     if let Ok(mut text) = timer_text_query.single_mut() {
         if enemies_alive {
-            **text = "".to_string(); // Don't show text while enemies alive
+            **text = "".to_string();
         } else if timer.0 > 0.0 {
             let remaining = (WIN_ZONE_TIME - timer.0).ceil() as i32;
             **text = format!("{}", remaining.max(1));
@@ -88,11 +100,81 @@ pub fn check_win_zone(
 
     if distance <= win_zone.radius {
         timer.0 += time.delta_secs();
+
+        // Trigger wave at WAVE_TRIGGER_TIME if not yet triggered
+        if timer.0 >= WAVE_TRIGGER_TIME && !wave_state.triggered {
+            wave_state.triggered = true;
+            wave_state.spawn_timer = WAVE_SPAWN_INTERVAL; // Spawn first pair immediately
+        }
+
         if timer.0 >= WIN_ZONE_TIME {
             next_state.set(GameState::Victory);
         }
     } else {
         timer.0 = 0.0;
+    }
+}
+
+pub fn spawn_wave_goblins(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut wave_state: ResMut<WaveSpawnState>,
+    config: Res<GameConfig>,
+    character_assets: Res<CharacterAssets>,
+    player_sprite_sheet: Res<PlayerSpriteSheet>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    if !wave_state.triggered {
+        return;
+    }
+
+    let total_spawned = wave_state.spawned_left + wave_state.spawned_right;
+    let max_spawns = WAVE_GOBLINS_PER_SIDE * 2;
+
+    if total_spawned >= max_spawns {
+        return;
+    }
+
+    wave_state.spawn_timer += time.delta_secs();
+
+    if wave_state.spawn_timer >= WAVE_SPAWN_INTERVAL {
+        wave_state.spawn_timer = 0.0;
+
+        let y_positions = [920.0, 940.0, 960.0, 980.0];
+        let pair_index = wave_state.spawned_left as usize;
+        let spawn_y = y_positions.get(pair_index).copied().unwrap_or(950.0);
+        let pentagram_pos = Vec2::new(0.0, 1050.0);
+
+        if wave_state.spawned_left < WAVE_GOBLINS_PER_SIDE {
+            let left_pos = Vec2::new(-250.0, spawn_y);
+            crate::creatures::spawn_goblin(
+                &mut commands,
+                &config,
+                &character_assets,
+                &player_sprite_sheet,
+                &mut meshes,
+                &mut materials,
+                left_pos,
+                Some(pentagram_pos),
+            );
+            wave_state.spawned_left += 1;
+        }
+
+        if wave_state.spawned_right < WAVE_GOBLINS_PER_SIDE {
+            let right_pos = Vec2::new(250.0, spawn_y);
+            crate::creatures::spawn_goblin(
+                &mut commands,
+                &config,
+                &character_assets,
+                &player_sprite_sheet,
+                &mut meshes,
+                &mut materials,
+                right_pos,
+                Some(pentagram_pos),
+            );
+            wave_state.spawned_right += 1;
+        }
     }
 }
 

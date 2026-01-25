@@ -6,7 +6,7 @@ use crate::core::{Dead, DeathAnimation, GameConfig, HitCollider, Stunned};
 use crate::player::Player;
 use crate::state_machine::{AttackPhase, RequestTransition, StateEntered, StateExited, StateMachine};
 use crate::constants::Z_UI_WORLD;
-use super::{AlertIndicator, AttackOffset, CardinalAttacks, Creature, CreatureState, Hostile, PlayerInRange};
+use super::{AlertIndicator, AttackOffset, CardinalAttacks, Creature, CreatureState, Hostile, PlayerInRange, Rushing};
 
 pub fn on_attack_windup_enter(
     mut commands: Commands,
@@ -186,7 +186,9 @@ pub fn on_alert_enter(
             Transform::from_xyz(transform.translation.x, transform.translation.y + 35.0, Z_UI_WORLD + 1.0),
         )).id();
 
-        commands.entity(event.entity).insert(AlertIndicator(indicator));
+        commands.entity(event.entity)
+            .insert(AlertIndicator(indicator))
+            .remove::<Rushing>();
     }
 }
 

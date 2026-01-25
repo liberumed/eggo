@@ -22,8 +22,8 @@ pub const Z_UI_WORLD: f32 = 5.0;
 pub const PIXEL_SCALE: f32 = 4.0;
 
 // Camera
-pub const CAMERA_BASE_SCALE: f32 = 1.0 / PIXEL_SCALE;  // Default zoom level
-pub const CAMERA_ZOOM_OUT_SCALE: f32 = 1.15 / PIXEL_SCALE;  // Zoomed out when moving
+pub const CAMERA_BASE_SCALE: f32 = 1.2 / PIXEL_SCALE;  // Default zoom level
+pub const CAMERA_ZOOM_OUT_SCALE: f32 = 1.35 / PIXEL_SCALE;  // Zoomed out when moving
 pub const CAMERA_ZOOM_SPEED: f32 = 3.0;  // How fast to lerp between zoom levels
 
 // Movement
